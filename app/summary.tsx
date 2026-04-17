@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity,
   FlatList, Alert,
@@ -7,11 +7,13 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system/legacy';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const PERSON_COLORS = ['#4F8EF7','#F7874F','#A855F7','#22C55E','#F43F5E','#14B8A6','#EAB308','#EC4899'];
+const getPersonColor = (index: number) => PERSON_COLORS[index % PERSON_COLORS.length];
 import Button from '../components/Button';
 import ReceiptPreviewSheet from '../components/ReceiptPreviewSheet';
-import ShareableReceiptCard from '../components/ShareableReceiptCard';
 import { useBillStore } from '../store/useBillStore';
 import { calcSplit } from '../utils/calcSplit';
 import { openVenmo } from '../utils/venmo';
@@ -25,7 +27,6 @@ export default function SummaryScreen() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [showOriginalReceipt, setShowOriginalReceipt] = useState(false);
   const [previewPerson, setPreviewPerson] = useState<{ breakdown: PersonBreakdown; colorIndex: number } | null>(null);
-  const personCardRef = useRef<View>(null);
 
   if (!receipt) return null;
 
@@ -42,27 +43,14 @@ export default function SummaryScreen() {
   };
 
   const handleStartOver = () => {
-    router.replace('/');
-  };
-
-  const shareImage = async (ref: React.RefObject<View>) => {
-    try {
-      const { captureRef } = require('react-native-view-shot');
-      // Capture to a tmpfile first to get a path expo-sharing is allowed to access
-      const tmpUri = await captureRef(ref, { format: 'png', quality: 1 });
-      const name = (receipt?.merchantName ?? 'Receipt').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/ /g, '_');
-      // Normalize to file:// URI
-      const tmpFile = tmpUri.startsWith('file://') ? tmpUri : `file://${tmpUri}`;
-      const dir = tmpFile.substring(0, tmpFile.lastIndexOf('/') + 1);
-      const namedUri = `${dir}${name}.png`;
-      await FileSystem.deleteAsync(namedUri, { idempotent: true });
-      await FileSystem.moveAsync({ from: tmpFile, to: namedUri });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(namedUri, { mimeType: 'image/png', UTI: 'public.png' });
-      }
-    } catch {
-      Alert.alert('Error', 'Could not generate image.');
-    }
+    Alert.alert(
+      'Start Over?',
+      'This will clear the current receipt and all assignments.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Start Over', style: 'destructive', onPress: () => router.replace('/') },
+      ]
+    );
   };
 
   const handlePersonShare = (b: PersonBreakdown, colorIndex: number) => {
@@ -107,6 +95,7 @@ return (
         renderItem={({ item: b, index }) => {
           const isExpanded = expanded.includes(b.person.id);
           const isHost = b.person.isHost;
+          const personColor = getPersonColor(index);
 
           return (
             <TouchableOpacity
@@ -116,6 +105,8 @@ return (
             >
               <BlurView style={StyleSheet.absoluteFill} tint="dark" intensity={30} />
               <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.03)' }]} />
+              {/* Left color accent */}
+              <View style={[styles.cardAccent, { backgroundColor: personColor }]} />
               {/* Card header */}
               <View style={styles.cardHeader}>
                 <View style={styles.cardLeft}>
@@ -132,7 +123,7 @@ return (
                   </Text>
                 </View>
                 <View style={styles.cardRight}>
-                  <Text style={[styles.totalOwed, isHost && styles.hostTotal]}>
+                  <Text style={[styles.totalOwed, { color: isHost ? '#888' : personColor }]}>
                     ${b.totalOwed.toFixed(2)}
                   </Text>
                   <Text style={styles.expandHint}>{isExpanded ? '▲' : '▼'}</Text>
@@ -254,16 +245,6 @@ return (
         onClose={() => setPreviewPerson(null)}
       />
 
-      {/* Off-screen card for image capture */}
-      {previewPerson && (
-        <View style={styles.offScreen}>
-          <ShareableReceiptCard
-            ref={personCardRef}
-            receipt={receipt}
-            person={previewPerson.breakdown}
-          />
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -294,13 +275,15 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 18,
-    padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0, shadowRadius: 2, elevation: 1,
+    padding: 16, paddingLeft: 20, marginBottom: 12,
     overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
-  hostCard: { borderWidth: 1, borderColor: 'rgba(220,220,220,0.40)' },
+  hostCard: { borderColor: 'rgba(220,220,220,0.35)' },
+  cardAccent: {
+    position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
+    borderTopLeftRadius: 18, borderBottomLeftRadius: 18,
+  },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardLeft: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -313,7 +296,6 @@ const styles = StyleSheet.create({
   itemCount: { fontSize: 13, color: '#777' },
   cardRight: { alignItems: 'flex-end', gap: 2 },
   totalOwed: { fontSize: 24, fontWeight: '800', color: '#D0D0D0' },
-  hostTotal: { color: '#999' },
   expandHint: { fontSize: 11, color: '#888' },
 
   breakdown: { marginTop: 12 },
@@ -369,14 +351,14 @@ const styles = StyleSheet.create({
   calculatedLabel: { fontSize: 14, color: '#888' },
   calculatedValue: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
   startOverBtn: {
-    height: 52, borderRadius: 16, overflow: 'hidden',
+    height: 36, borderRadius: 10, overflow: 'hidden',
+    alignSelf: 'center', paddingHorizontal: 20,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
   startOverGlass: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 10,
   },
-  startOverText: { fontSize: 15, fontWeight: '600', color: 'rgba(255,255,255,0.45)', zIndex: 1 },
-  offScreen: { position: 'absolute', top: -9999, left: -9999 },
+  startOverText: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.30)', zIndex: 1 },
 });

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform,
+  ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import { DEFAULT_TIP_KEY } from './settings';
 const TIP_PRESETS = [0.15, 0.18, 0.2, 0.25];
 
 function parseDollar(text: string): number {
-  const n = parseFloat(text.replace(/[^0-9.]/g, ''));
+  const n = parseFloat(text.replace(/[^0-9.-]/g, ''));
   return isNaN(n) ? 0 : n;
 }
 
@@ -23,7 +23,7 @@ export default function ReceiptReviewScreen() {
 
   // Apply default tip if receipt has no tip and it wasn't on the original receipt
   useEffect(() => {
-    if (!receipt || receipt.tip !== 0 || receipt.tipIsFromReceipt) return;
+    if (!receipt || !!receipt.tip || receipt.tipIsFromReceipt) return;
     AsyncStorage.getItem(DEFAULT_TIP_KEY).then((val) => {
       if (!val) return;
       const pct = parseFloat(val);
@@ -43,6 +43,7 @@ export default function ReceiptReviewScreen() {
   const itemQtyRefs = useRef<Record<string, string>>({});
   const [pendingRowError, setPendingRowError] = useState(false);
   const [tipError, setTipError] = useState(false);
+  const [tipWarningAcknowledged, setTipWarningAcknowledged] = useState(false);
   const addPendingRow = () =>
     setPendingRows((prev) => [...prev, { id: Date.now().toString(), name: '', price: '', qty: '1' }]);
 
@@ -60,7 +61,7 @@ export default function ReceiptReviewScreen() {
   const commitPendingRow = (row: PendingRow) => {
     if (!row.name.trim() || !row.price.trim()) return;
     const price = parseDollar(row.price);
-    if (price <= 0) return;
+    if (price === 0 && !row.price.trim()) return;
     const quantity = Math.max(1, parseInt(row.qty, 10) || 1);
     addItem({ name: row.name.trim(), price, quantity });
     syncTotals([...receipt!.items, { id: '', name: '', price, quantity, assignedTo: [] }]);
@@ -69,6 +70,8 @@ export default function ReceiptReviewScreen() {
 
   if (!receipt) return null;
 
+  const regularItems = receipt.items.filter((i) => i.price >= 0);
+  const discountItems = receipt.items.filter((i) => i.price < 0);
   const calculatedSubtotal = receipt.items.reduce((s, i) => s + i.price, 0);
   const calculatedTotal = calculatedSubtotal + receipt.tax + (receipt.fees ?? 0) + receipt.tip;
   const diff = Math.abs(calculatedTotal - receipt.total);
@@ -135,7 +138,7 @@ export default function ReceiptReviewScreen() {
 
           {/* ── ITEMS ── */}
           <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Items</Text>
-          {receipt.items.map((item) => (
+          {regularItems.map((item) => (
             <View key={item.id} style={styles.itemRow}>
               <TextInput
                 style={styles.itemQtyInput}
@@ -174,7 +177,7 @@ export default function ReceiptReviewScreen() {
                   handleItemPriceChange(item.id, itemPriceInputs[item.id] ?? '');
                   setItemPriceInputs((p) => { const n = { ...p }; delete n[item.id]; return n; });
                 }}
-                keyboardType="decimal-pad"
+                keyboardType="numbers-and-punctuation"
                 selectTextOnFocus
               />
               <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={styles.deleteBtn}>
@@ -228,6 +231,22 @@ export default function ReceiptReviewScreen() {
           <TouchableOpacity style={styles.addItemBtn} onPress={addPendingRow}>
             <Text style={styles.addItemBtnText}>+ Add item</Text>
           </TouchableOpacity>
+
+          {/* ── DISCOUNTS ── */}
+          {discountItems.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Discounts & Comps</Text>
+              {discountItems.map((item) => (
+                <View key={item.id} style={styles.discountRow}>
+                  <Text style={styles.discountName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.discountAmount}>−${Math.abs(item.price).toFixed(2)}</Text>
+                  <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={styles.deleteBtn}>
+                    <Text style={styles.deleteBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </>
+          )}
 
           {/* ── TOTALS ── */}
           <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Totals</Text>
@@ -322,8 +341,23 @@ export default function ReceiptReviewScreen() {
             const hasIncomplete = pendingRows.some((r) => !r.name.trim() || !r.price.trim());
             if (hasIncomplete) { setPendingRowError(true); return; }
             setPendingRowError(false);
-            if (receipt.tip === 0 && !receipt.tipIsFromReceipt) { setTipError(true); return; }
             setTipError(false);
+
+            if (receipt.tip === 0 && !tipWarningAcknowledged) {
+              Alert.alert(
+                'No Tip Added',
+                'The receipt shows $0.00 for tip. Make sure to add a tip below if needed before continuing.',
+                [
+                  { text: 'Add Tip', style: 'cancel' },
+                  {
+                    text: 'Continue Without Tip',
+                    onPress: () => { setTipWarningAcknowledged(true); router.push('/assign-items'); },
+                  },
+                ]
+              );
+              return;
+            }
+
             router.push('/assign-items');
           }}
           height={60}
@@ -380,6 +414,16 @@ const styles = StyleSheet.create({
   deleteBtnText: { fontSize: 14, color: '#888' },
   addItemBtn: { paddingVertical: 6, alignSelf: 'flex-start' },
   addItemBtnText: { fontSize: 15, color: '#D0D0D0', fontWeight: '700' },
+  discountRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  discountName: {
+    flex: 1, fontSize: 15, color: '#A0C4A0', fontStyle: 'italic',
+  },
+  discountAmount: {
+    fontSize: 15, fontWeight: '600', color: '#4ADE80',
+  },
 
   // Totals
   totalRow: {

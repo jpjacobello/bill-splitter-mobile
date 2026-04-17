@@ -6,16 +6,18 @@ import { ReceiptItem, Person } from '../types';
 type Props = {
   item: ReceiptItem | null;
   people: Person[];
+  allItems: ReceiptItem[];
   onClose: () => void;
   onSplitAmong: (itemId: string, personIds: string[]) => void;
   onSplitIntoUnits: (itemId: string) => void;
+  onConsolidateLikeItems: (itemId: string) => void;
   onToggleDrink: (itemId: string) => void;
   onSplitDrinksEvenly: () => void;
 };
 
 export default function ItemActionSheet({
-  item, people, onClose,
-  onSplitAmong, onSplitIntoUnits, onToggleDrink, onSplitDrinksEvenly,
+  item, people, allItems, onClose,
+  onSplitAmong, onSplitIntoUnits, onConsolidateLikeItems, onToggleDrink, onSplitDrinksEvenly,
 }: Props) {
   const slideAnim = useRef(new Animated.Value(300)).current;
 
@@ -33,6 +35,11 @@ export default function ItemActionSheet({
 
   const isDrink = item.tags?.includes('drink');
   const assignedIds = item.assignedTo;
+  const baseName = item.name.replace(/\s*\(\d+\)\s*$/, '').trim();
+  const likeItemCount = allItems.filter(
+    (i) => i.name.replace(/\s*\(\d+\)\s*$/, '').trim() === baseName
+  ).length;
+  const canConsolidate = likeItemCount > 1;
 
   const handleSplitAmong = (count: number) => {
     const targets = people.slice(0, count).map((p) => p.id);
@@ -102,16 +109,27 @@ export default function ItemActionSheet({
           </View>
 
           {/* Quantity split */}
-          {item.quantity > 1 && (
+          {(item.quantity > 1 || canConsolidate) && (
             <>
               <Text style={styles.sectionLabel}>Quantity</Text>
-              <TouchableOpacity style={styles.actionRow} onPress={handleSplitIntoUnits}>
-                <View>
-                  <Text style={styles.actionLabel}>Split into {item.quantity} individual items</Text>
-                  <Text style={styles.actionHint}>${(item.price / item.quantity).toFixed(2)} each</Text>
-                </View>
-                <Text style={styles.actionArrow}>→</Text>
-              </TouchableOpacity>
+              {item.quantity > 1 && (
+                <TouchableOpacity style={styles.actionRow} onPress={handleSplitIntoUnits}>
+                  <View>
+                    <Text style={styles.actionLabel}>Split into {item.quantity} individual items</Text>
+                    <Text style={styles.actionHint}>${(item.price / item.quantity).toFixed(2)} each</Text>
+                  </View>
+                  <Text style={styles.actionArrow}>→</Text>
+                </TouchableOpacity>
+              )}
+              {canConsolidate && (
+                <TouchableOpacity style={styles.actionRow} onPress={() => { onConsolidateLikeItems(item.id); onClose(); }}>
+                  <View>
+                    <Text style={styles.actionLabel}>Consolidate like items</Text>
+                    <Text style={styles.actionHint}>Merge all "{baseName}" into one line</Text>
+                  </View>
+                  <Text style={styles.actionArrow}>→</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
 

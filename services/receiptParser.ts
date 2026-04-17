@@ -1,10 +1,10 @@
 import { Receipt } from '../types';
-import { googleParser } from './googleParser';
+import { openaiParser } from './openaiParser';
 
 // Swap implementations here — never need to touch the rest of the app
 export type ReceiptParser = (imageUri: string) => Promise<Receipt>;
 
-export const activeParser: ReceiptParser = googleParser;
+export const activeParser: ReceiptParser = openaiParser;
 
 async function mockParser(imageUri: string): Promise<Receipt> {
   await new Promise((res) => setTimeout(res, 1200)); // simulate latency
@@ -21,6 +21,7 @@ async function mockParser(imageUri: string): Promise<Receipt> {
     ],
     subtotal: 65.5,
     tax: 5.9,
+    fees: 0,
     tip: 13.1,
     total: 84.5,
     tipIsFromReceipt: true,

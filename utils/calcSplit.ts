@@ -37,8 +37,9 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
   });
 
   // Step 2: compute raw tax shares (proportional) and round them
+  const n = breakdowns.length || 1;
   const rawTaxShares = breakdowns.map((b) =>
-    receipt.subtotal > 0 ? receipt.tax * (b.subtotal / receipt.subtotal) : 0
+    receipt.subtotal > 0 ? receipt.tax * (b.subtotal / receipt.subtotal) : receipt.tax / n
   );
   const roundedTaxShares = rawTaxShares.map(r2);
   const taxRemainder = r2(receipt.tax - roundedTaxShares.reduce((s, t) => s + t, 0));
@@ -52,7 +53,7 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
   // Step 3: compute raw fees shares (proportional like tax) and round them
   const totalFees = receipt.fees ?? 0;
   const rawFeesShares = breakdowns.map((b) =>
-    receipt.subtotal > 0 ? totalFees * (b.subtotal / receipt.subtotal) : 0
+    receipt.subtotal > 0 ? totalFees * (b.subtotal / receipt.subtotal) : totalFees / n
   );
   const roundedFeesShares = rawFeesShares.map(r2);
   const feesRemainder = r2(totalFees - roundedFeesShares.reduce((s, f) => s + f, 0));
@@ -65,7 +66,7 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
 
   // Step 4: compute raw tip shares (proportional to subtotal, like tax) and round them
   const rawTipShares = breakdowns.map((b) =>
-    receipt.subtotal > 0 ? receipt.tip * (b.subtotal / receipt.subtotal) : 0
+    receipt.subtotal > 0 ? receipt.tip * (b.subtotal / receipt.subtotal) : receipt.tip / n
   );
   const roundedTipShares = rawTipShares.map(r2);
   const tipRemainder = r2(receipt.tip - roundedTipShares.reduce((s, t) => s + t, 0));

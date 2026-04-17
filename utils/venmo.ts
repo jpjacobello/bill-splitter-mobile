@@ -1,23 +1,39 @@
 import { Linking, Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { PersonBreakdown } from '../types';
+import { getEmoji } from './buildReceiptHtml';
 
-const APP_TAG = 'via Divi';
 const MAX_NOTE_LENGTH = 280;
+const APP_TAG = 'Split with Divi';
+
+function toTitleCase(str: string): string {
+  // If the string is already mixed case, leave it alone
+  if (str !== str.toUpperCase()) return str;
+  return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function buildVenmoNote(b: PersonBreakdown, merchantName?: string): string {
-  const items = b.assignedItems.map((a) => `  ${a.item.name} $${a.share.toFixed(2)}`);
-  const joined = items.join('\n');
-  const note = merchantName
-    ? `${merchantName}\n${joined}\n${APP_TAG}`
-    : `${joined}\n${APP_TAG}`;
+  const firstName = b.person.name.split(' ')[0];
+  const footer = `Split with Divi`;
+  const merchant = merchantName ? toTitleCase(merchantName) : null;
+
+  const itemLines = b.assignedItems.map(
+    (a) => `- ${getEmoji(a.item.name)} ${a.item.name} ($${a.share.toFixed(2)})`
+  );
+
+  const parts = [
+    ...(merchant ? [merchant] : []),
+    ...itemLines,
+    '',
+    footer,
+  ];
+  const note = parts.join('\n');
 
   if (note.length <= MAX_NOTE_LENGTH) return note;
 
-  // Too long — fall back to merchant name only
-  return merchantName
-    ? `${merchantName} · ${APP_TAG}`
-    : APP_TAG;
+  // Too long — drop item detail, keep merchant + footer
+  const short = [...(merchant ? [merchant] : []), footer].join('\n');
+  return short;
 }
 
 export function buildVenmoUrl(b: PersonBreakdown, merchantName?: string): string {

@@ -28,8 +28,9 @@ type BillStore = {
 
   // Splitting
   assignItem: (itemId: string, personIds: string[]) => void;
-  splitItemEvenly: (itemId: string) => void; // assign to all people
-  splitIntoIndividualUnits: (itemId: string) => void; // quantity > 1 → separate items
+  splitItemEvenly: (itemId: string) => void;
+  splitIntoIndividualUnits: (itemId: string) => void;
+  consolidateLikeItems: (itemId: string) => void; // merge all items sharing the same base name
 
   // Tip
   updateTip: (tip: number) => void;
@@ -176,6 +177,37 @@ export const useBillStore = create<BillStore>((set, get) => ({
           ],
         },
       };
+    }),
+
+  consolidateLikeItems: (itemId) =>
+    set((state) => {
+      if (!state.receipt) return {};
+      const target = state.receipt.items.find((i) => i.id === itemId);
+      if (!target) return {};
+      const baseName = target.name.replace(/\s*\(\d+\)\s*$/, '').trim();
+      const likeItems = state.receipt.items.filter(
+        (i) => i.name.replace(/\s*\(\d+\)\s*$/, '').trim() === baseName
+      );
+      if (likeItems.length <= 1) return {};
+      const totalQty = likeItems.reduce((s, i) => s + i.quantity, 0);
+      const totalPrice = parseFloat(likeItems.reduce((s, i) => s + i.price, 0).toFixed(2));
+      const allAssigned = [...new Set(likeItems.flatMap((i) => i.assignedTo))];
+      const consolidated: ReceiptItem = {
+        id: likeItems[0].id,
+        name: baseName,
+        quantity: totalQty,
+        price: totalPrice,
+        unitPrice: parseFloat((totalPrice / totalQty).toFixed(4)),
+        assignedTo: allAssigned,
+        tags: target.tags,
+      };
+      const likeIds = new Set(likeItems.map((i) => i.id));
+      const newItems = state.receipt.items.reduce<ReceiptItem[]>((acc, item) => {
+        if (!likeIds.has(item.id)) return [...acc, item];
+        if (item.id === likeItems[0].id) return [...acc, consolidated];
+        return acc;
+      }, []);
+      return { receipt: { ...state.receipt, items: newItems } };
     }),
 
   updateTip: (tip) =>

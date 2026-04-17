@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  StyleSheet, View, Text, TouchableOpacity,
-  ScrollView, FlatList, TextInput, Keyboard,
+  StyleSheet, View, Text, TouchableOpacity, Animated,
+  ScrollView, FlatList, TextInput, Keyboard, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as Contacts from 'expo-contacts';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../components/Button';
 import ItemActionSheet from '../components/ItemActionSheet';
 import { useBillStore } from '../store/useBillStore';
@@ -15,24 +16,22 @@ import { getUnassignedTotal } from '../utils/calcSplit';
 import { getEmoji } from '../utils/buildReceiptHtml';
 import { ReceiptItem, Person } from '../types';
 
-// ─── Person color palette ─────────────────────────────────────────────────────
-
 const PERSON_COLORS = [
-  '#4F8EF7', // blue
-  '#F7874F', // orange
-  '#A855F7', // purple
-  '#22C55E', // green
-  '#F43F5E', // rose
-  '#14B8A6', // teal
-  '#EAB308', // yellow
-  '#EC4899', // pink
+  '#4F8EF7',
+  '#F7874F',
+  '#A855F7',
+  '#22C55E',
+  '#F43F5E',
+  '#14B8A6',
+  '#EAB308',
+  '#EC4899',
 ];
 
 function getPersonColor(index: number) {
   return PERSON_COLORS[index % PERSON_COLORS.length];
 }
 
-// ─── Item row ─────────────────────────────────────────────────────────────────
+// ─── Item row ────────────────────────────────────────────────────────────────
 
 type ItemRowProps = {
   item: ReceiptItem;
@@ -44,37 +43,51 @@ type ItemRowProps = {
 };
 
 function ItemRow({ item, people, onLongPress, onRowPress }: ItemRowProps) {
+  const scale = useRef(new Animated.Value(1)).current;
   const isUnassigned = item.assignedTo.length === 0;
   const assignedPeople = people.filter((p) => item.assignedTo.includes(p.id));
 
+  const handlePress = () => {
+    scale.setValue(0.96);
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 22,
+      bounciness: 10,
+    }).start();
+    onRowPress();
+  };
+
   return (
-    <TouchableOpacity
-      style={[
-        styles.itemChip,
-        isUnassigned ? styles.itemChipUnassigned : styles.itemChipAssigned,
-      ]}
-      onPress={onRowPress}
-      onLongPress={onLongPress}
-      delayLongPress={400}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.itemEmoji}>{getEmoji(item.name)}</Text>
-      <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-      {assignedPeople.length > 0 && (
-        <View style={styles.itemAvatarRow}>
-          {assignedPeople.map((p) => {
-            const index = people.indexOf(p);
-            const color = getPersonColor(index);
-            const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-            return (
-              <View key={p.id} style={[styles.itemAvatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
-                <Text style={[styles.itemAvatarText, { color }]}>{initials}</Text>
-              </View>
-            );
-          })}
-        </View>
-      )}
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        style={[
+          styles.itemChip,
+          isUnassigned ? styles.itemChipUnassigned : styles.itemChipAssigned,
+        ]}
+        onPress={handlePress}
+        onLongPress={onLongPress}
+        delayLongPress={400}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.itemEmoji}>{getEmoji(item.name)}</Text>
+        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+        {assignedPeople.length > 0 && (
+          <View style={styles.itemAvatarRow}>
+            {assignedPeople.map((p) => {
+              const index = people.indexOf(p);
+              const color = getPersonColor(index);
+              const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+              return (
+                <View key={p.id} style={[styles.itemAvatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
+                  <Text style={[styles.itemAvatarText, { color }]}>{initials}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -87,15 +100,15 @@ type UndoEntry = {
 
 export default function AssignItemsScreen() {
   const router = useRouter();
-  const { receipt, people, assignItem, splitItemEvenly, splitIntoIndividualUnits, updateItem, addPerson, removePerson } = useBillStore();
+  const { receipt, people, assignItem, splitItemEvenly, splitIntoIndividualUnits, consolidateLikeItems, updateItem, addPerson, removePerson } = useBillStore();
   const [selectedPersonId, setSelectedPersonId] = useState<string>(people[0]?.id ?? '');
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [activeItem, setActiveItem] = useState<ReceiptItem | null>(null);
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [personInput, setPersonInput] = useState('');
   const personInputRef = useRef<TextInput>(null);
+  const peopleScrollRef = useRef<ScrollView>(null);
 
-  // Computed before early return so hooks are unconditional
   const allAssigned = !!receipt && receipt.items.length > 0 &&
     receipt.items.every((i) => i.assignedTo.length > 0);
   const prevAllAssigned = useRef(false);
@@ -109,17 +122,15 @@ export default function AssignItemsScreen() {
 
   if (!receipt) return null;
 
-  const totalItems = receipt.items.length;
-  const assignedItems = receipt.items.filter((i) => i.assignedTo.length > 0);
-  const unassignedItems = receipt.items.filter((i) => i.assignedTo.length === 0);
+  const assignableItems = receipt.items.filter((i) => i.price >= 0);
+  const totalItems = assignableItems.length;
+  const assignedCount = assignableItems.filter((i) => i.assignedTo.length > 0).length;
+  const unassignedItems = assignableItems.filter((i) => i.assignedTo.length === 0);
   const unassignedTotal = getUnassignedTotal(receipt);
-  const progress = totalItems > 0 ? assignedItems.length / totalItems : 0;
+  const progress = totalItems > 0 ? assignedCount / totalItems : 0;
 
   const pushUndo = (item: ReceiptItem) => {
-    setUndoStack((prev) => [
-      ...prev.slice(-9),
-      { itemId: item.id, previousAssignedTo: item.assignedTo },
-    ]);
+    setUndoStack((prev) => [...prev.slice(-9), { itemId: item.id, previousAssignedTo: item.assignedTo }]);
   };
 
   const handleUndo = () => {
@@ -135,30 +146,11 @@ export default function AssignItemsScreen() {
   };
 
   const handleSplitAll = () => {
-    receipt.items.forEach((item) => {
-      pushUndo(item);
-      splitItemEvenly(item.id);
-    });
-  };
-
-  const handleAssignAllToSelected = () => {
-    receipt.items.forEach((item) => {
-      if (item.assignedTo.includes(selectedPersonId)) return;
-      pushUndo(item);
-      assignItem(item.id, [...item.assignedTo, selectedPersonId]);
-    });
-  };
-
-  const handleRemoveAllFromSelected = () => {
-    receipt.items.forEach((item) => {
-      if (!item.assignedTo.includes(selectedPersonId)) return;
-      pushUndo(item);
-      assignItem(item.id, item.assignedTo.filter((id) => id !== selectedPersonId));
-    });
+    assignableItems.forEach((item) => { pushUndo(item); splitItemEvenly(item.id); });
   };
 
   const handleClearAll = () => {
-    receipt.items.forEach((item) => {
+    assignableItems.forEach((item) => {
       if (item.assignedTo.length === 0) return;
       pushUndo(item);
       assignItem(item.id, []);
@@ -166,21 +158,62 @@ export default function AssignItemsScreen() {
   };
 
   const handleSplitRemaining = () => {
-    unassignedItems.forEach((item) => {
-      pushUndo(item);
-      splitItemEvenly(item.id);
-    });
+    unassignedItems.forEach((item) => { pushUndo(item); splitItemEvenly(item.id); });
   };
 
-  const handleSelectPerson = (id: string) => {
-    setSelectedPersonId(id);
+  const handleSelectPerson = (id: string) => setSelectedPersonId(id);
+
+  const handlePersonLongPress = (person: Person) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedPersonId(person.id);
+    const firstName = person.name.split(' ')[0];
+    const options: any[] = [
+      {
+        text: `Assign all to ${firstName}`,
+        onPress: () => {
+          assignableItems.forEach((item) => {
+            if (item.assignedTo.includes(person.id)) return;
+            pushUndo(item);
+            assignItem(item.id, [...item.assignedTo, person.id]);
+          });
+        },
+      },
+      {
+        text: `Remove all from ${firstName}`,
+        style: 'destructive',
+        onPress: () => {
+          assignableItems.forEach((item) => {
+            if (!item.assignedTo.includes(person.id)) return;
+            pushUndo(item);
+            assignItem(item.id, item.assignedTo.filter((id) => id !== person.id));
+          });
+        },
+      },
+    ];
+    if (!person.isHost) {
+      options.push({
+        text: 'Remove from split',
+        style: 'destructive',
+        onPress: () => {
+          removePerson(person.id);
+          if (selectedPersonId === person.id) {
+            setSelectedPersonId(people.find((p) => p.id !== person.id)?.id ?? '');
+          }
+        },
+      });
+    }
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert(person.name, undefined, options);
   };
 
   const handleAddPerson = () => {
     if (!personInput.trim()) return;
     addPerson(personInput.trim());
     setPersonInput('');
-    setTimeout(() => personInputRef.current?.focus(), 50);
+    setTimeout(() => {
+      personInputRef.current?.focus();
+      peopleScrollRef.current?.scrollToEnd({ animated: true });
+    }, 50);
   };
 
   const handlePickContact = async () => {
@@ -196,15 +229,6 @@ export default function AssignItemsScreen() {
     }
   };
 
-  const handleRemovePerson = (person: Person) => {
-    if (person.isHost) return;
-    removePerson(person.id);
-    if (selectedPersonId === person.id) {
-      setSelectedPersonId(people.find((p) => p.id !== person.id)?.id ?? '');
-    }
-  };
-
-  // Action sheet callbacks
   const handleSheetSplitAmong = (itemId: string, personIds: string[]) => {
     const item = receipt.items.find((i) => i.id === itemId);
     if (item) pushUndo(item);
@@ -215,6 +239,12 @@ export default function AssignItemsScreen() {
     const item = receipt.items.find((i) => i.id === itemId);
     if (item) pushUndo(item);
     splitIntoIndividualUnits(itemId);
+  };
+
+  const handleSheetConsolidate = (itemId: string) => {
+    const item = receipt.items.find((i) => i.id === itemId);
+    if (item) pushUndo(item);
+    consolidateLikeItems(itemId);
   };
 
   const handleToggleDrink = (itemId: string) => {
@@ -230,15 +260,12 @@ export default function AssignItemsScreen() {
 
   const handleSplitDrinksEvenly = () => {
     const drinkItems = receipt.items.filter((i) => i.tags?.includes('drink'));
-    drinkItems.forEach((item) => {
-      pushUndo(item);
-      splitItemEvenly(item.id);
-    });
+    drinkItems.forEach((item) => { pushUndo(item); splitItemEvenly(item.id); });
   };
 
-  const liveActiveItem = activeItem
-    ? receipt.items.find((i) => i.id === activeItem.id) ?? null
-    : null;
+  const liveActiveItem = activeItem ? receipt.items.find((i) => i.id === activeItem.id) ?? null : null;
+
+  const progressBarWidth = `${progress * 100}%` as any;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -248,28 +275,37 @@ export default function AssignItemsScreen() {
           <Text style={styles.title}>Assign Items</Text>
         </View>
 
-        {/* Top actions */}
+        {/* Progress label */}
+        <View style={styles.progressRow}>
+          <Text style={[styles.progressLabel, allAssigned && styles.progressLabelDone]}>
+            {allAssigned ? 'All items assigned ✓' : `${assignedCount} / ${totalItems} assigned`}
+          </Text>
+        </View>
+
+        {/* Action buttons */}
         <View style={styles.topActionsRow}>
-          <TouchableOpacity style={styles.topActionBtnSecondary} onPress={handleSplitAll}>
-            <Text style={styles.topActionBtnTextSecondary}>Split evenly</Text>
+          <TouchableOpacity style={styles.splitEvenlyBtn} onPress={handleSplitAll} activeOpacity={0.75}>
+            <Text style={styles.splitEvenlyBtnText}>Split evenly</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.topActionBtnGhost} onPress={handleClearAll}>
-            <Text style={styles.topActionBtnTextGhost}>Clear all</Text>
+          <TouchableOpacity style={styles.clearAllBtn} onPress={handleClearAll} activeOpacity={0.75}>
+            <Text style={styles.clearAllBtnText}>Clear all</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Progress */}
-        <View style={styles.progressRow}>
-          <Text style={[styles.progressLabel, allAssigned && styles.progressLabelDone]}>
-            {allAssigned ? 'All items assigned ✓' : `${assignedItems.length} / ${totalItems} items assigned`}
-          </Text>
-        </View>
+        {/* Progress bar */}
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` as any }, allAssigned && styles.progressFillDone]} />
+          <Animated.View style={[styles.progressFillWrapper, { width: progressBarWidth }]}>
+            {allAssigned ? (
+              <LinearGradient colors={['#16A34A', '#22C55E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.progressFill} />
+            ) : (
+              <View style={[styles.progressFill, styles.progressFillActive]} />
+            )}
+          </Animated.View>
         </View>
 
         {/* Person chips */}
         <ScrollView
+          ref={peopleScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.peopleScroll}
@@ -277,30 +313,28 @@ export default function AssignItemsScreen() {
         >
           {people.map((person, personIndex) => {
             const isSelected = person.id === selectedPersonId;
-            const assignedCount = receipt.items.filter((i) =>
-              i.assignedTo.includes(person.id)
-            ).length;
+            const count = receipt.items.filter((i) => i.assignedTo.includes(person.id)).length;
             const initials = person.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
             const personColor = getPersonColor(personIndex);
             return (
               <TouchableOpacity
                 key={person.id}
-                style={[styles.personChip, isSelected && { backgroundColor: personColor + '22', borderColor: personColor + '66' }]}
+                style={[styles.personChip, isSelected && { backgroundColor: personColor + '22', borderColor: personColor }]}
                 onPress={() => handleSelectPerson(person.id)}
-                onLongPress={() => !person.isHost && handleRemovePerson(person)}
-                delayLongPress={500}
+                onLongPress={() => handlePersonLongPress(person)}
+                delayLongPress={400}
                 activeOpacity={0.75}
               >
                 <View style={[styles.avatar, { backgroundColor: personColor + '33', borderColor: personColor + '88' }]}>
                   <Text style={[styles.avatarText, { color: personColor }]}>{initials}</Text>
                 </View>
                 <View>
-                  <Text style={[styles.personChipText, isSelected && { color: '#E0E0E0' }]}>
+                  <Text style={[styles.personChipText, isSelected && { color: '#E8E8E8' }]}>
                     {person.name}
                   </Text>
                   {isSelected && (
                     <Text style={[styles.personChipCount, { color: personColor }]}>
-                      {assignedCount}/{totalItems} items
+                      {count}/{totalItems} items
                     </Text>
                   )}
                 </View>
@@ -310,31 +344,20 @@ export default function AssignItemsScreen() {
           <TouchableOpacity
             style={styles.addPersonChip}
             onPress={() => {
-              setShowAddPerson((v) => !v);
-              if (!showAddPerson) setTimeout(() => personInputRef.current?.focus(), 50);
+              const opening = !showAddPerson;
+              setShowAddPerson(opening);
+              if (opening) {
+                setTimeout(() => {
+                  peopleScrollRef.current?.scrollToEnd({ animated: true });
+                  personInputRef.current?.focus();
+                }, 50);
+              }
             }}
             activeOpacity={0.75}
           >
             <Text style={styles.addPersonChipText}>{showAddPerson ? '✕' : '+'}</Text>
           </TouchableOpacity>
         </ScrollView>
-
-        {/* Per-person quick actions */}
-        {(() => {
-          const sel = people.find((p) => p.id === selectedPersonId);
-          if (!sel) return null;
-          const firstName = sel.name.split(' ')[0];
-          return (
-            <View style={styles.personActionsRow}>
-              <TouchableOpacity style={styles.personActionBtn} onPress={handleAssignAllToSelected}>
-                <Text style={styles.personActionBtnText} numberOfLines={1} ellipsizeMode="tail">Assign all to {firstName}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.personActionBtn, styles.personActionBtnDestructive]} onPress={handleRemoveAllFromSelected}>
-                <Text style={[styles.personActionBtnText, styles.personActionBtnTextDestructive]} numberOfLines={1}>Remove all</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })()}
 
         {showAddPerson && (
           <View style={styles.addPersonRow}>
@@ -365,12 +388,11 @@ export default function AssignItemsScreen() {
             </TouchableOpacity>
           </View>
         )}
-
       </View>
 
       {/* Items list */}
       <FlatList
-        data={receipt.items}
+        data={assignableItems}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
@@ -391,16 +413,15 @@ export default function AssignItemsScreen() {
             onAvatarPress={() => {}}
           />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListFooterComponent={
           unassignedItems.length > 0 ? (
             <View style={styles.footer}>
               <View style={styles.unassignedSummary}>
                 <Text style={styles.unassignedSummaryTitle}>
-                  {unassignedItems.length} item{unassignedItems.length !== 1 ? 's' : ''} unassigned
-                  · ${unassignedTotal.toFixed(2)}
+                  {unassignedItems.length} item{unassignedItems.length !== 1 ? 's' : ''} unassigned · ${unassignedTotal.toFixed(2)}
                 </Text>
-                <TouchableOpacity style={styles.splitRemainingBtn} onPress={handleSplitRemaining}>
+                <TouchableOpacity style={styles.splitRemainingBtn} onPress={handleSplitRemaining} activeOpacity={0.8}>
                   <Text style={styles.splitRemainingText}>Split remaining evenly</Text>
                 </TouchableOpacity>
               </View>
@@ -410,7 +431,7 @@ export default function AssignItemsScreen() {
       />
 
       {/* Fixed bottom button */}
-      <View style={[styles.stickyFooter, allAssigned && styles.summaryBtnDoneWrapper]}>
+      <View style={[styles.stickyFooter, allAssigned && styles.stickyFooterDone]}>
         <Button
           label={allAssigned ? 'See Summary →' : 'See Summary'}
           onPress={() => router.push('/summary')}
@@ -418,13 +439,14 @@ export default function AssignItemsScreen() {
         />
       </View>
 
-      {/* Action sheet */}
       <ItemActionSheet
         item={liveActiveItem}
         people={people}
+        allItems={receipt.items}
         onClose={() => setActiveItem(null)}
         onSplitAmong={handleSheetSplitAmong}
         onSplitIntoUnits={handleSheetSplitIntoUnits}
+        onConsolidateLikeItems={handleSheetConsolidate}
         onToggleDrink={handleToggleDrink}
         onSplitDrinksEvenly={handleSplitDrinksEvenly}
       />
@@ -435,162 +457,131 @@ export default function AssignItemsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#151515' },
   header: {
-    paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#3C3C3C',
+    paddingHorizontal: 24, paddingTop: 16, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   headerTop: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 8,
+    justifyContent: 'space-between', marginBottom: 10,
   },
-  title: { fontSize: 28, fontWeight: '700', color: '#D0D0D0' },
-  topActionsRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 10 },
+  title: { fontSize: 28, fontWeight: '700', color: '#E8E8E8' },
   undoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 6,
-    backgroundColor: '#252525', borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
-  undoBtnText: { fontSize: 13, fontWeight: '600', color: '#D0D0D0' },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressLabel: { fontSize: 12, fontWeight: '600', color: '#777' },
-  progressLabelDone: { color: '#16A34A' },
+  undoBtnText: { fontSize: 13, fontWeight: '600', color: '#AAA' },
+  progressRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 8,
+  },
+  progressLabel: { fontSize: 13, fontWeight: '600', color: '#666' },
+  progressLabelDone: { color: '#22C55E' },
+  topActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  splitEvenlyBtn: {
+    flex: 1, paddingVertical: 9,
+    backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
+  splitEvenlyBtnText: { fontSize: 14, fontWeight: '600', color: '#E0E0E0' },
+  clearAllBtn: {
+    flex: 1, paddingVertical: 9,
+    backgroundColor: 'rgba(220,38,38,0.10)', borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(220,38,38,0.35)',
+  },
+  clearAllBtnText: { fontSize: 14, fontWeight: '600', color: '#F87171' },
   progressTrack: {
-    height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, marginBottom: 14, overflow: 'hidden',
+    height: 5, backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 3, marginBottom: 14, overflow: 'hidden',
   },
-  progressFill: { height: 4, backgroundColor: 'rgba(220,220,220,0.60)', borderRadius: 2 },
-  progressFillDone: { backgroundColor: '#16A34A' },
-  summaryBtnDoneWrapper: {
-    shadowColor: '#16A34A', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  progressFillWrapper: { height: 5, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { flex: 1, height: 5, borderRadius: 3 },
+  progressFillActive: { backgroundColor: 'rgba(255,255,255,0.65)' },
+  peopleScroll: { marginHorizontal: -24 },
+  peopleRow: { paddingHorizontal: 24, gap: 8, paddingBottom: 4, alignItems: 'center' },
+  personChip: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', gap: 7,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.14)',
   },
-  topActionBtnSecondary: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: 'rgba(220,220,220,0.13)', borderRadius: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
-  },
-  topActionBtnTextSecondary: { fontSize: 13, fontWeight: '600', color: '#D0D0D0' },
-  topActionBtnGhost: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 10,
-    borderWidth: 1, borderColor: 'rgba(220,38,38,0.45)',
-    backgroundColor: 'rgba(220,38,38,0.12)',
-  },
-  topActionBtnTextGhost: { fontSize: 13, fontWeight: '600', color: '#DC2626' },
-  itemAvatarRow: { flexDirection: 'row', gap: 2 },
-  itemAvatar: {
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+  avatar: {
+    width: 26, height: 26, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
   },
-  itemAvatarText: { fontSize: 8, fontWeight: '700', color: '#D0D0D0' },
-  actionsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  actionBtn: {
-    flex: 1, paddingVertical: 9,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-  },
-  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#D0D0D0' },
-  peopleScroll: { marginHorizontal: -24 },
-  peopleRow: { paddingHorizontal: 24, gap: 10, paddingBottom: 4, alignItems: 'center' },
+  avatarText: { fontSize: 10, fontWeight: '700' },
+  personChipText: { fontSize: 13, fontWeight: '600', color: '#888' },
+  personChipCount: { fontSize: 10, marginTop: 1 },
   addPersonChip: {
     height: 38, width: 38, borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.20)',
   },
-  addPersonChipText: { fontSize: 18, color: '#AAA', lineHeight: 22 },
-  addPersonRow: {
-    flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center',
-  },
+  addPersonChipText: { fontSize: 20, color: '#888', lineHeight: 24 },
+  addPersonRow: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
   addPersonInput: {
     flex: 1, height: 40,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.28)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)',
     borderRadius: 12, paddingHorizontal: 12,
     fontSize: 15, color: '#D0D0D0',
-    backgroundColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
   addPersonConfirmBtn: {
-    height: 40, paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.11)',
+    height: 40, paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.10)',
     borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
   },
   addPersonConfirmText: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
   contactBtn: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.11)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  personChip: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.10)', gap: 7,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16 },
+  stickyFooter: {
+    paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, backgroundColor: '#151515',
   },
-  personChipActive: { backgroundColor: 'rgba(220,220,220,0.95)', borderColor: 'rgba(255,255,255,0.40)' },
-  avatar: {
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.13)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+  stickyFooterDone: {
+    shadowColor: '#FFFFFF', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06, shadowRadius: 12,
   },
-  avatarActive: { backgroundColor: 'rgba(0,0,0,0.15)', borderColor: 'transparent' },
-  avatarText: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.75)' },
-  avatarTextActive: { color: '#000' },
-  personChipText: { fontSize: 13, fontWeight: '600', color: '#B8B8B8' },
-  personChipTextActive: { color: '#000000' },
-  personChipCount: { fontSize: 10, color: '#888', marginTop: 1 },
-  personChipCountActive: { color: 'rgba(0,0,0,0.5)' },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
-  stickyFooter: { paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, backgroundColor: '#151515' },
-
-  // Item chip
   itemChip: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, gap: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14,
+    gap: 10, borderWidth: 1.5,
   },
-  itemChipAssigned: { borderColor: 'rgba(22,163,74,0.40)', backgroundColor: 'rgba(22,163,74,0.08)' },
-  itemChipUnassigned: { borderColor: 'rgba(245,158,11,0.40)', backgroundColor: 'rgba(245,158,11,0.07)' },
-  itemEmoji: { fontSize: 18 },
-  itemName: { flex: 1, fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
-  itemRight: { alignItems: 'flex-end', gap: 2 },
-  itemPrice: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
-  itemAssignedCount: { fontSize: 11, color: '#16A34A', fontWeight: '600' },
-  footer: { paddingTop: 8, gap: 12 },
-  footerRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
-  receiptBtn: {
-    width: 52, backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+  itemChipAssigned: {
+    borderColor: 'rgba(34,197,94,0.45)',
+    backgroundColor: 'rgba(34,197,94,0.07)',
   },
-  summaryBtnFlex: { flex: 1 },
+  itemChipUnassigned: {
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  itemEmoji: { fontSize: 20 },
+  itemName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#D8D8D8' },
+  itemAvatarRow: { flexDirection: 'row', gap: 3 },
+  itemAvatar: {
+    width: 24, height: 24, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
+  },
+  itemAvatarText: { fontSize: 8, fontWeight: '700' },
+  footer: { paddingTop: 8 },
   unassignedSummary: {
-    backgroundColor: 'rgba(245,158,11,0.08)', borderRadius: 14,
-    padding: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.30)', gap: 10,
+    backgroundColor: 'rgba(245,158,11,0.07)', borderRadius: 14,
+    padding: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)', gap: 10,
   },
   unassignedSummaryTitle: { fontSize: 14, fontWeight: '600', color: '#F59E0B' },
   splitRemainingBtn: {
     backgroundColor: '#D8D8D8', borderRadius: 10,
     paddingVertical: 10, alignItems: 'center',
   },
-  splitRemainingText: { fontSize: 14, fontWeight: '600', color: '#000' },
-  personActionsRow: {
-    flexDirection: 'row', gap: 8, marginTop: 10,
-  },
-  personActionBtn: {
-    flex: 1, height: 34,
-    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
-  },
-  personActionBtnDestructive: {
-    backgroundColor: 'rgba(220,38,38,0.12)',
-    borderColor: 'rgba(220,38,38,0.45)',
-  },
-  personActionBtnText: { fontSize: 13, fontWeight: '600', color: '#D0D0D0' },
-  personActionBtnTextDestructive: { color: '#DC2626' },
+  splitRemainingText: { fontSize: 14, fontWeight: '700', color: '#000' },
 });

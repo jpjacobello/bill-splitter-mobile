@@ -13,7 +13,7 @@ import { mockReceipt } from '../data/mockData';
 
 export default function ReceiptUploadScreen() {
   const router = useRouter();
-  const { isReturning } = useLocalSearchParams<{ isReturning?: string }>();
+  const { isReturning, demo } = useLocalSearchParams<{ isReturning?: string; demo?: string }>();
   const { setReceipt, receipt, people, pendingImageUri, setPendingImageUri, setReceiptImageUri, reset } = useBillStore();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -21,6 +21,7 @@ export default function ReceiptUploadScreen() {
   const [isRetakeMode, setIsRetakeMode] = useState(false);
   const [notReceiptMode, setNotReceiptMode] = useState(false);
   const pendingFired = useRef(false);
+  const demoFired = useRef(false);
 
   const isDemoLoaded = isDemoMode && imageUri === null;
 
@@ -53,7 +54,7 @@ export default function ReceiptUploadScreen() {
         const receipt = {
           ...parsed,
           items: parsed.items.map((item) =>
-            item.id === 'auto-surcharge' || item.id === 'auto-fee'
+            item.id === 'auto-surcharge' || item.id === 'auto-fee' || item.price < 0
               ? { ...item, assignedTo: allIds }
               : item
           ),
@@ -64,6 +65,7 @@ export default function ReceiptUploadScreen() {
       } catch (err) {
         setParsing(false);
         setImageUri(null);
+        setNotReceiptMode(true);
         Alert.alert(
           'Scan Failed',
           'Could not read the receipt. Please try again or use a clearer photo.',
@@ -103,10 +105,20 @@ export default function ReceiptUploadScreen() {
         .catch((err) => {
           setParsing(false);
           setImageUri(null);
+          setIsRetakeMode(true);
           Alert.alert('Scan Failed', 'Could not read the receipt. Please try again or use a clearer photo.');
           console.error('Receipt parse error:', err);
         });
     }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (demo !== 'true' || demoFired.current) return;
+    demoFired.current = true;
+    setIsDemoMode(true);
+    setParsing(true);
+    const t = setTimeout(() => setParsing(false), 1800);
+    return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDemo = () => {
@@ -134,6 +146,7 @@ export default function ReceiptUploadScreen() {
               parsing={parsing}
               receipt={receipt}
               onRetake={() => { setImageUri(null); setIsDemoMode(false); setIsRetakeMode(true); }}
+              hideRetake={isDemoMode}
             />
             {parsing && <RainbowScanOverlay />}
           </View>
@@ -170,7 +183,7 @@ export default function ReceiptUploadScreen() {
         )}
 
         <View style={styles.footer}>
-          {(imageUri && !parsing) || isDemoLoaded ? (
+          {(imageUri || isDemoLoaded) && !parsing ? (
             <Button label="Review Receipt" onPress={handleContinue} />
           ) : isRetakeMode || notReceiptMode ? (
             <View style={styles.retakeActions}>
@@ -187,7 +200,7 @@ export default function ReceiptUploadScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            !imageUri && !isReturning && (
+            !imageUri && !isReturning && !isDemoMode && (
               <>
                 <View style={styles.divider}>
                   <View style={styles.dividerLine} />

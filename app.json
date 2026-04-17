@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Divi",
-    "slug": "bill-splitter-mobile",
+    "slug": "divi",
     "scheme": "billsplitter",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,8 +18,10 @@
       "bundleIdentifier": "com.jpjacobello.divi",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
+          "venmo",
           "venmo"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -36,6 +38,12 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b996838d-eaa0-4c3e-aa3d-6576acd5de34"
+      }
+    }
   }
 }

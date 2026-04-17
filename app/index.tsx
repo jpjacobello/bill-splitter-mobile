@@ -65,7 +65,7 @@ export default function StartScreen() {
     setHostName(name.trim() || 'You');
     mockPeople.filter((p) => !p.isHost).forEach((p) => addPerson(p.name));
     setReceipt(mockReceipt);
-    router.push('/receipt-review');
+    router.push({ pathname: '/receipt-upload', params: { demo: 'true' } });
   };
 
   const openPicker = async (useCamera: boolean) => {
@@ -102,11 +102,9 @@ export default function StartScreen() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.inner}>
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')} activeOpacity={0.7}>
-          <Ionicons name="settings-outline" size={20} color="#888" />
+          <Ionicons name="settings-outline" size={22} color="#888" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.devReset} onPress={handleDevReset}>
-          <Text style={styles.devResetText}>DEV RESET</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.devReset} onPress={handleDevReset} activeOpacity={1} />
 
         <View style={styles.hero}>
           <View style={styles.badge}>
@@ -140,7 +138,15 @@ export default function StartScreen() {
                 disabled={!isReturningUser && !name.trim()}
               />
               {!isReturningUser && (
-                <Button label="Try Demo Receipt" onPress={handleDemo} variant="secondary" />
+                <TouchableOpacity
+                  onPress={name.trim() ? handleDemo : undefined}
+                  activeOpacity={0.6}
+                  style={styles.demoLink}
+                >
+                  <Text style={[styles.demoLinkText, !name.trim() && styles.demoLinkDisabled]}>
+                    Try Demo Receipt
+                  </Text>
+                </TouchableOpacity>
               )}
             </Animated.View>
           ) : (
@@ -217,12 +223,16 @@ const styles = StyleSheet.create({
   nameInput: {
     height: 52,
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: 'rgba(255,255,255,0.55)',
     borderRadius: 14,
     paddingHorizontal: 16,
     fontSize: 17,
     color: '#FFFFFF',
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
   },
   optionsWrapper: {
     gap: 12,
@@ -249,14 +259,22 @@ const styles = StyleSheet.create({
     color: '#D0D0D0',
   },
   settingsBtn: {
-    position: 'absolute', top: 2, right: 0,
-    paddingHorizontal: 12, paddingVertical: 8,
+    position: 'absolute', top: 2, right: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
   devReset: {
-    position: 'absolute', top: 0, right: 36,
-    paddingHorizontal: 12, paddingVertical: 6,
+    position: 'absolute', top: 0, left: 0,
+    paddingHorizontal: 20, paddingVertical: 14,
   },
-  devResetText: {
-    fontSize: 10, color: '#333', fontWeight: '700', letterSpacing: 1,
+  demoLink: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  demoLinkText: {
+    fontSize: 15,
+    color: '#666',
+  },
+  demoLinkDisabled: {
+    color: '#333',
   },
 });

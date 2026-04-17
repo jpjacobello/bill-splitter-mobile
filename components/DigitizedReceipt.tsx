@@ -7,9 +7,10 @@ type Props = {
   parsing: boolean;
   receipt: Receipt | null;
   onRetake: () => void;
+  hideRetake?: boolean;
 };
 
-function SkeletonLine({ width, pulse }: { width: string | number; pulse: Animated.Value }) {
+function SkeletonLine({ width, pulse }: { width: number | `${number}%`; pulse: Animated.Value }) {
   return (
     <Animated.View
       style={[styles.skeletonLine, { width, opacity: pulse }]}
@@ -52,7 +53,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   );
 }
 
-export default function DigitizedReceipt({ parsing, receipt, onRetake }: Props) {
+export default function DigitizedReceipt({ parsing, receipt, onRetake, hideRetake }: Props) {
   const pulse = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function DigitizedReceipt({ parsing, receipt, onRetake }: Props) 
         )}
       </ScrollView>
 
-      {!parsing && (
+      {!parsing && !hideRetake && (
         <TouchableOpacity style={styles.retakeBtn} onPress={onRetake}>
           <Text style={styles.retakeBtnText}>Retake</Text>
         </TouchableOpacity>

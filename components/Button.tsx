@@ -1,4 +1,6 @@
-import { StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useRef } from 'react';
+import { StyleSheet, Text, Animated, Pressable, View, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type Props = {
   label: string;
@@ -10,52 +12,76 @@ type Props = {
 };
 
 export default function Button({ label, onPress, variant = 'primary', disabled, loading, height }: Props) {
-  const handlePress = () => {
-    onPress();
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const onPressIn = () => {
+    Animated.spring(scale, { toValue: 0.965, useNativeDriver: true, speed: 120, bounciness: 0 }).start();
+  };
+  const onPressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 10 }).start();
   };
 
+  const h = height ?? 56;
+
   return (
-    <TouchableOpacity
-      style={[styles.base, styles[variant], (disabled || loading) && styles.disabled, height ? { height } : undefined]}
-      onPress={handlePress}
-      disabled={disabled || loading}
-      activeOpacity={0.75}
-    >
-      {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#000' : '#D0D0D0'} />
-      ) : (
-        <Text style={[styles.label, variant !== 'primary' && styles.labelDark]}>{label}</Text>
-      )}
-    </TouchableOpacity>
+    <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} disabled={disabled || loading}>
+      <Animated.View style={[{ transform: [{ scale }] }, (disabled || loading) && styles.disabled, variant === 'primary' && styles.primaryShadow]}>
+        {variant === 'primary' ? (
+          <LinearGradient
+            colors={['#FFFFFF', '#DCDCDC']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={[styles.base, { height: h, borderRadius: 16 }]}
+          >
+            {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.labelPrimary}>{label}</Text>}
+          </LinearGradient>
+        ) : variant === 'secondary' ? (
+          <View style={[styles.base, styles.secondary, { height: h, borderRadius: 16 }]}>
+            {loading ? <ActivityIndicator color="#D0D0D0" /> : <Text style={styles.labelSecondary}>{label}</Text>}
+          </View>
+        ) : (
+          <View style={[styles.base, styles.ghost, { height: h, borderRadius: 16 }]}>
+            {loading ? <ActivityIndicator color="#D0D0D0" /> : <Text style={styles.labelSecondary}>{label}</Text>}
+          </View>
+        )}
+      </Animated.View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    height: 64,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
-  primary: {
-    backgroundColor: '#D8D8D8',
-  },
   secondary: {
     backgroundColor: '#252525',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   ghost: {
     backgroundColor: 'transparent',
   },
   disabled: {
-    opacity: 0.4,
+    opacity: 0.38,
   },
-  label: {
+  primaryShadow: {
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.20,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  labelPrimary: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000000',
+    letterSpacing: 0.2,
+  },
+  labelSecondary: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
-  },
-  labelDark: {
     color: '#D0D0D0',
   },
 });

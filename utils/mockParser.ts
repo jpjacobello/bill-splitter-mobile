@@ -17,6 +17,7 @@ export async function parseReceiptFromImage(imageUri: string): Promise<Receipt> 
     ],
     subtotal: 65.5,
     tax: 5.9,
+    fees: 0,
     tip: 13.1,
     total: 84.5,
     tipIsFromReceipt: true,
