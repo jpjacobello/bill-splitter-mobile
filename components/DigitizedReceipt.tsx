@@ -1,13 +1,13 @@
-import { useEffect, useRef } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Receipt } from '../types';
 import { getEmoji } from '../utils/buildReceiptHtml';
+import RainbowScanOverlay from './RainbowScanOverlay';
 
 type Props = {
   parsing: boolean;
   receipt: Receipt | null;
-  onRetake: () => void;
-  hideRetake?: boolean;
+  maxHeight?: number;
 };
 
 function SkeletonLine({ width, pulse }: { width: number | `${number}%`; pulse: Animated.Value }) {
@@ -53,8 +53,10 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   );
 }
 
-export default function DigitizedReceipt({ parsing, receipt, onRetake, hideRetake }: Props) {
+export default function DigitizedReceipt({ parsing, receipt, maxHeight }: Props) {
   const pulse = useRef(new Animated.Value(0.4)).current;
+  const [contentH, setContentH] = useState<number | undefined>(undefined);
+  const [wrapperH, setWrapperH] = useState(320);
 
   useEffect(() => {
     if (!parsing) return;
@@ -69,14 +71,15 @@ export default function DigitizedReceipt({ parsing, receipt, onRetake, hideRetak
   }, [parsing]);
 
   return (
-    <View style={styles.wrapper}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.receipt}
-        scrollEnabled={false}
-        showsVerticalScrollIndicator={false}
-      >
-        {parsing || !receipt ? (
+    <View style={{ flexShrink: 1, backgroundColor: 'transparent' }} onLayout={(e) => setWrapperH(e.nativeEvent.layout.height)}>
+    <ScrollView
+      style={[styles.scroll, maxHeight !== undefined && { maxHeight, flexGrow: 0 }]}
+      contentContainerStyle={styles.receipt}
+      showsVerticalScrollIndicator={false}
+      scrollEnabled={!!contentH && !!maxHeight && contentH > maxHeight}
+      onContentSizeChange={(_, h) => setContentH(h)}
+    >
+      {parsing || !receipt ? (
           // Skeleton state
           <>
             <SkeletonLine width="55%" pulse={pulse} />
@@ -115,24 +118,16 @@ export default function DigitizedReceipt({ parsing, receipt, onRetake, hideRetak
             <Row label="TOTAL" value={`$${receipt.total.toFixed(2)}`} bold />
           </>
         )}
-      </ScrollView>
-
-      {!parsing && !hideRetake && (
-        <TouchableOpacity style={styles.retakeBtn} onPress={onRetake}>
-          <Text style={styles.retakeBtnText}>Retake</Text>
-        </TouchableOpacity>
-      )}
+    </ScrollView>
+    {parsing && <RainbowScanOverlay height={wrapperH} />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: 'relative',
-  },
   scroll: {
     backgroundColor: '#F5F0E8',
-    borderRadius: 12,
+    borderRadius: 20,
   },
   receipt: {
     padding: 20,
@@ -191,21 +186,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#C8BEAE',
     borderRadius: 4,
     marginBottom: 8,
-  },
-  retakeBtn: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  retakeBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
   },
 });

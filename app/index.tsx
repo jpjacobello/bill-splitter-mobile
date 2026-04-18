@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingBottom: 70,
     justifyContent: 'flex-end',
   },
   hero: {
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     gap: 12,
     minHeight: 180,
     justifyContent: 'flex-start',
-    marginBottom: 90,
+    marginBottom: 78,
   },
   nameInput: {
     height: 52,
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   },
   demoLinkText: {
     fontSize: 15,
-    color: '#666',
+    color: '#888',
   },
   demoLinkDisabled: {
     color: '#333',

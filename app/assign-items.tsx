@@ -74,7 +74,7 @@ function ItemRow({ item, people, onLongPress, onRowPress }: ItemRowProps) {
         <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
         {assignedPeople.length > 0 && (
           <View style={styles.itemAvatarRow}>
-            {assignedPeople.map((p) => {
+            {assignedPeople.slice(0, 5).map((p) => {
               const index = people.indexOf(p);
               const color = getPersonColor(index);
               const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -84,6 +84,11 @@ function ItemRow({ item, people, onLongPress, onRowPress }: ItemRowProps) {
                 </View>
               );
             })}
+            {assignedPeople.length > 5 && (
+              <View style={styles.itemAvatarOverflow}>
+                <Text style={styles.itemAvatarOverflowText}>+{assignedPeople.length - 5}</Text>
+              </View>
+            )}
           </View>
         )}
       </TouchableOpacity>
@@ -567,12 +572,19 @@ const styles = StyleSheet.create({
   },
   itemEmoji: { fontSize: 20 },
   itemName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#D8D8D8' },
-  itemAvatarRow: { flexDirection: 'row', gap: 3 },
+  itemAvatarRow: { flexDirection: 'row', gap: 3, alignItems: 'center' },
   itemAvatar: {
     width: 24, height: 24, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
   itemAvatarText: { fontSize: 8, fontWeight: '700' },
+  itemAvatarOverflow: {
+    height: 24, paddingHorizontal: 5, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
+  },
+  itemAvatarOverflowText: { fontSize: 9, fontWeight: '700', color: '#999' },
   footer: { paddingTop: 8 },
   unassignedSummary: {
     backgroundColor: 'rgba(245,158,11,0.07)', borderRadius: 14,

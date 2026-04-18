@@ -17,9 +17,10 @@ export function buildVenmoNote(b: PersonBreakdown, merchantName?: string): strin
   const footer = `Split with Divi`;
   const merchant = merchantName ? toTitleCase(merchantName) : null;
 
-  const itemLines = b.assignedItems.map(
-    (a) => `- ${getEmoji(a.item.name)} ${a.item.name} ($${a.share.toFixed(2)})`
-  );
+  const itemLines = b.assignedItems.map((a) => {
+    const displayName = a.item.name.replace(/\s*\(\d+\)\s*$/, '').trim();
+    return `- ${getEmoji(a.item.name)} ${displayName} ($${a.share.toFixed(2)})`;
+  });
 
   const parts = [
     ...(merchant ? [merchant] : []),
@@ -44,12 +45,9 @@ export function buildVenmoUrl(b: PersonBreakdown, merchantName?: string): string
 
 export async function openVenmo(b: PersonBreakdown, merchantName?: string): Promise<void> {
   const url = buildVenmoUrl(b, merchantName);
-  const canOpen = await Linking.canOpenURL(url);
-
-  if (canOpen) {
+  try {
     await Linking.openURL(url);
-  } else {
-    // Fallback: copy payment text to clipboard
+  } catch {
     const text = buildFallbackText(b, merchantName);
     await Clipboard.setStringAsync(text);
     Alert.alert(
@@ -65,7 +63,7 @@ function buildFallbackText(b: PersonBreakdown, merchantName?: string): string {
     merchantName ? `${merchantName} — Bill Split (via Divi)` : 'Bill Split (via Divi)',
     `${b.person.name} owes $${b.totalOwed.toFixed(2)}`,
     '',
-    ...b.assignedItems.map((a) => `• ${a.item.name}  $${a.share.toFixed(2)}`),
+    ...b.assignedItems.map((a) => `• ${a.item.name.replace(/\s*\(\d+\)\s*$/, '').trim()}  $${a.share.toFixed(2)}`),
     '',
     APP_TAG,
   ];

@@ -23,7 +23,6 @@ import { PersonBreakdown } from '../types';
 export default function SummaryScreen() {
   const router = useRouter();
   const { receipt, people } = useBillStore();
-  const [expanded, setExpanded] = useState<string[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showOriginalReceipt, setShowOriginalReceipt] = useState(false);
   const [previewPerson, setPreviewPerson] = useState<{ breakdown: PersonBreakdown; colorIndex: number } | null>(null);
@@ -31,12 +30,6 @@ export default function SummaryScreen() {
   if (!receipt) return null;
 
   const summary = calcSplit(people, receipt);
-
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
 
   const handleVenmo = (b: PersonBreakdown) => {
     openVenmo(b, receipt.merchantName);
@@ -93,21 +86,14 @@ return (
           </View>
         }
         renderItem={({ item: b, index }) => {
-          const isExpanded = expanded.includes(b.person.id);
           const isHost = b.person.isHost;
           const personColor = getPersonColor(index);
 
           return (
-            <TouchableOpacity
-              style={[styles.card, isHost && styles.hostCard]}
-              onPress={() => toggleExpand(b.person.id)}
-              activeOpacity={0.85}
-            >
+            <View style={[styles.card, isHost && styles.hostCard]}>
               <BlurView style={StyleSheet.absoluteFill} tint="dark" intensity={30} />
               <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.03)' }]} />
-              {/* Left color accent */}
               <View style={[styles.cardAccent, { backgroundColor: personColor }]} />
-              {/* Card header */}
               <View style={styles.cardHeader}>
                 <View style={styles.cardLeft}>
                   <View style={styles.nameRow}>
@@ -126,72 +112,28 @@ return (
                   <Text style={[styles.totalOwed, { color: isHost ? '#888' : personColor }]}>
                     ${b.totalOwed.toFixed(2)}
                   </Text>
-                  <Text style={styles.expandHint}>{isExpanded ? '▲' : '▼'}</Text>
+                  <View style={styles.inlineActions}>
+                    <TouchableOpacity
+                      style={styles.pdfBtn}
+                      onPress={() => handlePersonShare(b, index)}
+                    >
+                      <Ionicons name="receipt-outline" size={18} color="#999" />
+                    </TouchableOpacity>
+                    {!isHost && (
+                      <TouchableOpacity
+                        style={styles.venmoBtn}
+                        onPress={() => handleVenmo(b)}
+                      >
+                        <View style={styles.venmoLogo}>
+                          <Text style={styles.venmoLogoText}>V</Text>
+                        </View>
+                        <Text style={styles.venmoBtnText}>Request</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               </View>
-
-              {/* Expanded breakdown */}
-              {isExpanded && (
-                <View style={styles.breakdown}>
-                  <View style={styles.breakdownDivider} />
-                  {b.assignedItems.map(({ item, share }, i) => (
-                    <View key={i} style={styles.breakdownRow}>
-                      <Text style={styles.breakdownLabel} numberOfLines={1}>{item.name}</Text>
-                      <Text style={styles.breakdownValue}>${share.toFixed(2)}</Text>
-                    </View>
-                  ))}
-                  <View style={styles.breakdownSpacer} />
-                  <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Subtotal</Text>
-                    <Text style={styles.breakdownValue}>${b.subtotal.toFixed(2)}</Text>
-                  </View>
-                  <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Tax</Text>
-                    <Text style={styles.breakdownValue}>${b.taxShare.toFixed(2)}</Text>
-                  </View>
-                  {b.feesShare > 0 && (
-                    <View style={styles.breakdownRow}>
-                      <Text style={styles.breakdownLabel}>Fees & Surcharges</Text>
-                      <Text style={styles.breakdownValue}>${b.feesShare.toFixed(2)}</Text>
-                    </View>
-                  )}
-                  <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Tip</Text>
-                    <Text style={styles.breakdownValue}>${b.tipShare.toFixed(2)}</Text>
-                  </View>
-                  <View style={[styles.breakdownRow, styles.breakdownTotal]}>
-                    <Text style={styles.breakdownTotalLabel}>Total owed</Text>
-                    <Text style={styles.breakdownTotalValue}>${b.totalOwed.toFixed(2)}</Text>
-                  </View>
-
-                  {/* Actions */}
-                  <View style={styles.actions}>
-                    <View style={styles.primaryActions}>
-                      <TouchableOpacity
-                        style={styles.pdfBtn}
-                        onPress={() => {
-                          handlePersonShare(b, index);
-                        }}
-                      >
-                        <Ionicons name="receipt-outline" size={22} color="#999" />
-                      </TouchableOpacity>
-                      {!isHost && (
-                        <TouchableOpacity
-                          style={styles.venmoBtn}
-                          onPress={() => handleVenmo(b)}
-                        >
-                          <View style={styles.venmoLogo}>
-                            <Text style={styles.venmoLogoText}>V</Text>
-                          </View>
-                          <Text style={styles.venmoBtnText}>Request on Venmo</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-
-                </View>
-              )}
-            </TouchableOpacity>
+            </View>
           );
         }}
         ListFooterComponent={
@@ -294,44 +236,29 @@ const styles = StyleSheet.create({
   },
   hostBadgeText: { fontSize: 11, fontWeight: '700', color: '#000' },
   itemCount: { fontSize: 13, color: '#777' },
-  cardRight: { alignItems: 'flex-end', gap: 2 },
+  cardRight: { alignItems: 'flex-end', gap: 6 },
   totalOwed: { fontSize: 24, fontWeight: '800', color: '#D0D0D0' },
-  expandHint: { fontSize: 11, color: '#888' },
-
-  breakdown: { marginTop: 12 },
-  breakdownDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.13)', marginBottom: 12 },
-  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  breakdownLabel: { fontSize: 14, color: '#B0B0B0', flex: 1, marginRight: 8 },
-  breakdownValue: { fontSize: 14, color: '#D0D0D0', fontWeight: '500' },
-  breakdownSpacer: { height: 8 },
-  breakdownTotal: {
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.13)',
-    marginTop: 6, paddingTop: 10,
-  },
-  breakdownTotalLabel: { fontSize: 15, fontWeight: '700', color: '#D0D0D0' },
-  breakdownTotalValue: { fontSize: 15, fontWeight: '700', color: '#D0D0D0' },
-
-  actions: { marginTop: 14, gap: 8 },
-  primaryActions: { flexDirection: 'row', gap: 8 },
+  inlineActions: { flexDirection: 'row', gap: 6 },
   venmoBtn: {
-    flex: 1, backgroundColor: 'rgba(61,149,206,0.20)', borderRadius: 12,
-    height: 48, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: 'rgba(61,149,206,0.20)', borderRadius: 10,
+    height: 36, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingHorizontal: 10,
     borderWidth: 1, borderColor: 'rgba(61,149,206,0.40)',
   },
   pdfBtn: {
-    width: 48, height: 48, backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    width: 36, height: 36, backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 10, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
   venmoLogo: {
-    width: 26, height: 26, borderRadius: 6,
+    width: 20, height: 20, borderRadius: 5,
     backgroundColor: 'rgba(61,149,206,0.15)',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(61,149,206,0.30)',
   },
-  venmoLogoText: { fontSize: 14, fontWeight: '900', color: '#3D95CE' },
-  venmoBtnText: { color: '#3D95CE', fontSize: 15, fontWeight: '700' },
+  venmoLogoText: { fontSize: 11, fontWeight: '900', color: '#3D95CE' },
+  venmoBtnText: { color: '#3D95CE', fontSize: 13, fontWeight: '700' },
 
   footer: { gap: 10, marginTop: 4 },
   footerRow: { flexDirection: 'row', gap: 10 },

@@ -2,9 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   ScrollView, KeyboardAvoidingView, Platform, Alert,
+  Modal, Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 import { useBillStore } from '../store/useBillStore';
@@ -19,7 +21,8 @@ function parseDollar(text: string): number {
 
 export default function ReceiptReviewScreen() {
   const router = useRouter();
-  const { receipt, updateItem, deleteItem, addItem, updateReceiptField, updateTip } = useBillStore();
+  const { receipt, receiptImageUri, updateItem, deleteItem, addItem, updateReceiptField, updateTip } = useBillStore();
+  const [showPhoto, setShowPhoto] = useState(false);
 
   // Apply default tip if receipt has no tip and it wasn't on the original receipt
   useEffect(() => {
@@ -121,10 +124,22 @@ export default function ReceiptReviewScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Review</Text>
-            {receipt.merchantName && (
-              <Text style={styles.merchant}>{receipt.merchantName}</Text>
-            )}
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.title}>Review</Text>
+                {receipt.merchantName && (
+                  <Text style={styles.merchant}>{receipt.merchantName}</Text>
+                )}
+              </View>
+              {receiptImageUri && (
+                <TouchableOpacity style={styles.photoThumb} onPress={() => setShowPhoto(true)} activeOpacity={0.8}>
+                  <Image source={{ uri: receiptImageUri }} style={styles.photoThumbImg} />
+                  <View style={styles.photoThumbOverlay}>
+                    <Ionicons name="expand-outline" size={14} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* ── RECONCILIATION ── */}
@@ -328,6 +343,28 @@ export default function ReceiptReviewScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {receiptImageUri && (
+        <Modal visible={showPhoto} transparent animationType="fade" onRequestClose={() => setShowPhoto(false)}>
+          <View style={styles.photoModal}>
+            <ScrollView
+              style={StyleSheet.absoluteFill}
+              contentContainerStyle={styles.photoZoomContainer}
+              minimumZoomScale={1}
+              maximumZoomScale={5}
+              centerContent
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+            >
+              <Image source={{ uri: receiptImageUri }} style={styles.photoFull} resizeMode="contain" />
+            </ScrollView>
+            <TouchableOpacity style={styles.photoCloseBtn} onPress={() => setShowPhoto(false)}>
+              <Ionicons name="close" size={22} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.photoZoomHint}>Pinch to zoom</Text>
+          </View>
+        </Modal>
+      )}
+
       <View style={styles.stickyFooter}>
         {pendingRowError && (
           <Text style={styles.footerError}>Please complete or remove unfinished items.</Text>
@@ -371,8 +408,37 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#151515' },
   scroll: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
   header: { marginBottom: 16 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   title: { fontSize: 28, fontWeight: '700', color: '#D0D0D0', marginBottom: 4 },
   merchant: { fontSize: 15, color: '#777' },
+  photoThumb: {
+    width: 52, height: 68, borderRadius: 8, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+  },
+  photoThumbImg: { width: '100%', height: '100%' },
+  photoThumbOverlay: {
+    position: 'absolute', bottom: 4, right: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 4,
+    padding: 2,
+  },
+  photoModal: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.92)',
+  },
+  photoZoomContainer: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+  },
+  photoFull: { width: '100%', aspectRatio: 3 / 4 },
+  photoCloseBtn: {
+    position: 'absolute', top: 56, right: 20,
+    backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20,
+    width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
+  },
+  photoZoomHint: {
+    position: 'absolute', bottom: 40,
+    alignSelf: 'center', fontSize: 12,
+    color: 'rgba(255,255,255,0.30)', fontWeight: '500',
+  },
 
   sectionLabel: {
     fontSize: 12, fontWeight: '600', color: '#888',

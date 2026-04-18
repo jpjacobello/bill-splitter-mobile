@@ -9,7 +9,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Receipt, PersonBreakdown } from '../types';
 import { getEmoji } from '../utils/buildReceiptHtml';
-import ShareableReceiptCard from './ShareableReceiptCard';
+import ShareableReceiptCard, { calcCardScale } from './ShareableReceiptCard';
 
 type Props = {
   visible: boolean;
@@ -23,10 +23,17 @@ type Props = {
 export default function ReceiptPreviewSheet({ visible, receipt, onClose, person, allPeople, showPeopleSummary }: Props) {
   const cardRef = useRef<View>(null);
 
+  const cardItemCount = person
+    ? person.breakdown.assignedItems.length
+    : allPeople
+    ? allPeople.length
+    : receipt.items.length;
+  const cardScale = calcCardScale(cardItemCount);
+
   const handleShare = async () => {
     try {
       const { captureRef } = require('react-native-view-shot');
-      const tmpUri = await captureRef(cardRef, { format: 'png', quality: 1 });
+      const tmpUri = await captureRef(cardRef, { format: 'png', quality: 1, width: 320 });
       const tmpFile = tmpUri.startsWith('file://') ? tmpUri : `file://${tmpUri}`;
 
       // Try to copy to a nicely named file; fall back to sharing the raw tmp path
@@ -186,6 +193,7 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
             receipt={receipt}
             person={person?.breakdown}
             allPeople={!person ? allPeople : undefined}
+            scale={cardScale}
           />
         </View>
       </View>

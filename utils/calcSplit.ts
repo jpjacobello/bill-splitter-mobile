@@ -19,14 +19,16 @@ function r2(n: number): number {
  *   Any remainder vs receipt.total is added to the largest payer.
  */
 export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
-  const unassignedItems = receipt.items.filter((i) => i.assignedTo.length === 0);
+  // Discount items are auto-distributed — exclude from unassigned tracking
+  const unassignedItems = receipt.items.filter((i) => i.price >= 0 && i.assignedTo.length === 0);
   const unassignedTotal = r2(unassignedItems.reduce((s, i) => s + i.price, 0));
 
-  // Step 1: build subtotals and item shares
+  // Step 1: build subtotals and item shares (positive items only)
   const breakdowns: PersonBreakdown[] = people.map((person) => {
     const assignedItems: PersonBreakdown['assignedItems'] = [];
     let subtotal = 0;
     receipt.items.forEach((item) => {
+      if (item.price < 0) return; // discounts handled separately below
       if (item.assignedTo.includes(person.id)) {
         const share = item.price / item.assignedTo.length;
         subtotal += share;
@@ -35,6 +37,24 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
     });
     return { person, assignedItems, subtotal: r2(subtotal), taxShare: 0, feesShare: 0, tipShare: 0, totalOwed: 0 };
   });
+
+  // Step 1b: distribute discount items proportionally across assigned people
+  const totalDiscount = r2(receipt.items.filter((i) => i.price < 0).reduce((s, i) => s + i.price, 0));
+  if (totalDiscount < 0) {
+    const positiveAssigned = r2(breakdowns.reduce((s, b) => s + b.subtotal, 0));
+    if (positiveAssigned > 0) {
+      const rawDiscountShares = breakdowns.map((b) => totalDiscount * (b.subtotal / positiveAssigned));
+      const roundedDiscountShares = rawDiscountShares.map(r2);
+      const discountRemainder = r2(totalDiscount - roundedDiscountShares.reduce((s, d) => s + d, 0));
+      if (Math.abs(discountRemainder) >= 0.01) {
+        const largestIdx = breakdowns.reduce(
+          (maxIdx, b, i, arr) => (b.subtotal > arr[maxIdx].subtotal ? i : maxIdx), 0
+        );
+        roundedDiscountShares[largestIdx] = r2(roundedDiscountShares[largestIdx] + discountRemainder);
+      }
+      breakdowns.forEach((b, i) => { b.subtotal = r2(b.subtotal + roundedDiscountShares[i]); });
+    }
+  }
 
   // Step 2: compute raw tax shares (proportional) and round them
   const n = breakdowns.length || 1;
@@ -102,7 +122,7 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
 export function getUnassignedTotal(receipt: Receipt): number {
   return r2(
     receipt.items
-      .filter((i) => i.assignedTo.length === 0)
+      .filter((i) => i.price >= 0 && i.assignedTo.length === 0)
       .reduce((s, i) => s + i.price, 0)
   );
 }
