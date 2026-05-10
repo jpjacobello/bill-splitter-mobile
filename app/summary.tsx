@@ -18,11 +18,14 @@ import { useBillStore } from '../store/useBillStore';
 import { calcSplit } from '../utils/calcSplit';
 import { openVenmo } from '../utils/venmo';
 import { PersonBreakdown } from '../types';
+import { usePro } from '../hooks/usePro';
+import { saveBillToHistory } from '../utils/proStorage';
 
 
 export default function SummaryScreen() {
   const router = useRouter();
-  const { receipt, people } = useBillStore();
+  const { receipt, people, reset, receiptImageUri } = useBillStore();
+  const { isPro } = usePro();
   const [showReceipt, setShowReceipt] = useState(false);
   const [showOriginalReceipt, setShowOriginalReceipt] = useState(false);
   const [previewPerson, setPreviewPerson] = useState<{ breakdown: PersonBreakdown; colorIndex: number } | null>(null);
@@ -32,7 +35,7 @@ export default function SummaryScreen() {
   const summary = calcSplit(people, receipt);
 
   const handleVenmo = (b: PersonBreakdown) => {
-    openVenmo(b, receipt.merchantName);
+    openVenmo(b, receipt.merchantName, isPro);
   };
 
   const handleStartOver = () => {
@@ -41,7 +44,15 @@ export default function SummaryScreen() {
       'This will clear the current receipt and all assignments.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Start Over', style: 'destructive', onPress: () => router.replace('/') },
+        {
+          text: 'Start Over', style: 'destructive', onPress: async () => {
+            if (isPro) {
+              await saveBillToHistory({ merchantName: receipt.merchantName, people, receipt, receiptImageUri: receiptImageUri ?? undefined });
+            }
+            reset();
+            router.replace('/');
+          },
+        },
       ]
     );
   };

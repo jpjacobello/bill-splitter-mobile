@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, View, Text, StyleSheet, ActivityIndicator, Easing } from 'react-native';
+import { Animated, View, StyleSheet, Easing } from 'react-native';
 
 type Props = { height: number };
 
@@ -11,13 +11,13 @@ export default function RainbowScanOverlay({ height }: Props) {
       Animated.sequence([
         Animated.timing(scanY, {
           toValue: 1,
-          duration: 2400,
+          duration: 2000,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(scanY, {
           toValue: 0,
-          duration: 2400,
+          duration: 2000,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
@@ -33,25 +33,17 @@ export default function RainbowScanOverlay({ height }: Props) {
   });
 
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height, overflow: 'hidden', borderRadius: 20 }}>
-      <View style={[StyleSheet.absoluteFill, styles.base]} />
-
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height, overflow: 'hidden', borderRadius: 16 }}>
       <Animated.View style={[styles.scanWrapper, { transform: [{ translateY }] }]}>
+        <View style={styles.glow} />
         <View style={styles.scanLine} />
+        <View style={[styles.glow, { transform: [{ scaleY: -1 }] }]} />
       </Animated.View>
-
-      <View style={styles.content}>
-        <ActivityIndicator color="rgba(255,255,255,0.85)" size="large" />
-        <Text style={styles.text}>Scanning receipt…</Text>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    backgroundColor: 'rgba(0,0,0,0.50)',
-  },
   scanWrapper: {
     position: 'absolute',
     left: 0,
@@ -59,19 +51,13 @@ const styles = StyleSheet.create({
   },
   scanLine: {
     height: 2,
-    backgroundColor: '#FF2222',
+    backgroundColor: '#3B82F6',
     width: '100%',
   },
-  content: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  text: {
-    color: 'rgba(255,255,255,0.90)',
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+  glow: {
+    height: 16,
+    width: '100%',
+    opacity: 0.25,
+    backgroundColor: '#3B82F6',
   },
 });

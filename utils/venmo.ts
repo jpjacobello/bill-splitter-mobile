@@ -6,15 +6,14 @@ import { getEmoji } from './buildReceiptHtml';
 const MAX_NOTE_LENGTH = 280;
 const APP_TAG = 'Split with Divi';
 
+
 function toTitleCase(str: string): string {
   // If the string is already mixed case, leave it alone
   if (str !== str.toUpperCase()) return str;
   return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function buildVenmoNote(b: PersonBreakdown, merchantName?: string): string {
-  const firstName = b.person.name.split(' ')[0];
-  const footer = `Split with Divi`;
+export function buildVenmoNote(b: PersonBreakdown, merchantName?: string, isPro?: boolean): string {
   const merchant = merchantName ? toTitleCase(merchantName) : null;
 
   const itemLines = b.assignedItems.map((a) => {
@@ -22,29 +21,29 @@ export function buildVenmoNote(b: PersonBreakdown, merchantName?: string): strin
     return `- ${getEmoji(a.item.name)} ${displayName} ($${a.share.toFixed(2)})`;
   });
 
+  const footer = isPro ? [] : ['', APP_TAG];
   const parts = [
     ...(merchant ? [merchant] : []),
     ...itemLines,
-    '',
-    footer,
+    ...footer,
   ];
   const note = parts.join('\n');
 
   if (note.length <= MAX_NOTE_LENGTH) return note;
 
-  // Too long — drop item detail, keep merchant + footer
-  const short = [...(merchant ? [merchant] : []), footer].join('\n');
+  // Too long — drop item detail, keep merchant + optional footer
+  const short = [...(merchant ? [merchant] : []), ...(isPro ? [] : [APP_TAG])].join('\n');
   return short;
 }
 
-export function buildVenmoUrl(b: PersonBreakdown, merchantName?: string): string {
-  const note = buildVenmoNote(b, merchantName);
+export function buildVenmoUrl(b: PersonBreakdown, merchantName?: string, isPro?: boolean): string {
+  const note = buildVenmoNote(b, merchantName, isPro);
   const amount = b.totalOwed.toFixed(2);
   return `venmo://paycharge?txn=charge&amount=${amount}&note=${encodeURIComponent(note)}`;
 }
 
-export async function openVenmo(b: PersonBreakdown, merchantName?: string): Promise<void> {
-  const url = buildVenmoUrl(b, merchantName);
+export async function openVenmo(b: PersonBreakdown, merchantName?: string, isPro?: boolean): Promise<void> {
+  const url = buildVenmoUrl(b, merchantName, isPro);
   try {
     await Linking.openURL(url);
   } catch {

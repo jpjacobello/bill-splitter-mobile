@@ -5,10 +5,12 @@ import { Receipt, ReceiptItem } from '../types';
 const API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
-const PROMPT = `You are a receipt parser. Extract all data from this receipt image and return it as JSON.
+const PROMPT = `You are a receipt parser. Return your response as JSON. If this image clearly contains no pricing or transaction data (e.g. it is a selfie, meme, landscape, or social media post), return exactly:
+{"isReceipt": false}
 
-Return exactly this structure (no other text):
+Otherwise attempt to parse it and return exactly this structure (no other text):
 {
+  "isReceipt": true,
   "merchantName": "string or null",
   "date": "YYYY-MM-DD or null",
   "items": [
@@ -85,6 +87,10 @@ export async function openaiParser(imageUri: string): Promise<Receipt> {
     parsed = JSON.parse(content);
   } catch {
     throw new Error('Could not parse OpenAI response as JSON');
+  }
+
+  if (parsed.isReceipt === false) {
+    return { merchantName: undefined, date: undefined, items: [], subtotal: 0, tax: 0, fees: 0, tip: 0, total: 0, tipIsFromReceipt: false };
   }
 
   const rawItems: ReceiptItem[] = (parsed.items ?? []).map((item: any, index: number) => {

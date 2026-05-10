@@ -86,17 +86,6 @@ export default function StartScreen() {
 
   if (isReturningUser === null) return null;
 
-  const handleDevReset = async () => {
-    await AsyncStorage.multiRemove([HAS_LAUNCHED_KEY, SAVED_NAME_KEY]);
-    reset();
-    setIsReturningUser(false);
-    setName('');
-    setPhase('scan');
-    scanOpacity.setValue(1);
-    optionsOpacity.setValue(0);
-    optionsTranslateY.setValue(12);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -104,7 +93,9 @@ export default function StartScreen() {
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')} activeOpacity={0.7}>
           <Ionicons name="settings-outline" size={22} color="#888" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.devReset} onPress={handleDevReset} activeOpacity={1} />
+        <TouchableOpacity style={styles.historyBtn} onPress={() => router.push('/history')} activeOpacity={0.7}>
+          <Ionicons name="time-outline" size={22} color="#888" />
+        </TouchableOpacity>
 
         <View style={styles.hero}>
           <View style={styles.badge}>
@@ -262,9 +253,9 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 2, right: 4,
     paddingHorizontal: 14, paddingVertical: 10,
   },
-  devReset: {
-    position: 'absolute', top: 0, left: 0,
-    paddingHorizontal: 20, paddingVertical: 14,
+  historyBtn: {
+    position: 'absolute', top: 2, left: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
   demoLink: {
     alignItems: 'center',

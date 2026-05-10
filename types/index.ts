@@ -2,6 +2,7 @@ export type Person = {
   id: string;
   name: string;
   isHost: boolean;
+
 };
 
 export type ReceiptItem = {
@@ -42,4 +43,19 @@ export type SplitSummary = {
   calculatedTotal: number;    // sum of all totalOwed
   reconciles: boolean;        // within $0.05 of receiptTotal
   unassignedItems: ReceiptItem[];
+};
+
+export type BillHistoryEntry = {
+  id: string;
+  merchantName?: string;
+  people: Person[];
+  receipt: Receipt;
+  receiptImageUri?: string;
+  createdAt: string; // ISO string
+};
+
+export type SavedGroup = {
+  id: string;
+  name: string;
+  members: string[]; // display names only (no host)
 };

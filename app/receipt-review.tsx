@@ -4,7 +4,7 @@ import {
   ScrollView, KeyboardAvoidingView, Platform, Alert,
   Modal, Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +21,7 @@ function parseDollar(text: string): number {
 
 export default function ReceiptReviewScreen() {
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const { receipt, receiptImageUri, updateItem, deleteItem, addItem, updateReceiptField, updateTip } = useBillStore();
   const [showPhoto, setShowPhoto] = useState(false);
 
@@ -360,7 +361,6 @@ export default function ReceiptReviewScreen() {
             <TouchableOpacity style={styles.photoCloseBtn} onPress={() => setShowPhoto(false)}>
               <Ionicons name="close" size={22} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.photoZoomHint}>Pinch to zoom</Text>
           </View>
         </Modal>
       )}
@@ -395,7 +395,11 @@ export default function ReceiptReviewScreen() {
               return;
             }
 
-            router.push('/assign-items');
+            if (from === 'assign-items') {
+              router.back();
+            } else {
+              router.push('/assign-items');
+            }
           }}
           height={60}
         />
@@ -433,11 +437,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20,
     width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
-  },
-  photoZoomHint: {
-    position: 'absolute', bottom: 40,
-    alignSelf: 'center', fontSize: 12,
-    color: 'rgba(255,255,255,0.30)', fontWeight: '500',
   },
 
   sectionLabel: {

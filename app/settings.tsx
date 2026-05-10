@@ -1,29 +1,92 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, View, Text, TextInput,
-  TouchableOpacity, ScrollView, Keyboard,
+  TouchableOpacity, ScrollView, Keyboard, Alert, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBillStore } from '../store/useBillStore';
+import { usePro } from '../hooks/usePro';
 
 const SAVED_NAME_KEY = 'savedHostName';
 export const DEFAULT_TIP_KEY = 'defaultTipPct';
+export const TIP_REMINDER_KEY = 'tipReminderMode';
+export type TipReminderMode = 'always' | 'never';
 const TIP_PRESETS = [0.15, 0.18, 0.20, 0.25];
+const APP_VERSION = '1.0.0';
+
+// ── Reusable primitives ────────────────────────────────────────────────────
+
+function SectionHeader({ label }: { label: string }) {
+  return <Text style={styles.sectionHeader}>{label}</Text>;
+}
+
+function SettingRow({
+  label,
+  value,
+  icon,
+  onPress,
+  chevron = true,
+  last = false,
+  labelColor,
+  children,
+}: {
+  label: string;
+  value?: string;
+  icon?: React.ComponentProps<typeof Ionicons>['name'];
+  onPress?: () => void;
+  chevron?: boolean;
+  last?: boolean;
+  labelColor?: string;
+  children?: React.ReactNode;
+}) {
+  const Wrapper: any = onPress ? TouchableOpacity : View;
+  return (
+    <>
+      <Wrapper
+        style={styles.row}
+        onPress={onPress}
+        activeOpacity={0.65}
+      >
+        <Text style={[styles.rowLabel, labelColor ? { color: labelColor } : undefined]}>{label}</Text>
+        <View style={styles.rowRight}>
+          {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+          {icon ? <Ionicons name={icon} size={18} color="#555" /> : null}
+          {chevron && onPress ? <Ionicons name="chevron-forward" size={16} color="#444" style={{ marginLeft: 2 }} /> : null}
+        </View>
+      </Wrapper>
+      {!last && <View style={styles.separator} />}
+      {children}
+    </>
+  );
+}
+
+function GroupCard({ children }: { children: React.ReactNode }) {
+  return <View style={styles.card}>{children}</View>;
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { setHostName } = useBillStore();
+  const { isPro, loading: proLoading, activatePro, deactivatePro } = usePro();
   const [name, setName] = useState('');
   const [nameSaved, setNameSaved] = useState(false);
   const [defaultTip, setDefaultTip] = useState<number | null>(null);
+  const [tipReminder, setTipReminder] = useState<TipReminderMode>('always');
+  const [nameExpanded, setNameExpanded] = useState(false);
+  const [tipExpanded, setTipExpanded] = useState(false);
+  const [tipReminderExpanded, setTipReminderExpanded] = useState(false);
+  const nameInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    AsyncStorage.multiGet([SAVED_NAME_KEY, DEFAULT_TIP_KEY]).then(([savedName, savedTip]) => {
+    AsyncStorage.multiGet([SAVED_NAME_KEY, DEFAULT_TIP_KEY, TIP_REMINDER_KEY]).then(([savedName, savedTip, savedReminder]) => {
       if (savedName[1]) setName(savedName[1]);
       setDefaultTip(savedTip[1] !== null ? parseFloat(savedTip[1]) : null);
+      setTipReminder((savedReminder[1] as TipReminderMode) ?? 'always');
     });
   }, []);
 
@@ -34,6 +97,7 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem(SAVED_NAME_KEY, trimmed);
     setHostName(trimmed);
     setNameSaved(true);
+    setNameExpanded(false);
     setTimeout(() => setNameSaved(false), 2000);
   };
 
@@ -46,9 +110,16 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleSetTipReminder = async (mode: TipReminderMode) => {
+    setTipReminder(mode);
+    await AsyncStorage.setItem(TIP_REMINDER_KEY, mode);
+  };
+
+  const tipLabel = defaultTip === null ? 'None' : `${Math.round(defaultTip * 100)}%`;
+  const tipReminderLabel = tipReminder === 'always' ? 'Always' : 'Never';
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color="#D0D0D0" />
@@ -61,67 +132,215 @@ export default function SettingsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Your Name ── */}
-        <Text style={styles.sectionLabel}>Your Name</Text>
-        <View style={styles.row}>
-          <TextInput
-            style={styles.nameInput}
-            value={name}
-            onChangeText={(t) => { setName(t); setNameSaved(false); }}
-            placeholder="Your name"
-            placeholderTextColor="#555"
-            autoCapitalize="words"
-            returnKeyType="done"
-            onSubmitEditing={handleSaveName}
+        {/* ── Profile ── */}
+        <SectionHeader label="Profile" />
+        <GroupCard>
+          <SettingRow
+            label="Your Name"
+            value={name || 'Not set'}
+            last
+            onPress={() => {
+              setNameExpanded((v) => !v);
+              setTimeout(() => nameInputRef.current?.focus(), 80);
+            }}
           />
-          <TouchableOpacity
-            style={[styles.saveBtn, nameSaved && styles.saveBtnDone, !name.trim() && styles.saveBtnDisabled]}
-            onPress={handleSaveName}
-            disabled={!name.trim()}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.saveBtnText, nameSaved && styles.saveBtnTextDone]}>
-              {nameSaved ? '✓' : 'Save'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+          {nameExpanded && (
+            <View style={styles.expandedArea}>
+              <View style={styles.nameRow}>
+                <TextInput
+                  ref={nameInputRef}
+                  style={styles.nameInput}
+                  value={name}
+                  onChangeText={(t) => { setName(t); setNameSaved(false); }}
+                  placeholder="Your name"
+                  placeholderTextColor="#555"
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveName}
+                />
+                <TouchableOpacity
+                  style={[styles.saveBtn, nameSaved && styles.saveBtnDone, !name.trim() && styles.saveBtnDisabled]}
+                  onPress={handleSaveName}
+                  disabled={!name.trim()}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.saveBtnText, nameSaved && styles.saveBtnTextDone]}>
+                    {nameSaved ? '✓' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </GroupCard>
 
-        {/* ── Default Tip ── */}
-        <Text style={[styles.sectionLabel, { marginTop: 36 }]}>Default Tip</Text>
-        <Text style={styles.sectionHint}>Applied automatically when a scanned receipt has no tip.</Text>
-        <View style={styles.tipChips}>
-          <TouchableOpacity
-            style={[styles.tipChip, defaultTip === null && styles.tipChipActive]}
-            onPress={() => handleSetDefaultTip(null)}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.tipChipText, defaultTip === null && styles.tipChipTextActive]}>None</Text>
-          </TouchableOpacity>
-          {TIP_PRESETS.map((pct) => (
-            <TouchableOpacity
-              key={pct}
-              style={[styles.tipChip, defaultTip === pct && styles.tipChipActive]}
-              onPress={() => handleSetDefaultTip(pct)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.tipChipText, defaultTip === pct && styles.tipChipTextActive]}>
-                {Math.round(pct * 100)}%
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* ── Bill Preferences ── */}
+        <SectionHeader label="Bill Preferences" />
+        <GroupCard>
+          <SettingRow
+            label="Default Tip"
+            value={tipLabel}
+            onPress={() => { setTipExpanded((v) => !v); setTipReminderExpanded(false); }}
+          />
+          {tipExpanded && (
+            <View style={styles.expandedArea}>
+              <Text style={styles.expandedHint}>Applied automatically when a receipt has no tip.</Text>
+              <View style={styles.tipChips}>
+                <TouchableOpacity
+                  style={[styles.tipChip, defaultTip === null && styles.tipChipActive]}
+                  onPress={() => handleSetDefaultTip(null)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.tipChipText, defaultTip === null && styles.tipChipTextActive]}>None</Text>
+                </TouchableOpacity>
+                {TIP_PRESETS.map((pct) => (
+                  <TouchableOpacity
+                    key={pct}
+                    style={[styles.tipChip, defaultTip === pct && styles.tipChipActive]}
+                    onPress={() => handleSetDefaultTip(pct)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.tipChipText, defaultTip === pct && styles.tipChipTextActive]}>
+                      {Math.round(pct * 100)}%
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+          <View style={styles.separator} />
+          <SettingRow
+            label="Tip Reminder"
+            value={tipReminderLabel}
+            last
+            onPress={() => { setTipReminderExpanded((v) => !v); setTipExpanded(false); }}
+          />
+          {tipReminderExpanded && (
+            <View style={styles.expandedArea}>
+              {([
+                { mode: 'always' as TipReminderMode, title: 'Always', desc: 'Show a warning whenever no tip is detected on a receipt.' },
+                { mode: 'never' as TipReminderMode, title: 'Never', desc: 'Never show a tip warning.' },
+              ]).map(({ mode, title, desc }) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={styles.radioRow}
+                  onPress={() => handleSetTipReminder(mode)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioTextGroup}>
+                    <Text style={styles.radioTitle}>{title}</Text>
+                    <Text style={styles.radioDesc}>{desc}</Text>
+                  </View>
+                  {tipReminder === mode && (
+                    <Ionicons name="checkmark" size={18} color="#3B82F6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </GroupCard>
 
         {/* ── Subscription ── */}
-        <Text style={[styles.sectionLabel, { marginTop: 36 }]}>Subscription</Text>
-        <View style={styles.subscriptionRow}>
-          <View style={styles.subscriptionLeft}>
-            <Text style={styles.subscriptionTitle}>Divi Pro</Text>
-            <Text style={styles.subscriptionSubtitle}>Unlimited scans, priority support, and more</Text>
-          </View>
-          <View style={styles.comingSoonBadge}>
-            <Text style={styles.comingSoonText}>Soon</Text>
-          </View>
-        </View>
+        <SectionHeader label="Subscription" />
+        {!proLoading && (
+          isPro ? (
+            <>
+              <GroupCard>
+                <TouchableOpacity
+                  style={styles.proActiveRow}
+                  activeOpacity={1}
+                  onLongPress={() =>
+                    Alert.alert('Reset to Free?', 'For testing only — removes Pro status.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Reset', style: 'destructive', onPress: deactivatePro },
+                    ])
+                  }
+                  delayLongPress={800}
+                >
+                  <Text style={styles.rowLabel}>Status</Text>
+                  <View style={styles.rowRight}>
+                    <Text style={styles.proActiveValue}>Pro (Active)</Text>
+                  </View>
+                </TouchableOpacity>
+              </GroupCard>
+
+              <SectionHeader label="Subscription Management" />
+              <GroupCard>
+                <SettingRow
+                  label="Manage Subscription"
+                  chevron={false}
+                  labelColor="#3B82F6"
+                  onPress={() => Linking.openURL('itms-apps://apps.apple.com/account/subscriptions')}
+                />
+                <SettingRow
+                  label="Restore Purchases"
+                  chevron={false}
+                  labelColor="#3B82F6"
+                  last
+                  onPress={() => Alert.alert('Restore Purchases', 'No purchases to restore.')}
+                />
+              </GroupCard>
+              <Text style={styles.subFootnote}>You can manage your subscription in the App Store.</Text>
+            </>
+          ) : (
+            <View style={styles.proCard}>
+              <Text style={styles.proCardTitle}>Divi Pro</Text>
+              <View style={styles.proFeatureList}>
+                {[
+                  'Bill history — revisit every past split',
+                  'Saved groups — reload your usual crew',
+                  'No "Split with Divi" in Venmo notes',
+                ].map((f) => (
+                  <View key={f} style={styles.proFeatureRow}>
+                    <Text style={styles.proFeatureCheck}>✓</Text>
+                    <Text style={styles.proFeatureText}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={styles.upgradeBtn}
+                activeOpacity={0.8}
+                onPress={activatePro}
+              >
+                <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
+              </TouchableOpacity>
+            </View>
+          )
+        )}
+
+        {/* ── Feedback ── */}
+        <SectionHeader label="Feedback" />
+        <GroupCard>
+          <SettingRow
+            label="Contact Us"
+            icon="mail-outline"
+            onPress={() => Linking.openURL('mailto:jpjacobello@gmail.com?subject=Divi Feedback')}
+          />
+          <SettingRow
+            label="Leave a Review"
+            icon="heart-outline"
+            last
+            onPress={() => Alert.alert('Coming soon', 'App Store listing coming soon!')}
+          />
+        </GroupCard>
+
+        {/* ── About & Legal ── */}
+        <SectionHeader label="About & Legal" />
+        <GroupCard>
+          <SettingRow
+            label="App Version"
+            value={APP_VERSION}
+            chevron={false}
+          />
+          <SettingRow
+            label="Privacy Policy"
+            onPress={() => Alert.alert('Coming soon', 'Privacy policy coming soon!')}
+          />
+          <SettingRow
+            label="Terms of Service"
+            last
+            onPress={() => Alert.alert('Coming soon', 'Terms of service coming soon!')}
+          />
+        </GroupCard>
 
       </ScrollView>
     </SafeAreaView>
@@ -146,29 +365,56 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   title: { fontSize: 22, fontWeight: '700', color: '#D0D0D0' },
-  scroll: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 48 },
+  scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 60 },
 
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.60)',
-    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12,
-  },
-  sectionHint: {
-    fontSize: 13, color: '#888', marginBottom: 12, marginTop: -6,
+  sectionHeader: {
+    fontSize: 12, fontWeight: '600', color: '#666',
+    letterSpacing: 0.5, textTransform: 'uppercase',
+    marginBottom: 8, marginTop: 28, marginLeft: 4,
   },
 
-  // Name
-  row: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  card: {
+    backgroundColor: '#1C1C1C',
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 50,
+  },
+  rowLabel: { fontSize: 15, color: '#D0D0D0', fontWeight: '400' },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowValue: { fontSize: 15, color: '#666' },
+  separator: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.07)', marginLeft: 16 },
+
+  expandedArea: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+  },
+  expandedHint: {
+    fontSize: 12, color: '#555', marginBottom: 12, marginTop: 12,
+  },
+  nameRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 12 },
   nameInput: {
-    flex: 1, height: 48,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)',
-    borderRadius: 14, paddingHorizontal: 16,
-    fontSize: 16, color: '#FFFFFF',
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    flex: 1, height: 44,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 10, paddingHorizontal: 14,
+    fontSize: 15, color: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   saveBtn: {
-    height: 48, paddingHorizontal: 18,
+    height: 44, paddingHorizontal: 16,
     backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   saveBtnDone: {
@@ -176,35 +422,55 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(22,163,74,0.40)',
   },
   saveBtnDisabled: { opacity: 0.35 },
-  saveBtnText: { fontSize: 15, fontWeight: '600', color: '#D0D0D0' },
+  saveBtnText: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
   saveBtnTextDone: { color: '#16A34A' },
 
-  // Tip
+  radioRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingVertical: 12,
+    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  radioTextGroup: { flex: 1, gap: 2, paddingRight: 12 },
+  radioTitle: { fontSize: 15, color: '#D0D0D0', fontWeight: '400' },
+  radioDesc: { fontSize: 12, color: '#555' },
+
   tipChips: { flexDirection: 'row', gap: 8 },
   tipChip: {
     flex: 1, paddingVertical: 8,
-    borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
   },
   tipChipActive: { backgroundColor: 'rgba(220,220,220,0.95)', borderColor: 'rgba(255,255,255,0.40)' },
-  tipChipText: { fontSize: 13, fontWeight: '600', color: '#B8B8B8' },
+  tipChipText: { fontSize: 13, fontWeight: '600', color: '#888' },
   tipChipTextActive: { color: '#000' },
 
-  // Subscription
-  subscriptionRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  proActiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  proActiveValue: { fontSize: 15, color: '#22C55E', fontWeight: '600' },
+  subFootnote: {
+    fontSize: 12, color: '#555', marginTop: 8, marginLeft: 4,
+  },
+
+  proCard: {
     backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14, padding: 18,
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)',
+    gap: 14,
   },
-  subscriptionLeft: { flex: 1, gap: 4 },
-  subscriptionTitle: { fontSize: 16, fontWeight: '700', color: '#D0D0D0' },
-  subscriptionSubtitle: { fontSize: 13, color: '#888' },
-  comingSoonBadge: {
-    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+  proCardTitle: { fontSize: 18, fontWeight: '800', color: '#D0D0D0' },
+  proFeatureList: { gap: 8 },
+  proFeatureRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  proFeatureCheck: { fontSize: 14, fontWeight: '700', color: '#22C55E', width: 16 },
+  proFeatureText: { fontSize: 14, color: '#AAA', flex: 1 },
+  upgradeBtn: {
+    backgroundColor: '#D8D8D8', borderRadius: 12,
+    paddingVertical: 13, alignItems: 'center',
   },
-  comingSoonText: { fontSize: 12, fontWeight: '600', color: '#888' },
+  upgradeBtnText: { fontSize: 16, fontWeight: '700', color: '#000' },
 });

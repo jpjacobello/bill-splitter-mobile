@@ -3,21 +3,63 @@ import { Dimensions, StyleSheet, View, Text, TouchableOpacity, Alert, Animated, 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import DocumentScanner from 'react-native-document-scanner-plugin';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
-import RainbowScanOverlay from '../components/RainbowScanOverlay';
 import DigitizedReceipt from '../components/DigitizedReceipt';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBillStore } from '../store/useBillStore';
 import { activeParser } from '../services/receiptParser';
+import { flattenDocument } from '../modules/document-flattener';
 import { mockReceipt } from '../data/mockData';
+import { DEFAULT_TIP_KEY } from './settings';
 
 const SCREEN_H = Dimensions.get('window').height;
+
+const SHIMMER_DURATION = 1600;
+const CHAR_DELAY = 60;
+
+function ShimmerText({ text, active }: { text: string; active: boolean }) {
+  const anims = useRef(text.split('').map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    if (!active) { anims.forEach((a) => a.setValue(0)); return; }
+    const loop = Animated.loop(
+      Animated.stagger(
+        CHAR_DELAY,
+        anims.map((a) =>
+          Animated.sequence([
+            Animated.timing(a, { toValue: 1, duration: SHIMMER_DURATION * 0.3, useNativeDriver: false }),
+            Animated.timing(a, { toValue: 0, duration: SHIMMER_DURATION * 0.5, useNativeDriver: false }),
+            Animated.delay(SHIMMER_DURATION * 0.2),
+          ])
+        )
+      )
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active]);
+
+  return (
+    <View style={{ flexDirection: 'row' }}>
+      {text.split('').map((char, i) => (
+        <Animated.Text key={i} style={{
+          fontSize: 22, fontWeight: '300', letterSpacing: 0.3,
+          color: anims[i].interpolate({ inputRange: [0, 1], outputRange: ['#555', '#D8D8D8'] }),
+        }}>
+          {char}
+        </Animated.Text>
+      ))}
+    </View>
+  );
+}
+
 
 export default function ReceiptUploadScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isReturning, demo } = useLocalSearchParams<{ isReturning?: string; demo?: string }>();
-  const { setReceipt, receipt, people, pendingImageUri, setPendingImageUri, setReceiptImageUri, reset } = useBillStore();
+  const { setReceipt, receipt, people, pendingImageUri, setPendingImageUri, setReceiptImageUri, reset, updateTip, updateReceiptField } = useBillStore();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -55,52 +97,54 @@ export default function ReceiptUploadScreen() {
   const isDemoLoaded = isDemoMode && imageUri === null;
 
   const pickImage = async (useCamera: boolean) => {
-    const { status } = useCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    let uri: string;
 
-    if (status !== 'granted') return;
+    if (useCamera) {
+      const { scannedImages } = await DocumentScanner.scanDocument();
+      if (!scannedImages || scannedImages.length === 0) return;
+      uri = scannedImages[0];
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') return;
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+      if (result.canceled || !result.assets[0]) return;
+      uri = await flattenDocument(result.assets[0].uri).catch(() => result.assets[0].uri);
+    }
 
-    const result = useCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setIsRetakeMode(false);
-      setNotReceiptMode(false);
-      setImageUri(uri);
-      setParsing(true);
-      try {
-        const parsed = await activeParser(uri);
-        if (parsed.items.length === 0 && parsed.total === 0) {
-          setParsing(false);
-          setImageUri(null);
-          setNotReceiptMode(true);
-          return;
-        }
-        const allIds = people.map((p) => p.id);
-        const receipt = {
-          ...parsed,
-          items: parsed.items.map((item) =>
-            item.id === 'auto-surcharge' || item.id === 'auto-fee' || item.price < 0
-              ? { ...item, assignedTo: allIds }
-              : item
-          ),
-        };
-        setReceipt(receipt);
-        setReceiptImageUri(uri);
-        setParsing(false);
-      } catch (err) {
+    setIsRetakeMode(false);
+    setNotReceiptMode(false);
+    setImageUri(uri);
+    setParsing(true);
+    try {
+      const parsed = await activeParser(uri);
+      if (parsed.items.length === 0 && parsed.total === 0) {
         setParsing(false);
         setImageUri(null);
         setNotReceiptMode(true);
-        Alert.alert(
-          'Scan Failed',
-          'Could not read the receipt. Please try again or use a clearer photo.',
-        );
-        console.error('Receipt parse error:', err);
+        return;
       }
+      const allIds = people.map((p) => p.id);
+      const receipt = {
+        ...parsed,
+        items: parsed.items.map((item) =>
+          item.id === 'auto-surcharge' || item.id === 'auto-fee' || item.price < 0
+            ? { ...item, assignedTo: allIds }
+            : item
+        ),
+      };
+      setReceipt(receipt);
+      setReceiptImageUri(uri);
+      setParsing(false);
+      await routeAfterParse(receipt);
+    } catch (err) {
+      setParsing(false);
+      setImageUri(null);
+      setNotReceiptMode(true);
+      Alert.alert(
+        'Scan Failed',
+        'Could not read the receipt. Please try again or use a clearer photo.',
+      );
+      console.error('Receipt parse error:', err);
     }
   };
 
@@ -120,16 +164,18 @@ export default function ReceiptUploadScreen() {
             setNotReceiptMode(true);
             return;
           }
-          setReceipt({
+          const builtReceipt = {
             ...parsed,
             items: parsed.items.map((item) =>
               item.id === 'auto-surcharge' || item.id === 'auto-fee'
                 ? { ...item, assignedTo: allIds }
                 : item
             ),
-          });
+          };
+          setReceipt(builtReceipt);
           setReceiptImageUri(uri);
           setParsing(false);
+          routeAfterParse(builtReceipt);
         })
         .catch((err) => {
           setParsing(false);
@@ -153,11 +199,22 @@ export default function ReceiptUploadScreen() {
   const handleDemo = () => {
     setReceipt(mockReceipt);
     setIsDemoMode(true);
-    router.push('/receipt-review');
+    router.push('/assign-items');
   };
 
-  const handleContinue = () => {
-    router.push('/receipt-review');
+  const routeAfterParse = async (parsed: typeof receipt) => {
+    if (!parsed) return;
+    let tip = parsed.tip;
+    if (tip === 0 && !parsed.tipIsFromReceipt) {
+      const val = await AsyncStorage.getItem(DEFAULT_TIP_KEY);
+      if (val) {
+        const pct = parseFloat(val);
+        tip = parseFloat((parsed.subtotal * pct).toFixed(2));
+        updateTip(tip);
+        updateReceiptField('total', parseFloat((parsed.subtotal + parsed.tax + (parsed.fees ?? 0) + tip).toFixed(2)));
+      }
+    }
+    router.push('/assign-items');
   };
 
   return (
@@ -170,31 +227,35 @@ export default function ReceiptUploadScreen() {
 
         {/* Preview or upload area */}
         {imageUri || isDemoLoaded ? (
-          <View style={[styles.previewWrapper, parsing && styles.previewWrapperParsing]}>
-            <DigitizedReceipt
-              parsing={parsing}
-              receipt={receipt}
-              maxHeight={SCREEN_H - insets.top - insets.bottom - 90 - 80 - 56 - 16}
-            />
-            {!parsing && !isDemoMode && (
-              <TouchableOpacity
-                style={styles.retakeBtn}
-                onPress={() => openSheet()}
-              >
-                <Text style={styles.retakeBtnText}>Retake</Text>
-              </TouchableOpacity>
+          <View style={styles.receiptSection}>
+            <View style={[styles.previewWrapper, parsing && styles.previewWrapperParsing]}>
+              <DigitizedReceipt
+                parsing={parsing}
+                receipt={receipt}
+                maxHeight={SCREEN_H - insets.top - insets.bottom - 90 - 80 - 56 - 16}
+              />
+              {!parsing && !isDemoMode && (
+                <TouchableOpacity style={styles.retakeBtn} onPress={() => openSheet()}>
+                  <Text style={styles.retakeBtnText}>Retake</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {parsing && (
+              <View style={styles.shimmerContainer}>
+                <ShimmerText text="Analyzing receipt" active={parsing} />
+              </View>
             )}
           </View>
-        ) : notReceiptMode ? (
+        ) : notReceiptMode || isRetakeMode ? (
           <View style={styles.notReceiptArea}>
             <View style={styles.notReceiptCard}>
               <Ionicons name="document-outline" size={52} color="#555" />
               <Text style={styles.notReceiptQuestion}>?</Text>
             </View>
-            <Text style={styles.notReceiptText}>Doesn't look like a receipt.</Text>
+            <Text style={styles.notReceiptText}>
+              {notReceiptMode ? "Doesn't look like a receipt." : "Couldn't read the receipt."}
+            </Text>
           </View>
-        ) : isRetakeMode ? (
-          <View style={styles.retakeArea} />
         ) : (
           <View style={styles.uploadArea}>
             <Text style={styles.uploadIcon}>📷</Text>
@@ -219,7 +280,7 @@ export default function ReceiptUploadScreen() {
 
         <View style={styles.footer}>
           {(imageUri || isDemoLoaded) && !parsing ? (
-            <Button label="Review Receipt" onPress={handleContinue} />
+            receipt && <Button label="Continue" onPress={() => router.push('/assign-items')} />
           ) : isRetakeMode || notReceiptMode ? (
             <View style={styles.retakeActions}>
               <TouchableOpacity style={styles.retakeIconBtn} onPress={() => pickImage(true)} activeOpacity={0.75}>
@@ -329,13 +390,21 @@ const styles = StyleSheet.create({
     color: '#555',
     textAlign: 'center',
   },
+  receiptSection: {
+    gap: 12,
+    marginBottom: 16,
+  },
   previewWrapper: {
     borderRadius: 20,
     overflow: 'hidden',
-    marginBottom: 16,
+    alignSelf: 'center',
+    width: '82%',
   },
   previewWrapperParsing: {
-    height: 320,
+    minHeight: 300,
+  },
+  shimmerContainer: {
+    alignItems: 'center',
   },
   retakeBtn: {
     position: 'absolute',

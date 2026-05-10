@@ -37,7 +37,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "react-native-document-scanner-plugin"
     ],
     "extra": {
       "router": {},
