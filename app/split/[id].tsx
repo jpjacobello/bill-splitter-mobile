@@ -119,12 +119,17 @@ export default function PayYourShareScreen() {
     });
   };
 
-  const setWays = (item: ReceiptItem, ways: number) => {
+  // step the "split N ways" divisor. Lower bound is the fewest ways whose share
+  // still fits what's unclaimed (so you can't over-claim); no upper bound.
+  const adjustWays = (item: ReceiptItem, alreadyClaimed: number, delta: number) => {
     setSelected((prev) => {
       const next = new Map(prev);
       const cur = next.get(item.id);
       if (!cur) return next;
-      next.set(item.id, { ...cur, ways });
+      const share = unitsToFraction(item.id, cur.units);
+      const remain = remainingFraction(alreadyClaimed);
+      const minWays = Math.max(1, Math.ceil(share / remain - 1e-9));
+      next.set(item.id, { ...cur, ways: Math.max(minWays, cur.ways + delta) });
       return next;
     });
   };
@@ -362,7 +367,8 @@ export default function PayYourShareScreen() {
           const ways = sel?.ways ?? 1;
           const unitPrice = item.quantity > 0 ? item.price / item.quantity : item.price;
           const myShare = (unitPrice * units) / ways;
-          const wayOptions = [1, 2, 3, 4, 5];
+          // can't reduce ways below the point where your share exceeds what's left
+          const waysAtMin = unitsToFraction(item.id, units) / (ways - 1) > remainFrac + 0.001;
 
           return (
             <View
@@ -404,7 +410,7 @@ export default function PayYourShareScreen() {
 
               {isSelected && (
                 <View style={styles.selectDetail}>
-                  {item.quantity > 1 && (
+                  {item.quantity > 1 ? (
                     <View style={styles.stepperRow}>
                       <Text style={styles.stepperLabel}>How many did you have?</Text>
                       <View style={styles.stepperControls}>
@@ -424,33 +430,27 @@ export default function PayYourShareScreen() {
                         </TouchableOpacity>
                       </View>
                     </View>
-                  )}
-                  <View style={styles.waysRow}>
-                    <Text style={styles.stepperLabel}>Split how many ways?</Text>
-                    <View style={styles.waysChips}>
-                      {wayOptions.map((n) => {
-                        const frac = unitsToFraction(item.id, units) / n;
-                        const disabled = frac > remainFrac + 0.001;
-                        const active = ways === n;
-                        return (
-                          <TouchableOpacity
-                            key={n}
-                            style={[
-                              styles.wayChip,
-                              active && styles.wayChipActive,
-                              disabled && styles.wayChipDisabled,
-                            ]}
-                            onPress={() => setWays(item, n)}
-                            disabled={disabled}
-                          >
-                            <Text style={[styles.wayChipText, active && styles.wayChipTextActive]}>
-                              {n === 1 ? 'Just me' : n}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+                  ) : (
+                    <View style={styles.stepperRow}>
+                      <Text style={styles.stepperLabel}>Split how many ways?</Text>
+                      <View style={styles.stepperControls}>
+                        <TouchableOpacity
+                          style={[styles.stepperBtn, waysAtMin && styles.stepperBtnDisabled]}
+                          onPress={() => adjustWays(item, alreadyClaimed, -1)}
+                          disabled={waysAtMin}
+                        >
+                          <Text style={styles.stepperBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.stepperValue}>{ways === 1 ? 'Just me' : ways}</Text>
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => adjustWays(item, alreadyClaimed, 1)}
+                        >
+                          <Text style={styles.stepperBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
+                  )}
                   <Text style={styles.stepperShare}>You pay {formatCurrency(myShare)}</Text>
                 </View>
               )}
@@ -597,21 +597,6 @@ const styles = StyleSheet.create({
     fontSize: 14, fontWeight: '700', color: '#6497D4',
     textAlign: 'right', paddingHorizontal: 12, paddingTop: 8,
   },
-  waysRow: { paddingHorizontal: 12, paddingBottom: 2, gap: 8 },
-  waysChips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  wayChip: {
-    minWidth: 34, height: 32, paddingHorizontal: 12, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
-  },
-  wayChipActive: {
-    backgroundColor: 'rgba(100,151,212,0.20)',
-    borderColor: 'rgba(100,151,212,0.55)',
-  },
-  wayChipDisabled: { opacity: 0.3 },
-  wayChipText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
-  wayChipTextActive: { color: '#6497D4' },
   itemRowClaimed: {
     opacity: 0.45,
   },
