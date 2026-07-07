@@ -2,6 +2,8 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated }
 import { useEffect, useRef } from 'react';
 import { BlurView } from 'expo-blur';
 import { ReceiptItem, Person } from '../types';
+import { colors } from '../theme';
+import { formatCurrency } from '../utils/currency';
 
 type Props = {
   item: ReceiptItem | null;
@@ -83,7 +85,7 @@ export default function ItemActionSheet({
         {/* Item header */}
         <View style={styles.itemHeader}>
           <Text style={styles.itemName}>{item.name}</Text>
-          <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+          <Text style={styles.itemPrice}>{formatCurrency(item.price)}</Text>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -102,7 +104,7 @@ export default function ItemActionSheet({
                   <Text style={[styles.personToggleText, selected && styles.personToggleTextActive]}>
                     {person.name}
                   </Text>
-                  {selected && <Text style={styles.personToggleCheck}>✓</Text>}
+                  <Text style={[styles.personToggleCheck, { opacity: selected ? 1 : 0 }]}>✓</Text>
                 </TouchableOpacity>
               );
             })}
@@ -116,7 +118,7 @@ export default function ItemActionSheet({
                 <TouchableOpacity style={styles.actionRow} onPress={handleSplitIntoUnits}>
                   <View>
                     <Text style={styles.actionLabel}>Split into {item.quantity} individual items</Text>
-                    <Text style={styles.actionHint}>${(item.price / item.quantity).toFixed(2)} each</Text>
+                    <Text style={styles.actionHint}>{formatCurrency((item.price / item.quantity))} each</Text>
                   </View>
                   <Text style={styles.actionArrow}>→</Text>
                 </TouchableOpacity>
@@ -194,8 +196,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  itemName: { fontSize: 17, fontWeight: '700', color: '#D0D0D0', flex: 1 },
-  itemPrice: { fontSize: 17, fontWeight: '700', color: '#D0D0D0' },
+  itemName: { fontSize: 17, fontWeight: '700', color: colors.textDim, flex: 1 },
+  itemPrice: { fontSize: 17, fontWeight: '700', color: colors.textDim },
   sectionLabel: {
     fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.60)',
     letterSpacing: 1, textTransform: 'uppercase',
@@ -222,7 +224,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.14)',
   },
-  actionLabel: { fontSize: 15, color: '#D0D0D0', fontWeight: '500' },
+  actionLabel: { fontSize: 15, color: colors.textDim, fontWeight: '500' },
   actionHint: { fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
   actionArrow: { fontSize: 16, color: 'rgba(255,255,255,0.55)' },
   closeBtn: {

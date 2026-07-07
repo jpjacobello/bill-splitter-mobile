@@ -13,6 +13,7 @@ import { activeParser } from '../services/receiptParser';
 import { flattenDocument } from '../modules/document-flattener';
 import { mockReceipt } from '../data/mockData';
 import { DEFAULT_TIP_KEY } from './settings';
+import { colors } from '../theme';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -45,7 +46,7 @@ function ShimmerText({ text, active }: { text: string; active: boolean }) {
       {text.split('').map((char, i) => (
         <Animated.Text key={i} style={{
           fontSize: 22, fontWeight: '300', letterSpacing: 0.3,
-          color: anims[i].interpolate({ inputRange: [0, 1], outputRange: ['#555', '#D8D8D8'] }),
+          color: anims[i].interpolate({ inputRange: [0, 1], outputRange: ['#555', colors.btnPrimary] }),
         }}>
           {char}
         </Animated.Text>
@@ -199,7 +200,7 @@ export default function ReceiptUploadScreen() {
   const handleDemo = () => {
     setReceipt(mockReceipt);
     setIsDemoMode(true);
-    router.push('/assign-items');
+    router.push('/split-method');
   };
 
   const routeAfterParse = async (parsed: typeof receipt) => {
@@ -214,7 +215,7 @@ export default function ReceiptUploadScreen() {
         updateReceiptField('total', parseFloat((parsed.subtotal + parsed.tax + (parsed.fees ?? 0) + tip).toFixed(2)));
       }
     }
-    router.push('/assign-items');
+    router.push('/split-method');
   };
 
   return (
@@ -280,7 +281,7 @@ export default function ReceiptUploadScreen() {
 
         <View style={styles.footer}>
           {(imageUri || isDemoLoaded) && !parsing ? (
-            receipt && <Button label="Continue" onPress={() => router.push('/assign-items')} />
+            receipt && <Button label="Continue" onPress={() => router.push('/split-method')} />
           ) : isRetakeMode || notReceiptMode ? (
             <View style={styles.retakeActions}>
               <TouchableOpacity style={styles.retakeIconBtn} onPress={() => pickImage(true)} activeOpacity={0.75}>
@@ -345,7 +346,7 @@ export default function ReceiptUploadScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#151515',
+    backgroundColor: colors.bg,
   },
   inner: {
     flex: 1,
@@ -359,7 +360,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#D0D0D0',
+    color: colors.textDim,
     marginBottom: 6,
   },
   subtitle: {
@@ -371,7 +372,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#2C2C2C',
+    borderColor: colors.divider,
     borderRadius: 20,
     padding: 32,
     gap: 8,
@@ -383,7 +384,7 @@ const styles = StyleSheet.create({
   uploadTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#D0D0D0',
+    color: colors.textDim,
   },
   uploadHint: {
     fontSize: 14,
@@ -431,7 +432,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#2C2C2C',
+    borderColor: colors.divider,
     borderRadius: 20,
     gap: 8,
   },
@@ -442,7 +443,7 @@ const styles = StyleSheet.create({
   demoLoadedTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#D0D0D0',
+    color: colors.textDim,
   },
   demoLoadedSub: {
     fontSize: 14,
@@ -469,7 +470,7 @@ const styles = StyleSheet.create({
   photoBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#D0D0D0',
+    color: colors.textDim,
   },
   retakeArea: {
     flex: 1,
@@ -483,7 +484,7 @@ const styles = StyleSheet.create({
   notReceiptCard: {
     width: '55%',
     aspectRatio: 0.65,
-    backgroundColor: '#D0D0D0',
+    backgroundColor: colors.textDim,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -505,7 +506,7 @@ const styles = StyleSheet.create({
   retakeIconBtn: {
     height: 52,
     borderRadius: 14,
-    backgroundColor: '#D8D8D8',
+    backgroundColor: colors.btnPrimary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -513,7 +514,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   retakeIconBtnSecondary: {
-    backgroundColor: '#252525',
+    backgroundColor: colors.btnSecondary,
   },
   retakeIconBtnLabel: {
     fontSize: 16,
@@ -521,7 +522,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   retakeIconBtnLabelSecondary: {
-    color: '#D0D0D0',
+    color: colors.textDim,
   },
   closeBtn: {
     alignItems: 'center',
@@ -544,7 +545,7 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#2C2C2C',
+    backgroundColor: colors.divider,
   },
   dividerText: {
     fontSize: 14,
@@ -595,7 +596,7 @@ const styles = StyleSheet.create({
   sheetBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#D0D0D0',
+    color: colors.textDim,
   },
   sheetCancelBtn: {
     alignItems: 'center',

@@ -4,6 +4,9 @@ import { BillHistoryEntry, SavedGroup } from '../types';
 const PRO_KEY = 'diviPro';
 const HISTORY_KEY = 'billHistory';
 const GROUPS_KEY = 'savedGroups';
+const VENMO_HANDLE_KEY = 'venmoHandle';
+const CASHAPP_HANDLE_KEY = 'cashAppHandle';
+const CURRENCY_KEY = 'currencyCode';
 const MAX_HISTORY = 25;
 
 export async function getIsPro(): Promise<boolean> {
@@ -76,4 +79,30 @@ export async function deleteSavedGroup(id: string): Promise<void> {
     GROUPS_KEY,
     JSON.stringify(existing.filter((g) => g.id !== id))
   );
+}
+
+export async function getVenmoHandle(): Promise<string> {
+  return (await AsyncStorage.getItem(VENMO_HANDLE_KEY)) ?? '';
+}
+
+export async function setVenmoHandle(handle: string): Promise<void> {
+  const normalized = handle.replace(/^@/, '').trim();
+  await AsyncStorage.setItem(VENMO_HANDLE_KEY, normalized);
+}
+
+export async function getCashAppHandle(): Promise<string> {
+  return (await AsyncStorage.getItem(CASHAPP_HANDLE_KEY)) ?? '';
+}
+
+export async function setCashAppHandle(handle: string): Promise<void> {
+  const normalized = handle.replace(/^\$/, '').trim();
+  await AsyncStorage.setItem(CASHAPP_HANDLE_KEY, normalized);
+}
+
+export async function getCurrency(): Promise<string> {
+  return (await AsyncStorage.getItem(CURRENCY_KEY)) ?? 'USD';
+}
+
+export async function setCurrency(code: string): Promise<void> {
+  await AsyncStorage.setItem(CURRENCY_KEY, code);
 }

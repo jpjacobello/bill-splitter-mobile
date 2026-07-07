@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Divi bill-splitting sessions.
+// The app has no user accounts — a share link (containing an unguessable
+// random Firestore document ID) IS the access credential. So we don't gate on
+// request.auth; instead we constrain WHAT can be written, not WHO writes it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /billSessions/{sessionId} {
+      // Anyone with the link can load the bill.
+      allow read: if true;
+
+      // Anyone can create a session (creators have no account).
+      // Must be a well-formed, open session that starts with no claims.
+      allow create: if
+        request.resource.data.status == 'open' &&
+        request.resource.data.claims is map &&
+        request.resource.data.keys().hasAll([
+          'receipt', 'merchantName', 'creatorName',
+          'createdAt', 'expiresAt', 'status', 'claims'
+        ]);
+
+      // Recipients may only add claims or the organizer may close it.
+      // The receipt, amounts, creator, and Venmo handle are immutable —
+      // no one can tamper with the bill or redirect payment.
+      allow update: if
+        request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['claims', 'status']) &&
+        request.resource.data.status in ['open', 'closed'];
+
+      // Sessions are never deleted from the client (expiry handled app-side).
+      allow delete: if false;
+    }
+
+    // Everything else is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

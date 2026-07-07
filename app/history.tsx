@@ -12,8 +12,10 @@ import { getBillHistory, deleteBillFromHistory } from '../utils/proStorage';
 import { calcSplit } from '../utils/calcSplit';
 import { BillHistoryEntry } from '../types';
 import ReceiptPreviewSheet from '../components/ReceiptPreviewSheet';
+import { colors } from '../theme';
+import { formatCurrency } from '../utils/currency';
 
-const PERSON_COLORS = ['#4F8EF7', '#F7874F', '#A855F7', '#22C55E', '#F43F5E', '#14B8A6', '#EAB308', '#EC4899'];
+const PERSON_COLORS = colors.person;
 const getPersonColor = (index: number) => PERSON_COLORS[index % PERSON_COLORS.length];
 
 export default function HistoryScreen() {
@@ -109,7 +111,7 @@ export default function HistoryScreen() {
                     </Text>
                   </View>
                   <View style={styles.entryRight}>
-                    <Text style={styles.entryTotal}>${entry.receipt.total.toFixed(2)}</Text>
+                    <Text style={styles.entryTotal}>{formatCurrency(entry.receipt.total)}</Text>
                     <Ionicons name="chevron-forward" size={16} color="#444" />
                   </View>
                 </View>
@@ -192,7 +194,7 @@ function HistoryDetailView({ entry, onClose, onDelete }: DetailProps) {
         {!entry.receiptImageUri && <Text style={styles.detailDate}>{dateStr}</Text>}
         <View style={styles.receiptTotalRow}>
           <Text style={styles.receiptTotalLabel}>Receipt total</Text>
-          <Text style={styles.receiptTotalValue}>${entry.receipt.total.toFixed(2)}</Text>
+          <Text style={styles.receiptTotalValue}>{formatCurrency(entry.receipt.total)}</Text>
         </View>
 
         {summary.people.map((b, index) => {
@@ -215,7 +217,7 @@ function HistoryDetailView({ entry, onClose, onDelete }: DetailProps) {
                 </Text>
               </View>
               <Text style={[styles.totalOwed, { color: isHost ? '#888' : color }]}>
-                ${b.totalOwed.toFixed(2)}
+                {formatCurrency(b.totalOwed)}
               </Text>
             </View>
           );
@@ -223,7 +225,7 @@ function HistoryDetailView({ entry, onClose, onDelete }: DetailProps) {
 
         <View style={styles.detailFooter}>
           <Text style={styles.detailFooterLabel}>Calculated total</Text>
-          <Text style={styles.detailFooterValue}>${summary.calculatedTotal.toFixed(2)}</Text>
+          <Text style={styles.detailFooterValue}>{formatCurrency(summary.calculatedTotal)}</Text>
         </View>
       </ScrollView>
 
@@ -260,7 +262,7 @@ function HistoryDetailView({ entry, onClose, onDelete }: DetailProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#151515' },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,7 +271,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#2C2C2C',
+    borderBottomColor: colors.divider,
   },
   backBtn: {
     width: 36, height: 36,
@@ -283,7 +285,7 @@ const styles = StyleSheet.create({
   },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 'auto' },
   shareBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: '700', color: '#D0D0D0', flex: 1 },
+  title: { fontSize: 22, fontWeight: '700', color: colors.textDim, flex: 1 },
 
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 48, gap: 10 },
 
@@ -296,10 +298,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
   },
   entryLeft: { flex: 1, gap: 4 },
-  entryMerchant: { fontSize: 16, fontWeight: '700', color: '#D0D0D0' },
+  entryMerchant: { fontSize: 16, fontWeight: '700', color: colors.textDim },
   entryMeta: { fontSize: 13, color: '#666' },
   entryRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  entryTotal: { fontSize: 17, fontWeight: '700', color: '#D0D0D0' },
+  entryTotal: { fontSize: 17, fontWeight: '700', color: colors.textDim },
 
   emptyState: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
@@ -318,10 +320,10 @@ const styles = StyleSheet.create({
     alignItems: 'center', gap: 12,
   },
   paywallIcon: { fontSize: 40 },
-  paywallTitle: { fontSize: 20, fontWeight: '800', color: '#D0D0D0', textAlign: 'center' },
+  paywallTitle: { fontSize: 20, fontWeight: '800', color: colors.textDim, textAlign: 'center' },
   paywallSubtitle: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20 },
   paywallBtn: {
-    marginTop: 4, backgroundColor: '#D8D8D8',
+    marginTop: 4, backgroundColor: colors.btnPrimary,
     borderRadius: 14, paddingVertical: 12, paddingHorizontal: 24,
   },
   paywallBtnText: { fontSize: 15, fontWeight: '700', color: '#000' },
@@ -358,7 +360,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
   receiptTotalLabel: { fontSize: 15, color: '#B0B0B0' },
-  receiptTotalValue: { fontSize: 17, fontWeight: '700', color: '#D0D0D0' },
+  receiptTotalValue: { fontSize: 17, fontWeight: '700', color: colors.textDim },
   detailCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.04)',
@@ -373,9 +375,9 @@ const styles = StyleSheet.create({
   },
   detailCardInner: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  personName: { fontSize: 15, fontWeight: '700', color: '#D0D0D0' },
+  personName: { fontSize: 15, fontWeight: '700', color: colors.textDim },
   hostBadge: {
-    backgroundColor: '#D8D8D8', borderRadius: 6,
+    backgroundColor: colors.btnPrimary, borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
   },
   hostBadgeText: { fontSize: 10, fontWeight: '700', color: '#000' },
@@ -386,6 +388,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4, paddingTop: 4,
   },
   detailFooterLabel: { fontSize: 14, color: '#666' },
-  detailFooterValue: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
+  detailFooterValue: { fontSize: 14, fontWeight: '600', color: colors.textDim },
 
 });

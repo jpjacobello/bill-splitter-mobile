@@ -9,6 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBillStore } from '../store/useBillStore';
 import { usePro } from '../hooks/usePro';
+import { colors } from '../theme';
+import { getVenmoHandle, setVenmoHandle, getCashAppHandle, setCashAppHandle, getCurrency, setCurrency } from '../utils/proStorage';
+import { CURRENCIES, currencyInfo, setActiveCurrency } from '../utils/currency';
 
 const SAVED_NAME_KEY = 'savedHostName';
 export const DEFAULT_TIP_KEY = 'defaultTipPct';
@@ -77,10 +80,20 @@ export default function SettingsScreen() {
   const [nameSaved, setNameSaved] = useState(false);
   const [defaultTip, setDefaultTip] = useState<number | null>(null);
   const [tipReminder, setTipReminder] = useState<TipReminderMode>('always');
+  const [venmoHandle, setVenmoHandleState] = useState('');
+  const [cashHandle, setCashHandleState] = useState('');
+  const [venmoSaved, setVenmoSaved] = useState(false);
+  const [cashSaved, setCashSaved] = useState(false);
   const [nameExpanded, setNameExpanded] = useState(false);
+  const [venmoExpanded, setVenmoExpanded] = useState(false);
+  const [cashExpanded, setCashExpanded] = useState(false);
   const [tipExpanded, setTipExpanded] = useState(false);
   const [tipReminderExpanded, setTipReminderExpanded] = useState(false);
+  const [currency, setCurrencyState] = useState('USD');
+  const [currencyExpanded, setCurrencyExpanded] = useState(false);
   const nameInputRef = useRef<TextInput>(null);
+  const venmoInputRef = useRef<TextInput>(null);
+  const cashInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     AsyncStorage.multiGet([SAVED_NAME_KEY, DEFAULT_TIP_KEY, TIP_REMINDER_KEY]).then(([savedName, savedTip, savedReminder]) => {
@@ -88,7 +101,37 @@ export default function SettingsScreen() {
       setDefaultTip(savedTip[1] !== null ? parseFloat(savedTip[1]) : null);
       setTipReminder((savedReminder[1] as TipReminderMode) ?? 'always');
     });
+    getVenmoHandle().then((h) => { if (h) setVenmoHandleState(h); });
+    getCashAppHandle().then((h) => { if (h) setCashHandleState(h); });
+    getCurrency().then(setCurrencyState);
   }, []);
+
+  const handleSetCurrency = async (code: string) => {
+    setCurrencyState(code);
+    setActiveCurrency(code);
+    await setCurrency(code);
+    setCurrencyExpanded(false);
+  };
+
+  const handleSaveVenmo = async () => {
+    const trimmed = venmoHandle.trim().replace(/^@/, '');
+    if (!trimmed) return;
+    Keyboard.dismiss();
+    await setVenmoHandle(trimmed);
+    setVenmoSaved(true);
+    setVenmoExpanded(false);
+    setTimeout(() => setVenmoSaved(false), 2000);
+  };
+
+  const handleSaveCash = async () => {
+    const trimmed = cashHandle.trim().replace(/^\$/, '');
+    if (!trimmed) return;
+    Keyboard.dismiss();
+    await setCashAppHandle(trimmed);
+    setCashSaved(true);
+    setCashExpanded(false);
+    setTimeout(() => setCashSaved(false), 2000);
+  };
 
   const handleSaveName = async () => {
     const trimmed = name.trim();
@@ -115,6 +158,7 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem(TIP_REMINDER_KEY, mode);
   };
 
+  const currencyLabel = `${currencyInfo(currency).flag} ${currency}`;
   const tipLabel = defaultTip === null ? 'None' : `${Math.round(defaultTip * 100)}%`;
   const tipReminderLabel = tipReminder === 'always' ? 'Always' : 'Never';
 
@@ -173,13 +217,117 @@ export default function SettingsScreen() {
           )}
         </GroupCard>
 
+        {/* ── Payment ── */}
+        <SectionHeader label="Payment" />
+        <GroupCard>
+          <SettingRow
+            label="Venmo @handle"
+            value={venmoHandle ? `@${venmoHandle}` : 'Not set'}
+            onPress={() => {
+              setVenmoExpanded((v) => !v);
+              setCashExpanded(false);
+              setTimeout(() => venmoInputRef.current?.focus(), 80);
+            }}
+          />
+          {venmoExpanded && (
+            <View style={styles.expandedArea}>
+              <View style={styles.nameRow}>
+                <TextInput
+                  ref={venmoInputRef}
+                  style={styles.nameInput}
+                  value={venmoHandle}
+                  onChangeText={(t) => { setVenmoHandleState(t); setVenmoSaved(false); }}
+                  placeholder="yourhandle"
+                  placeholderTextColor="#555"
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveVenmo}
+                />
+                <TouchableOpacity
+                  style={[styles.saveBtn, venmoSaved && styles.saveBtnDone, !venmoHandle.trim() && styles.saveBtnDisabled]}
+                  onPress={handleSaveVenmo}
+                  disabled={!venmoHandle.trim()}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.saveBtnText, venmoSaved && styles.saveBtnTextDone]}>
+                    {venmoSaved ? '✓' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          <View style={styles.separator} />
+          <SettingRow
+            label="Cash App $cashtag"
+            value={cashHandle ? `$${cashHandle}` : 'Not set'}
+            last
+            onPress={() => {
+              setCashExpanded((v) => !v);
+              setVenmoExpanded(false);
+              setTimeout(() => cashInputRef.current?.focus(), 80);
+            }}
+          />
+          {cashExpanded && (
+            <View style={styles.expandedArea}>
+              <View style={styles.nameRow}>
+                <TextInput
+                  ref={cashInputRef}
+                  style={styles.nameInput}
+                  value={cashHandle}
+                  onChangeText={(t) => { setCashHandleState(t); setCashSaved(false); }}
+                  placeholder="yourcashtag"
+                  placeholderTextColor="#555"
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveCash}
+                />
+                <TouchableOpacity
+                  style={[styles.saveBtn, cashSaved && styles.saveBtnDone, !cashHandle.trim() && styles.saveBtnDisabled]}
+                  onPress={handleSaveCash}
+                  disabled={!cashHandle.trim()}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.saveBtnText, cashSaved && styles.saveBtnTextDone]}>
+                    {cashSaved ? '✓' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </GroupCard>
+
         {/* ── Bill Preferences ── */}
         <SectionHeader label="Bill Preferences" />
         <GroupCard>
           <SettingRow
+            label="Currency"
+            value={currencyLabel}
+            onPress={() => { setCurrencyExpanded((v) => !v); setTipExpanded(false); setTipReminderExpanded(false); }}
+          />
+          {currencyExpanded && (
+            <View style={styles.expandedArea}>
+              <Text style={styles.expandedHint}>Used to display amounts everywhere, including shared bill links.</Text>
+              <View style={styles.currencyChips}>
+                {CURRENCIES.map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={[styles.currencyChip, currency === c.code && styles.tipChipActive]}
+                    onPress={() => handleSetCurrency(c.code)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.tipChipText, currency === c.code && styles.tipChipTextActive]}>
+                      {c.flag} {c.code} {c.symbol}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+          <View style={styles.separator} />
+          <SettingRow
             label="Default Tip"
             value={tipLabel}
-            onPress={() => { setTipExpanded((v) => !v); setTipReminderExpanded(false); }}
+            onPress={() => { setTipExpanded((v) => !v); setTipReminderExpanded(false); setCurrencyExpanded(false); }}
           />
           {tipExpanded && (
             <View style={styles.expandedArea}>
@@ -348,7 +496,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#151515' },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -357,14 +505,14 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#2C2C2C',
+    borderBottomColor: colors.divider,
   },
   backBtn: {
     width: 36, height: 36,
     alignItems: 'center', justifyContent: 'center',
     marginRight: 4,
   },
-  title: { fontSize: 22, fontWeight: '700', color: '#D0D0D0' },
+  title: { fontSize: 22, fontWeight: '700', color: colors.textDim },
   scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 60 },
 
   sectionHeader: {
@@ -389,7 +537,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     minHeight: 50,
   },
-  rowLabel: { fontSize: 15, color: '#D0D0D0', fontWeight: '400' },
+  rowLabel: { fontSize: 15, color: colors.textDim, fontWeight: '400' },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rowValue: { fontSize: 15, color: '#666' },
   separator: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.07)', marginLeft: 16 },
@@ -422,7 +570,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(22,163,74,0.40)',
   },
   saveBtnDisabled: { opacity: 0.35 },
-  saveBtnText: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
+  saveBtnText: { fontSize: 14, fontWeight: '600', color: colors.textDim },
   saveBtnTextDone: { color: '#16A34A' },
 
   radioRow: {
@@ -431,10 +579,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)',
   },
   radioTextGroup: { flex: 1, gap: 2, paddingRight: 12 },
-  radioTitle: { fontSize: 15, color: '#D0D0D0', fontWeight: '400' },
+  radioTitle: { fontSize: 15, color: colors.textDim, fontWeight: '400' },
   radioDesc: { fontSize: 12, color: '#555' },
 
   tipChips: { flexDirection: 'row', gap: 8 },
+  currencyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  currencyChip: {
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+  },
   tipChip: {
     flex: 1, paddingVertical: 8,
     borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)',
@@ -463,13 +618,13 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)',
     gap: 14,
   },
-  proCardTitle: { fontSize: 18, fontWeight: '800', color: '#D0D0D0' },
+  proCardTitle: { fontSize: 18, fontWeight: '800', color: colors.textDim },
   proFeatureList: { gap: 8 },
   proFeatureRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   proFeatureCheck: { fontSize: 14, fontWeight: '700', color: '#22C55E', width: 16 },
   proFeatureText: { fontSize: 14, color: '#AAA', flex: 1 },
   upgradeBtn: {
-    backgroundColor: '#D8D8D8', borderRadius: 12,
+    backgroundColor: colors.btnPrimary, borderRadius: 12,
     paddingVertical: 13, alignItems: 'center',
   },
   upgradeBtnText: { fontSize: 16, fontWeight: '700', color: '#000' },

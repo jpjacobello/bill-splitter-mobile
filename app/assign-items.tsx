@@ -10,6 +10,7 @@ import * as Contacts from 'expo-contacts';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../components/Button';
+import { colors } from '../theme';
 import ItemActionSheet from '../components/ItemActionSheet';
 import { useBillStore } from '../store/useBillStore';
 import { getUnassignedTotal } from '../utils/calcSplit';
@@ -19,20 +20,62 @@ import { usePro } from '../hooks/usePro';
 import { getSavedGroups, saveGroup, deleteSavedGroup } from '../utils/proStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TIP_REMINDER_KEY, TipReminderMode } from './settings';
+import { formatCurrency } from '../utils/currency';
 
-const PERSON_COLORS = [
-  '#4F8EF7',
-  '#F7874F',
-  '#A855F7',
-  '#22C55E',
-  '#F43F5E',
-  '#14B8A6',
-  '#EAB308',
-  '#EC4899',
-];
+const PERSON_COLORS = colors.person;
 
 function getPersonColor(index: number) {
   return PERSON_COLORS[index % PERSON_COLORS.length];
+}
+
+// ─── Person chip ─────────────────────────────────────────────────────────────
+
+type PersonChipProps = {
+  person: Person;
+  personIndex: number;
+  isSelected: boolean;
+  count: number;
+  totalItems: number;
+  onPress: () => void;
+  onLongPress: () => void;
+};
+
+function PersonChip({ person, personIndex, isSelected, count, totalItems, onPress, onLongPress }: PersonChipProps) {
+  const color = getPersonColor(personIndex);
+  const fillAnim = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
+  const initials = person.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+
+  useEffect(() => {
+    Animated.timing(fillAnim, {
+      toValue: isSelected ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [isSelected]);
+
+  return (
+    <TouchableOpacity
+      style={[styles.personChip, { borderColor: isSelected ? color : 'rgba(255,255,255,0.18)' }]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      activeOpacity={0.85}
+    >
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { borderRadius: 14, backgroundColor: color + '22', opacity: fillAnim }]}
+        pointerEvents="none"
+      />
+      <View style={[styles.avatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
+        <Text style={[styles.avatarText, { color }]}>{initials}</Text>
+      </View>
+      <View>
+        <Text style={[styles.personChipText, isSelected && { color: colors.text }]}>{person.name}</Text>
+        <Animated.Text style={[styles.personChipCount, { color, opacity: fillAnim }]}>
+          {count}/{totalItems} items
+        </Animated.Text>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 // ─── Item row ────────────────────────────────────────────────────────────────
@@ -41,34 +84,71 @@ type ItemRowProps = {
   item: ReceiptItem;
   people: Person[];
   selectedPersonId: string;
+  isAddon?: boolean;
   onLongPress: () => void;
   onRowPress: () => void;
   onAvatarPress: (personId: string, currentlyAssigned: boolean) => void;
 };
 
-function ItemRow({ item, people, onLongPress, onRowPress }: ItemRowProps) {
+function ItemRow({ item, people, isAddon, onLongPress, onRowPress }: ItemRowProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const isUnassigned = item.assignedTo.length === 0;
   const assignedPeople = people.filter((p) => item.assignedTo.includes(p.id));
 
   const handlePress = () => {
     scale.setValue(0.96);
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 22,
-      bounciness: 10,
-    }).start();
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 10 }).start();
     onRowPress();
   };
+
+  const avatars = assignedPeople.length > 0 ? (
+    <View style={styles.itemAvatarRow}>
+      {assignedPeople.slice(0, 5).map((p) => {
+        const index = people.indexOf(p);
+        const color = getPersonColor(index);
+        const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+        return (
+          <View key={p.id} style={[styles.itemAvatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
+            <Text style={[styles.itemAvatarText, { color }]}>{initials}</Text>
+          </View>
+        );
+      })}
+      {assignedPeople.length > 5 && (
+        <View style={styles.itemAvatarOverflow}>
+          <Text style={styles.itemAvatarOverflowText}>+{assignedPeople.length - 5}</Text>
+        </View>
+      )}
+    </View>
+  ) : null;
+
+  if (isAddon) {
+    return (
+      <Animated.View style={[styles.addonWrapper, { transform: [{ scale }] }]}>
+        <View style={styles.addonConnector} />
+        <TouchableOpacity
+          style={[styles.addonChip, isUnassigned ? styles.itemChipUnassigned : styles.itemChipAssigned]}
+          onPress={handlePress}
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.addonEmoji}>{getEmoji(item.name)}</Text>
+          <Text style={styles.addonName} numberOfLines={1}>{item.name}</Text>
+          {item.quantity > 1 && (
+            <View style={styles.qtyBadge}>
+              <Text style={styles.qtyBadgeText}>×{item.quantity}</Text>
+            </View>
+          )}
+          {avatars}
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[
-          styles.itemChip,
-          isUnassigned ? styles.itemChipUnassigned : styles.itemChipAssigned,
-        ]}
+        style={[styles.itemChip, isUnassigned ? styles.itemChipUnassigned : styles.itemChipAssigned]}
         onPress={handlePress}
         onLongPress={onLongPress}
         delayLongPress={400}
@@ -76,25 +156,12 @@ function ItemRow({ item, people, onLongPress, onRowPress }: ItemRowProps) {
       >
         <Text style={styles.itemEmoji}>{getEmoji(item.name)}</Text>
         <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-        {assignedPeople.length > 0 && (
-          <View style={styles.itemAvatarRow}>
-            {assignedPeople.slice(0, 5).map((p) => {
-              const index = people.indexOf(p);
-              const color = getPersonColor(index);
-              const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-              return (
-                <View key={p.id} style={[styles.itemAvatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
-                  <Text style={[styles.itemAvatarText, { color }]}>{initials}</Text>
-                </View>
-              );
-            })}
-            {assignedPeople.length > 5 && (
-              <View style={styles.itemAvatarOverflow}>
-                <Text style={styles.itemAvatarOverflowText}>+{assignedPeople.length - 5}</Text>
-              </View>
-            )}
+        {item.quantity > 1 && (
+          <View style={styles.qtyBadge}>
+            <Text style={styles.qtyBadgeText}>×{item.quantity}</Text>
           </View>
         )}
+        {avatars}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -132,8 +199,8 @@ export default function AssignItemsScreen() {
     });
   }, []);
 
-  const allAssigned = !!receipt && receipt.items.length > 0 &&
-    receipt.items.every((i) => i.assignedTo.length > 0);
+  const allAssigned = !!receipt && receipt.items.filter((i) => i.price >= 0).length > 0 &&
+    receipt.items.filter((i) => i.price >= 0).every((i) => i.assignedTo.length > 0);
 
   const calculatedTotal = receipt
     ? receipt.subtotal + receipt.tax + (receipt.fees ?? 0) + receipt.tip
@@ -143,6 +210,24 @@ export default function AssignItemsScreen() {
     Math.abs(calculatedTotal - receipt.total) >= 0.05
   );
   const prevAllAssigned = useRef(false);
+
+  const handleSeeSummary = () => {
+    if (hasReceiptIssue && receipt) {
+      const tipMissing = receipt.tip === 0;
+      Alert.alert(
+        tipMissing ? 'No Tip Added' : "Receipt Doesn't Add Up",
+        tipMissing
+          ? 'This receipt has no tip. Add one with the Edit Receipt button up top, or continue without a tip.'
+          : "The item total doesn't match the receipt total. Fix it with Edit Receipt, or continue anyway.",
+        [
+          { text: 'Edit Receipt', onPress: () => router.push('/receipt-review?from=assign-items') },
+          { text: 'Continue Anyway', style: 'destructive', onPress: () => router.push('/summary') },
+        ]
+      );
+      return;
+    }
+    router.push('/summary');
+  };
 
   useEffect(() => {
     if (allAssigned && !prevAllAssigned.current) {
@@ -154,8 +239,32 @@ export default function AssignItemsScreen() {
   if (!receipt) return null;
 
   const assignableItems = receipt.items.filter((i) => i.price >= 0);
-  const totalItems = assignableItems.length;
-  const assignedCount = assignableItems.filter((i) => i.assignedTo.length > 0).length;
+
+  // Build parent→addons map and sort top-level items alphabetically
+  const addonsByParent: Record<string, ReceiptItem[]> = {};
+  const assignableItemIds = new Set(assignableItems.map((i) => i.id));
+  assignableItems.forEach((i) => {
+    if (i.parentId && assignableItemIds.has(i.parentId)) {
+      if (!addonsByParent[i.parentId]) addonsByParent[i.parentId] = [];
+      addonsByParent[i.parentId].push(i);
+    }
+  });
+  const topLevelItems = assignableItems.filter(
+    (i) => !i.parentId || !assignableItemIds.has(i.parentId)
+  );
+  const sortedTopLevel = [...topLevelItems].sort((a, b) => a.name.localeCompare(b.name));
+
+  type RenderRow = { item: ReceiptItem; isAddon: boolean };
+  const allRows: RenderRow[] = [];
+  sortedTopLevel.forEach((item) => {
+    allRows.push({ item, isAddon: false });
+    (addonsByParent[item.id] ?? []).forEach((addon) => {
+      allRows.push({ item: addon, isAddon: true });
+    });
+  });
+  // Progress counts use top-level items only (add-ons auto-follow their parent)
+  const totalItems = topLevelItems.length;
+  const assignedCount = topLevelItems.filter((i) => i.assignedTo.length > 0).length;
   const unassignedItems = assignableItems.filter((i) => i.assignedTo.length === 0);
   const unassignedTotal = getUnassignedTotal(receipt);
   const progress = totalItems > 0 ? assignedCount / totalItems : 0;
@@ -264,6 +373,10 @@ export default function AssignItemsScreen() {
     const item = receipt.items.find((i) => i.id === itemId);
     if (item) pushUndo(item);
     assignItem(itemId, personIds);
+    (addonsByParent[itemId] ?? []).forEach((addon) => {
+      pushUndo(addon);
+      assignItem(addon.id, personIds);
+    });
   };
 
   const handleSheetSplitIntoUnits = (itemId: string) => {
@@ -417,31 +530,17 @@ export default function AssignItemsScreen() {
           {people.map((person, personIndex) => {
             const isSelected = person.id === selectedPersonId;
             const count = receipt.items.filter((i) => i.assignedTo.includes(person.id)).length;
-            const initials = person.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-            const personColor = getPersonColor(personIndex);
             return (
-              <TouchableOpacity
+              <PersonChip
                 key={person.id}
-                style={[styles.personChip, isSelected && { backgroundColor: personColor + '22', borderColor: personColor }]}
+                person={person}
+                personIndex={personIndex}
+                isSelected={isSelected}
+                count={count}
+                totalItems={totalItems}
                 onPress={() => handleSelectPerson(person.id)}
                 onLongPress={() => handlePersonLongPress(person)}
-                delayLongPress={400}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.avatar, { backgroundColor: personColor + '33', borderColor: personColor + '88' }]}>
-                  <Text style={[styles.avatarText, { color: personColor }]}>{initials}</Text>
-                </View>
-                <View>
-                  <Text style={[styles.personChipText, isSelected && { color: '#E8E8E8' }]}>
-                    {person.name}
-                  </Text>
-                  {isSelected && (
-                    <Text style={[styles.personChipCount, { color: personColor }]}>
-                      {count}/{totalItems} items
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
+              />
             );
           })}
           <TouchableOpacity
@@ -495,34 +594,42 @@ export default function AssignItemsScreen() {
 
       {/* Items list */}
       <FlatList
-        data={assignableItems}
-        keyExtractor={(item) => item.id}
+        data={allRows}
+        keyExtractor={(row) => row.item.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
+        renderItem={({ item: row }) => (
           <ItemRow
-            item={item}
+            item={row.item}
             people={people}
             selectedPersonId={selectedPersonId}
-            onLongPress={() => handleLongPressItem(item)}
+            isAddon={row.isAddon}
+            onLongPress={() => handleLongPressItem(row.item)}
             onRowPress={() => {
+              const item = row.item;
               pushUndo(item);
               const assigned = item.assignedTo.includes(selectedPersonId);
               const updated = assigned
                 ? item.assignedTo.filter((id) => id !== selectedPersonId)
                 : [...item.assignedTo, selectedPersonId];
               assignItem(item.id, updated);
+              if (!row.isAddon) {
+                (addonsByParent[item.id] ?? []).forEach((addon) => {
+                  pushUndo(addon);
+                  assignItem(addon.id, updated);
+                });
+              }
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }}
             onAvatarPress={() => {}}
           />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
         ListFooterComponent={
           unassignedItems.length > 0 ? (
             <View style={styles.footer}>
               <View style={styles.unassignedSummary}>
                 <Text style={styles.unassignedSummaryTitle}>
-                  {unassignedItems.length} item{unassignedItems.length !== 1 ? 's' : ''} unassigned · ${unassignedTotal.toFixed(2)}
+                  {unassignedItems.length} item{unassignedItems.length !== 1 ? 's' : ''} unassigned · {formatCurrency(unassignedTotal)}
                 </Text>
                 <TouchableOpacity style={styles.splitRemainingBtn} onPress={handleSplitRemaining} activeOpacity={0.8}>
                   <Text style={styles.splitRemainingText}>Split remaining evenly</Text>
@@ -537,7 +644,7 @@ export default function AssignItemsScreen() {
       <View style={[styles.stickyFooter, allAssigned && styles.stickyFooterDone]}>
         <Button
           label={allAssigned ? 'See Summary →' : 'See Summary'}
-          onPress={() => router.push('/summary')}
+          onPress={handleSeeSummary}
           height={60}
         />
       </View>
@@ -686,16 +793,16 @@ export default function AssignItemsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#151515' },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: 24, paddingTop: 16, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)',
   },
   headerTop: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 10,
   },
-  title: { fontSize: 28, fontWeight: '700', color: '#E8E8E8' },
+  title: { fontSize: 28, fontWeight: '700', color: colors.text },
   undoBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 6,
@@ -707,8 +814,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 8,
   },
-  progressLabel: { fontSize: 13, fontWeight: '600', color: '#666' },
-  progressLabelDone: { color: '#22C55E' },
+  progressLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+  progressLabelDone: { color: colors.green },
   topActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   splitEvenlyBtn: {
     flex: 1, paddingVertical: 9,
@@ -716,14 +823,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
   },
-  splitEvenlyBtnText: { fontSize: 14, fontWeight: '600', color: '#E0E0E0' },
+  splitEvenlyBtnText: { fontSize: 14, fontWeight: '600', color: colors.text },
   clearAllBtn: {
     flex: 1, paddingVertical: 9,
-    backgroundColor: 'rgba(220,38,38,0.10)', borderRadius: 11,
+    backgroundColor: 'rgba(200,50,60,0.10)', borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(220,38,38,0.35)',
+    borderWidth: 1, borderColor: 'rgba(200,50,60,0.38)',
   },
-  clearAllBtnText: { fontSize: 14, fontWeight: '600', color: '#F87171' },
+  clearAllBtnText: { fontSize: 14, fontWeight: '600', color: colors.red },
   progressTrack: {
     height: 5, backgroundColor: 'rgba(255,255,255,0.10)',
     borderRadius: 3, marginBottom: 14, overflow: 'hidden',
@@ -737,7 +844,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 10, paddingVertical: 7,
     borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', gap: 7,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.18)',
   },
   avatar: {
     width: 26, height: 26, borderRadius: 13,
@@ -745,7 +852,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   avatarText: { fontSize: 10, fontWeight: '700' },
-  personChipText: { fontSize: 13, fontWeight: '600', color: '#888' },
+  personChipText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
   personChipCount: { fontSize: 10, marginTop: 1 },
   addPersonChip: {
     height: 38, width: 38, borderRadius: 19,
@@ -753,13 +860,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.20)',
   },
-  addPersonChipText: { fontSize: 20, color: '#888', lineHeight: 24 },
+  addPersonChipText: { fontSize: 20, color: colors.textMuted, lineHeight: 24 },
   addPersonRow: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
   addPersonInput: {
     flex: 1, height: 40,
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)',
     borderRadius: 12, paddingHorizontal: 12,
-    fontSize: 15, color: '#D0D0D0',
+    fontSize: 15, color: colors.text,
     backgroundColor: 'rgba(255,255,255,0.07)',
   },
   addPersonConfirmBtn: {
@@ -768,7 +875,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
   },
-  addPersonConfirmText: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
+  addPersonConfirmText: { fontSize: 14, fontWeight: '600', color: colors.text },
   contactBtn: {
     width: 40, height: 40, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -777,7 +884,7 @@ const styles = StyleSheet.create({
   },
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16 },
   stickyFooter: {
-    paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, backgroundColor: '#151515',
+    paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, backgroundColor: colors.bg,
   },
   stickyFooterDone: {
     shadowColor: '#FFFFFF', shadowOffset: { width: 0, height: -4 },
@@ -789,15 +896,36 @@ const styles = StyleSheet.create({
     gap: 10, borderWidth: 1.5,
   },
   itemChipAssigned: {
-    borderColor: 'rgba(34,197,94,0.45)',
-    backgroundColor: 'rgba(34,197,94,0.07)',
+    borderColor: 'rgba(62,173,116,0.50)',
+    backgroundColor: 'rgba(62,173,116,0.09)',
   },
   itemChipUnassigned: {
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
   itemEmoji: { fontSize: 20 },
-  itemName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#D8D8D8' },
+  itemName: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
+  qtyBadge: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+  },
+  qtyBadgeText: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
+  addonWrapper: {
+    flexDirection: 'row', alignItems: 'stretch', marginLeft: 14, gap: 8,
+  },
+  addonConnector: {
+    width: 2, borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    marginVertical: 2,
+  },
+  addonChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+    gap: 8, borderWidth: 1.5,
+  },
+  addonEmoji: { fontSize: 16 },
+  addonName: { flex: 1, fontSize: 13, fontWeight: '500', color: '#B0B0B0' },
   itemAvatarRow: { flexDirection: 'row', gap: 3, alignItems: 'center' },
   itemAvatar: {
     width: 24, height: 24, borderRadius: 12,
@@ -822,21 +950,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245,158,11,0.10)',
     borderColor: 'rgba(245,158,11,0.35)',
   },
-  receiptEditText: { fontSize: 13, fontWeight: '600', color: '#888' },
-  receiptEditTextWarning: { color: '#F59E0B' },
+  receiptEditText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  receiptEditTextWarning: { color: colors.amber },
   groupsBtn: {
     width: 36, height: 36,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 10, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
-  groupsContainer: { flex: 1, backgroundColor: '#151515' },
+  groupsContainer: { flex: 1, backgroundColor: colors.bg },
   groupsHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#2C2C2C',
+    borderBottomWidth: 1, borderBottomColor: '#3A3A3C',
   },
-  groupsTitle: { fontSize: 20, fontWeight: '700', color: '#D0D0D0' },
+  groupsTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
   groupsCloseBtn: {
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',
@@ -850,7 +978,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)',
     borderRadius: 12, paddingHorizontal: 12,
-    fontSize: 15, color: '#D0D0D0',
+    fontSize: 15, color: colors.textDim,
     backgroundColor: 'rgba(255,255,255,0.07)',
     marginBottom: 10,
   },
@@ -863,25 +991,25 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  memberChipText: { fontSize: 13, fontWeight: '600', color: '#D0D0D0' },
+  memberChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   addMemberRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   addMemberInput: {
     flex: 1, height: 44,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)',
     borderRadius: 12, paddingHorizontal: 12,
-    fontSize: 15, color: '#D0D0D0',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    fontSize: 15, color: colors.text,
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
   addMemberBtn: {
     height: 44, paddingHorizontal: 18,
     backgroundColor: 'rgba(255,255,255,0.10)',
     borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
   },
-  addMemberBtnText: { fontSize: 14, fontWeight: '600', color: '#D0D0D0' },
+  addMemberBtnText: { fontSize: 14, fontWeight: '600', color: colors.text },
   saveGroupBtn: {
     height: 48, paddingHorizontal: 18,
-    backgroundColor: '#D8D8D8',
+    backgroundColor: colors.btnPrimary,
     borderRadius: 12, alignItems: 'center', justifyContent: 'center',
   },
   saveGroupBtnText: { fontSize: 15, fontWeight: '700', color: '#000' },
@@ -892,15 +1020,15 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
   groupCardLeft: { flex: 1, gap: 3 },
-  groupCardName: { fontSize: 15, fontWeight: '700', color: '#D0D0D0' },
-  groupCardMembers: { fontSize: 12, color: '#666' },
+  groupCardName: { fontSize: 15, fontWeight: '700', color: colors.text },
+  groupCardMembers: { fontSize: 12, color: colors.textMuted },
   groupCardActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   loadGroupBtn: {
     backgroundColor: 'rgba(255,255,255,0.10)',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  loadGroupBtnText: { fontSize: 13, fontWeight: '700', color: '#D0D0D0' },
+  loadGroupBtnText: { fontSize: 13, fontWeight: '700', color: colors.text },
   deleteGroupBtn: {
     width: 32, height: 32,
     backgroundColor: 'rgba(239,68,68,0.10)',
@@ -908,15 +1036,15 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)',
   },
   groupsEmpty: { paddingTop: 24, alignItems: 'center' },
-  groupsEmptyText: { fontSize: 14, color: '#555' },
+  groupsEmptyText: { fontSize: 14, color: colors.textDisabled },
   footer: { paddingTop: 8 },
   unassignedSummary: {
     backgroundColor: 'rgba(245,158,11,0.07)', borderRadius: 14,
     padding: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)', gap: 10,
   },
-  unassignedSummaryTitle: { fontSize: 14, fontWeight: '600', color: '#F59E0B' },
+  unassignedSummaryTitle: { fontSize: 14, fontWeight: '600', color: colors.amber },
   splitRemainingBtn: {
-    backgroundColor: '#D8D8D8', borderRadius: 10,
+    backgroundColor: colors.btnPrimary, borderRadius: 10,
     paddingVertical: 10, alignItems: 'center',
   },
   splitRemainingText: { fontSize: 14, fontWeight: '700', color: '#000' },

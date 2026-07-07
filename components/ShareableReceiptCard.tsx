@@ -2,12 +2,14 @@ import { forwardRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PersonBreakdown, Receipt } from '../types';
 import { getEmoji } from '../utils/buildReceiptHtml';
+import { formatCurrency } from '../utils/currency';
 
 type Props = {
   receipt: Receipt;
   person?: PersonBreakdown;
   allPeople?: PersonBreakdown[];
   scale?: number;
+  paidById?: string;
 };
 
 // Fixed parts height estimate (padding, merchant, dividers, totals, brand)
@@ -49,40 +51,41 @@ function Divider({ double, sc }: { double?: boolean; sc: (n: number) => number }
 }
 
 // Per-person card
-function PersonCard({ breakdown: b, receipt, sc }: { breakdown: PersonBreakdown; receipt: Receipt; sc: (n: number) => number }) {
+function PersonCard({ breakdown: b, receipt, sc, paidById }: { breakdown: PersonBreakdown; receipt: Receipt; sc: (n: number) => number; paidById?: string }) {
+  const hasPaid = b.person.id === paidById;
   return (
     <>
       <Text style={[styles.merchant, { fontSize: sc(15), marginBottom: sc(2) }]}>{receipt.merchantName?.toUpperCase() || 'RECEIPT'}</Text>
       {receipt.date && <Text style={[styles.meta, { fontSize: sc(11) }]}>{formatReceiptDate(receipt.date)}</Text>}
       <Divider sc={sc} />
-      <Text style={[styles.personName, { fontSize: sc(13), marginVertical: sc(2) }]}>{b.person.name}{b.person.isHost ? ' · paid' : ''}</Text>
+      <Text style={[styles.personName, { fontSize: sc(13), marginVertical: sc(2) }]}>{b.person.name}{hasPaid ? ' · paid' : ''}</Text>
       <Divider sc={sc} />
       {b.assignedItems.map(({ item, share }, i) => (
-        <Row key={i} label={`${getEmoji(item.name)} ${item.name}`} value={`$${share.toFixed(2)}`} sc={sc} />
+        <Row key={i} label={`${getEmoji(item.name)} ${item.name}`} value={`${formatCurrency(share)}`} sc={sc} />
       ))}
       <Divider sc={sc} />
-      <Row label="Subtotal" value={`$${b.subtotal.toFixed(2)}`} sc={sc} />
-      <Row label="Tax" value={`$${b.taxShare.toFixed(2)}`} sc={sc} />
-      {b.feesShare > 0 && <Row label="Fees" value={`$${b.feesShare.toFixed(2)}`} sc={sc} />}
-      <Row label="Tip" value={`$${b.tipShare.toFixed(2)}`} sc={sc} />
+      <Row label="Subtotal" value={`${formatCurrency(b.subtotal)}`} sc={sc} />
+      <Row label="Tax" value={`${formatCurrency(b.taxShare)}`} sc={sc} />
+      {b.feesShare > 0 && <Row label="Fees" value={`${formatCurrency(b.feesShare)}`} sc={sc} />}
+      <Row label="Tip" value={`${formatCurrency(b.tipShare)}`} sc={sc} />
       <Divider double sc={sc} />
-      <Row label="YOU OWE" value={`$${b.totalOwed.toFixed(2)}`} bold sc={sc} />
+      <Row label="YOU OWE" value={`${formatCurrency(b.totalOwed)}`} bold sc={sc} />
     </>
   );
 }
 
 // Full summary card
-function FullCard({ allPeople, receipt, sc }: { allPeople: PersonBreakdown[]; receipt: Receipt; sc: (n: number) => number }) {
+function FullCard({ allPeople, receipt, sc, paidById }: { allPeople: PersonBreakdown[]; receipt: Receipt; sc: (n: number) => number; paidById?: string }) {
   return (
     <>
       <Text style={[styles.merchant, { fontSize: sc(15), marginBottom: sc(2) }]}>{receipt.merchantName?.toUpperCase() || 'RECEIPT'}</Text>
       {receipt.date && <Text style={[styles.meta, { fontSize: sc(11) }]}>{formatReceiptDate(receipt.date)}</Text>}
       <Divider sc={sc} />
-      {allPeople.map((b, i) => (
-        <Row key={i} label={`${b.person.name}${b.person.isHost ? ' (paid)' : ''}`} value={`$${b.totalOwed.toFixed(2)}`} sc={sc} />
-      ))}
+      {allPeople.map((b, i) => {
+        return <Row key={i} label={`${b.person.name}${b.person.id === paidById ? ' (paid)' : ''}`} value={`${formatCurrency(b.totalOwed)}`} sc={sc} />;
+      })}
       <Divider double sc={sc} />
-      <Row label="TOTAL" value={`$${receipt.total.toFixed(2)}`} bold sc={sc} />
+      <Row label="TOTAL" value={`${formatCurrency(receipt.total)}`} bold sc={sc} />
     </>
   );
 }
@@ -94,27 +97,27 @@ function ReceiptOnlyCard({ receipt, sc }: { receipt: Receipt; sc: (n: number) =>
       {receipt.date && <Text style={[styles.meta, { fontSize: sc(11) }]}>{formatReceiptDate(receipt.date)}</Text>}
       <Divider sc={sc} />
       {receipt.items.map((item, i) => (
-        <Row key={i} label={`${getEmoji(item.name)} ${item.name}`} value={`$${item.price.toFixed(2)}`} sc={sc} />
+        <Row key={i} label={`${getEmoji(item.name)} ${item.name}`} value={`${formatCurrency(item.price)}`} sc={sc} />
       ))}
       <Divider sc={sc} />
-      <Row label="Subtotal" value={`$${receipt.subtotal.toFixed(2)}`} sc={sc} />
-      {receipt.tax > 0 && <Row label="Tax" value={`$${receipt.tax.toFixed(2)}`} sc={sc} />}
-      {receipt.fees > 0 && <Row label="Fees" value={`$${receipt.fees.toFixed(2)}`} sc={sc} />}
-      {receipt.tip > 0 && <Row label="Tip" value={`$${receipt.tip.toFixed(2)}`} sc={sc} />}
+      <Row label="Subtotal" value={`${formatCurrency(receipt.subtotal)}`} sc={sc} />
+      {receipt.tax > 0 && <Row label="Tax" value={`${formatCurrency(receipt.tax)}`} sc={sc} />}
+      {receipt.fees > 0 && <Row label="Fees" value={`${formatCurrency(receipt.fees)}`} sc={sc} />}
+      {receipt.tip > 0 && <Row label="Tip" value={`${formatCurrency(receipt.tip)}`} sc={sc} />}
       <Divider double sc={sc} />
-      <Row label="TOTAL" value={`$${receipt.total.toFixed(2)}`} bold sc={sc} />
+      <Row label="TOTAL" value={`${formatCurrency(receipt.total)}`} bold sc={sc} />
     </>
   );
 }
 
-const ShareableReceiptCard = forwardRef<View, Props>(({ receipt, person, allPeople, scale = 1 }, ref) => {
+const ShareableReceiptCard = forwardRef<View, Props>(({ receipt, person, allPeople, scale = 1, paidById }, ref) => {
   const sc = (n: number) => Math.round(n * scale);
   return (
     <View ref={ref} style={[styles.card, { paddingTop: Math.max(sc(24), 52), paddingBottom: sc(24), paddingHorizontal: sc(24) }]} collapsable={false}>
       {person ? (
-        <PersonCard breakdown={person} receipt={receipt} sc={sc} />
+        <PersonCard breakdown={person} receipt={receipt} sc={sc} paidById={paidById} />
       ) : allPeople ? (
-        <FullCard allPeople={allPeople} receipt={receipt} sc={sc} />
+        <FullCard allPeople={allPeople} receipt={receipt} sc={sc} paidById={paidById} />
       ) : (
         <ReceiptOnlyCard receipt={receipt} sc={sc} />
       )}

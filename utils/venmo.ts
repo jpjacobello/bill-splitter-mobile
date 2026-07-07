@@ -2,6 +2,7 @@ import { Linking, Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { PersonBreakdown } from '../types';
 import { getEmoji } from './buildReceiptHtml';
+import { formatCurrency } from './currency';
 
 const MAX_NOTE_LENGTH = 280;
 const APP_TAG = 'Split with Divi';
@@ -18,7 +19,7 @@ export function buildVenmoNote(b: PersonBreakdown, merchantName?: string, isPro?
 
   const itemLines = b.assignedItems.map((a) => {
     const displayName = a.item.name.replace(/\s*\(\d+\)\s*$/, '').trim();
-    return `- ${getEmoji(a.item.name)} ${displayName} ($${a.share.toFixed(2)})`;
+    return `- ${getEmoji(a.item.name)} ${displayName} (${formatCurrency(a.share)})`;
   });
 
   const footer = isPro ? [] : ['', APP_TAG];
@@ -60,9 +61,9 @@ export async function openVenmo(b: PersonBreakdown, merchantName?: string, isPro
 function buildFallbackText(b: PersonBreakdown, merchantName?: string): string {
   const lines = [
     merchantName ? `${merchantName} — Bill Split (via Divi)` : 'Bill Split (via Divi)',
-    `${b.person.name} owes $${b.totalOwed.toFixed(2)}`,
+    `${b.person.name} owes ${formatCurrency(b.totalOwed)}`,
     '',
-    ...b.assignedItems.map((a) => `• ${a.item.name.replace(/\s*\(\d+\)\s*$/, '').trim()}  $${a.share.toFixed(2)}`),
+    ...b.assignedItems.map((a) => `• ${a.item.name.replace(/\s*\(\d+\)\s*$/, '').trim()}  ${formatCurrency(a.share)}`),
     '',
     APP_TAG,
   ];

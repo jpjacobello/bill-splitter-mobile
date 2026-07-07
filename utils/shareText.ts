@@ -1,4 +1,5 @@
 import { SplitSummary } from '../types';
+import { formatCurrency } from './currency';
 
 type ShareOptions = {
   merchantName?: string;
@@ -30,13 +31,13 @@ export function buildShortSummary(summary: SplitSummary, opts: ShareOptions = {}
   const maxNameLen = Math.max(...summary.people.map((b) => b.person.name.length));
   for (const b of summary.people) {
     const name = b.person.name.padEnd(maxNameLen + 2);
-    const amount = `$${b.totalOwed.toFixed(2)}`;
+    const amount = `${formatCurrency(b.totalOwed)}`;
     const tag = b.person.isHost ? '  (paid)' : '';
     lines.push(`${name}${amount}${tag}`);
   }
 
   lines.push('');
-  lines.push(`Total $${summary.receiptTotal.toFixed(2)} · via SplitTab`);
+  lines.push(`Total ${formatCurrency(summary.receiptTotal)} · via SplitTab`);
 
   return lines.join('\n');
 }
@@ -69,25 +70,25 @@ export function buildDetailedSummary(summary: SplitSummary, opts: ShareOptions =
   for (const b of summary.people) {
     lines.push('');
     const tag = b.person.isHost ? ' (paid)' : '';
-    lines.push(`${b.person.name}  $${b.totalOwed.toFixed(2)}${tag}`);
+    lines.push(`${b.person.name}  ${formatCurrency(b.totalOwed)}${tag}`);
 
     for (const { item, share } of b.assignedItems) {
       const itemLine = `• ${item.name}`;
-      const price = `$${share.toFixed(2)}`;
+      const price = `${formatCurrency(share)}`;
       lines.push(`${itemLine.padEnd(28)}${price}`);
     }
 
     lines.push(
-      `  Subtotal $${b.subtotal.toFixed(2)} · Tax $${b.taxShare.toFixed(2)} · Tip $${b.tipShare.toFixed(2)}`
+      `  Subtotal ${formatCurrency(b.subtotal)} · Tax ${formatCurrency(b.taxShare)} · Tip ${formatCurrency(b.tipShare)}`
     );
   }
 
   lines.push('');
   lines.push('─────────────────────');
-  lines.push(`Total $${summary.receiptTotal.toFixed(2)} · via SplitTab`);
+  lines.push(`Total ${formatCurrency(summary.receiptTotal)} · via SplitTab`);
 
   if (!summary.reconciles) {
-    lines.push(`⚠ Calculated $${summary.calculatedTotal.toFixed(2)}`);
+    lines.push(`⚠ Calculated ${formatCurrency(summary.calculatedTotal)}`);
   }
 
   return lines.join('\n');

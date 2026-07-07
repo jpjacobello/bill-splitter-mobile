@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { StyleSheet, Text, Animated, Pressable, View, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '../theme';
 
 type Props = {
   label: string;
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   secondary: {
-    backgroundColor: '#252525',
+    backgroundColor: colors.btnSecondary,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },

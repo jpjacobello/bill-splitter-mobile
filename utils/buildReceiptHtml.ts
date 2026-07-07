@@ -1,4 +1,5 @@
 import { PersonBreakdown, Receipt } from '../types';
+import { formatCurrency } from './currency';
 
 const FOOD_EMOJIS: { keywords: string[]; emoji: string }[] = [
   // Burgers & sandwiches
@@ -187,7 +188,7 @@ export function buildPersonReceiptHtml(breakdown: PersonBreakdown, colorIndex: n
   const rows = breakdown.assignedItems.map(({ item, share }) => `
     <tr>
       <td class="item-name">${getEmoji(item.name)} ${item.name}</td>
-      <td>$${share.toFixed(2)}</td>
+      <td>${formatCurrency(share)}</td>
     </tr>
   `).join('');
 
@@ -204,14 +205,14 @@ export function buildPersonReceiptHtml(breakdown: PersonBreakdown, colorIndex: n
     <div class="card-header" style="background:${color}">
       <span class="card-title">${breakdown.person.name}</span>
       ${breakdown.person.isHost ? '<span class="host-badge">paid</span>' : ''}
-      <span class="card-total">$${breakdown.totalOwed.toFixed(2)}</span>
+      <span class="card-total">${formatCurrency(breakdown.totalOwed)}</span>
     </div>
     <table class="items-table"><tbody>
       ${rows}
-      <tr class="subtotal-row"><td>Subtotal</td><td>$${breakdown.subtotal.toFixed(2)}</td></tr>
-      <tr class="tax-row"><td>Tax</td><td>$${breakdown.taxShare.toFixed(2)}</td></tr>
-      <tr class="tip-row"><td>Tip</td><td>$${breakdown.tipShare.toFixed(2)}</td></tr>
-      <tr class="total-row"><td><strong>Total owed</strong></td><td><strong>$${breakdown.totalOwed.toFixed(2)}</strong></td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td>${formatCurrency(breakdown.subtotal)}</td></tr>
+      <tr class="tax-row"><td>Tax</td><td>${formatCurrency(breakdown.taxShare)}</td></tr>
+      <tr class="tip-row"><td>Tip</td><td>${formatCurrency(breakdown.tipShare)}</td></tr>
+      <tr class="total-row"><td><strong>Total owed</strong></td><td><strong>${formatCurrency(breakdown.totalOwed)}</strong></td></tr>
     </tbody></table>
   </div>
   <div class="footer">Split with Divi</div>
@@ -225,7 +226,7 @@ export function buildFullReceiptHtml(receipt: Receipt): string {
   const rows = receipt.items.map((item) => `
     <tr>
       <td class="item-name">${getEmoji(item.name)} ${item.name}</td>
-      <td>$${item.price.toFixed(2)}</td>
+      <td>${formatCurrency(item.price)}</td>
     </tr>
   `).join('');
 
@@ -241,14 +242,14 @@ export function buildFullReceiptHtml(receipt: Receipt): string {
   <div class="card">
     <div class="card-header" style="background:#111">
       <span class="card-title">Full Bill</span>
-      <span class="card-total">$${receipt.total.toFixed(2)}</span>
+      <span class="card-total">${formatCurrency(receipt.total)}</span>
     </div>
     <table class="items-table"><tbody>
       ${rows}
-      <tr class="subtotal-row"><td>Subtotal</td><td>$${receipt.subtotal.toFixed(2)}</td></tr>
-      <tr class="tax-row"><td>Tax</td><td>$${receipt.tax.toFixed(2)}</td></tr>
-      <tr class="tip-row"><td>Tip</td><td>$${receipt.tip.toFixed(2)}</td></tr>
-      <tr class="total-row"><td><strong>Total</strong></td><td><strong>$${receipt.total.toFixed(2)}</strong></td></tr>
+      <tr class="subtotal-row"><td>Subtotal</td><td>${formatCurrency(receipt.subtotal)}</td></tr>
+      <tr class="tax-row"><td>Tax</td><td>${formatCurrency(receipt.tax)}</td></tr>
+      <tr class="tip-row"><td>Tip</td><td>${formatCurrency(receipt.tip)}</td></tr>
+      <tr class="total-row"><td><strong>Total</strong></td><td><strong>${formatCurrency(receipt.total)}</strong></td></tr>
     </tbody></table>
   </div>
   <div class="footer">Split with Divi</div>

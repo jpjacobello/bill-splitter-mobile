@@ -17,7 +17,8 @@ Otherwise attempt to parse it and return exactly this structure (no other text):
     {
       "name": "item name",
       "quantity": 1,
-      "price": 0.00
+      "price": 0.00,
+      "parentIndex": null
     }
   ],
   "subtotal": 0.00,
@@ -28,13 +29,14 @@ Otherwise attempt to parse it and return exactly this structure (no other text):
 }
 
 Rules:
-- quantity: the exact number from the QTY column. Default 1 if not shown.
+- quantity: the exact number from the QTY column. If there is no QTY column but the item name starts with a number (e.g. "3 Aperol Spritz" or "2 BTL Downeast Cider"), extract that leading number as the quantity and use the rest as the name. Default 1 if not shown.
 - price: the LINE TOTAL for that item (the rightmost price column). Example: if the receipt shows "Guinness Draught  7  $11.00  $77.00", price is $77.00 not $11.00.
 - For discounts or comps, use a negative price (e.g. -10.00)
 - fees = surcharges, credit card fees, service charges (not tax, not tip)
 - If a value is not present, use 0
 - subtotal = sum of all item prices (before tax, tip, fees)
-- total = the final amount charged (use the credit card total if one exists)`;
+- total = the final amount charged (use the credit card total if one exists)
+- parentIndex: if a line item is a modifier or add-on for the item directly above it (e.g. indented on the receipt, or starts with "Add", "No", "Sub", "Mod", "Extra", "Upgrade", "w/", or represents a customization like "no onion" or "extra sauce"), set parentIndex to the 0-based index of its parent in this items array. Otherwise null. Example: if index 1 is "Virginia's Burger" and index 2 is "Add Bacon", then index 2 has parentIndex: 1.`;
 
 export async function openaiParser(imageUri: string): Promise<Receipt> {
   if (!API_KEY) {
@@ -94,17 +96,36 @@ export async function openaiParser(imageUri: string): Promise<Receipt> {
   }
 
   const rawItems: ReceiptItem[] = (parsed.items ?? []).map((item: any, index: number) => {
-    const quantity = Math.max(1, Math.round(Number(item.quantity)) || 1);
+    let quantity = Math.max(1, Math.round(Number(item.quantity)) || 1);
     const price = Number(item.price) || 0;
+    let name = String(item.name ?? 'Unknown Item').trim();
+
+    // Fallback: extract leading quantity from name if GPT didn't separate it
+    if (quantity === 1) {
+      const match = name.match(/^(\d+)\s+(.+)$/);
+      if (match) {
+        quantity = Math.max(1, parseInt(match[1], 10));
+        name = match[2].trim();
+      }
+    }
+
     const unitPrice = parseFloat((price / quantity).toFixed(4));
     return {
       id: `item-${index}`,
-      name: String(item.name ?? 'Unknown Item').trim(),
+      name,
       price,
       quantity,
       unitPrice,
       assignedTo: [],
     };
+  });
+
+  // Resolve parentIndex references to parentId
+  (parsed.items ?? []).forEach((item: any, index: number) => {
+    const parentIndex = item.parentIndex;
+    if (parentIndex != null && typeof parentIndex === 'number' && parentIndex >= 0 && parentIndex < rawItems.length && parentIndex !== index) {
+      rawItems[index].parentId = rawItems[parentIndex].id;
+    }
   });
 
   const subtotal = Number(parsed.subtotal) || rawItems.reduce((s, i) => s + i.price, 0);

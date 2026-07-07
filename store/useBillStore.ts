@@ -5,13 +5,16 @@ export type { Person, Receipt, ReceiptItem };
 
 type BillStore = {
   hostName: string;
+  paidById: string;
   people: Person[];
   receipt: Receipt | null;
   pendingImageUri: string | null;
   receiptImageUri: string | null;
+  activeSessionId: string | null;
 
   // Host + people
   setHostName: (name: string) => void;
+  setPaidById: (id: string) => void;
   addPerson: (name: string) => void;
   removePerson: (id: string) => void;
 
@@ -36,15 +39,18 @@ type BillStore = {
   updateTip: (tip: number) => void;
 
   // Session
+  setActiveSessionId: (id: string | null) => void;
   reset: () => void;
 };
 
 export const useBillStore = create<BillStore>((set, get) => ({
   hostName: '',
+  paidById: 'host',
   people: [],
   receipt: null,
   pendingImageUri: null,
   receiptImageUri: null,
+  activeSessionId: null,
 
   setPendingImageUri: (uri) => set({ pendingImageUri: uri }),
   setReceiptImageUri: (uri) => set({ receiptImageUri: uri }),
@@ -58,6 +64,8 @@ export const useBillStore = create<BillStore>((set, get) => ({
       ],
     })),
 
+  setPaidById: (id) => set({ paidById: id }),
+
   addPerson: (name) =>
     set((state) => ({
       people: [
@@ -69,6 +77,7 @@ export const useBillStore = create<BillStore>((set, get) => ({
   removePerson: (id) =>
     set((state) => ({
       people: state.people.filter((p) => p.id !== id),
+      paidById: state.paidById === id ? 'host' : state.paidById,
       // unassign this person from all items
       receipt: state.receipt
         ? {
@@ -118,7 +127,9 @@ export const useBillStore = create<BillStore>((set, get) => ({
       receipt: state.receipt
         ? {
             ...state.receipt,
-            items: state.receipt.items.filter((item) => item.id !== id),
+            items: state.receipt.items
+              .filter((item) => item.id !== id)
+              .map((item) => (item.parentId === id ? { ...item, parentId: undefined } : item)),
           }
         : null,
     })),
@@ -168,13 +179,16 @@ export const useBillStore = create<BillStore>((set, get) => ({
         tags: item.tags,
       }));
 
+      // Re-parent any add-ons of the original item to the first new unit
+      const firstNewId = newItems[0].id;
+      const remainingItems = state.receipt.items
+        .filter((i) => i.id !== itemId)
+        .map((i) => (i.parentId === itemId ? { ...i, parentId: firstNewId } : i));
+
       return {
         receipt: {
           ...state.receipt,
-          items: [
-            ...state.receipt.items.filter((i) => i.id !== itemId),
-            ...newItems,
-          ],
+          items: [...remainingItems, ...newItems],
         },
       };
     }),
@@ -202,12 +216,19 @@ export const useBillStore = create<BillStore>((set, get) => ({
         tags: target.tags,
       };
       const likeIds = new Set(likeItems.map((i) => i.id));
+      const consolidatedId = likeItems[0].id;
       const newItems = state.receipt.items.reduce<ReceiptItem[]>((acc, item) => {
         if (!likeIds.has(item.id)) return [...acc, item];
-        if (item.id === likeItems[0].id) return [...acc, consolidated];
+        if (item.id === consolidatedId) return [...acc, consolidated];
         return acc;
       }, []);
-      return { receipt: { ...state.receipt, items: newItems } };
+      // Re-parent any add-ons of removed like items to the consolidated item
+      const fixedItems = newItems.map((item) =>
+        item.parentId && likeIds.has(item.parentId) && item.parentId !== consolidatedId
+          ? { ...item, parentId: consolidatedId }
+          : item
+      );
+      return { receipt: { ...state.receipt, items: fixedItems } };
     }),
 
   updateTip: (tip) =>
@@ -215,5 +236,7 @@ export const useBillStore = create<BillStore>((set, get) => ({
       receipt: state.receipt ? { ...state.receipt, tip } : null,
     })),
 
-  reset: () => set({ hostName: '', people: [], receipt: null, pendingImageUri: null, receiptImageUri: null }),
+  setActiveSessionId: (id) => set({ activeSessionId: id }),
+
+  reset: () => set({ hostName: '', paidById: 'host', people: [], receipt: null, pendingImageUri: null, receiptImageUri: null, activeSessionId: null }),
 }));

@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
+import { colors } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { mockReceipt, mockPeople } from '../data/mockData';
 
@@ -48,7 +49,7 @@ export default function StartScreen() {
     reset();
     if (isReturningUser) {
       const savedName = await AsyncStorage.getItem(SAVED_NAME_KEY);
-      if (savedName) setHostName(savedName);
+      setHostName(savedName?.trim() || 'You');
     } else {
       if (!name.trim()) return;
       setHostName(name.trim());
@@ -91,10 +92,13 @@ export default function StartScreen() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.inner}>
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')} activeOpacity={0.7}>
-          <Ionicons name="settings-outline" size={22} color="#888" />
+          <Ionicons name="settings-outline" size={22} color="#8E8E93" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.historyBtn} onPress={() => router.push('/history')} activeOpacity={0.7}>
-          <Ionicons name="time-outline" size={22} color="#888" />
+          <Ionicons name="time-outline" size={22} color="#8E8E93" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.sessionsBtn} onPress={() => router.push('/sessions')} activeOpacity={0.7}>
+          <Ionicons name="radio-outline" size={22} color="#8E8E93" />
         </TouchableOpacity>
 
         <View style={styles.hero}>
@@ -128,6 +132,16 @@ export default function StartScreen() {
                 onPress={handleScanReceipt}
                 disabled={!isReturningUser && !name.trim()}
               />
+              <TouchableOpacity
+                onPress={(isReturningUser || name.trim()) ? () => router.push('/quick-split') : undefined}
+                activeOpacity={0.7}
+                style={styles.quickSplitBtn}
+              >
+                <Ionicons name="calculator-outline" size={16} color={(isReturningUser || name.trim()) ? colors.textSecondary : '#3A3A3C'} />
+                <Text style={[styles.quickSplitText, !(isReturningUser || name.trim()) && styles.demoLinkDisabled]}>
+                  Quick Split
+                </Text>
+              </TouchableOpacity>
               {!isReturningUser && (
                 <TouchableOpacity
                   onPress={name.trim() ? handleDemo : undefined}
@@ -166,7 +180,7 @@ export default function StartScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#151515',
+    backgroundColor: colors.bg,
   },
   inner: {
     flex: 1,
@@ -196,13 +210,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 42,
     fontWeight: '800',
-    color: '#D0D0D0',
+    color: colors.text,
     lineHeight: 50,
     marginBottom: 16,
   },
   subtitle: {
     fontSize: 16,
-    color: '#555',
+    color: colors.textMuted,
     lineHeight: 24,
   },
   actions: {
@@ -231,7 +245,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     height: 52,
     borderRadius: 14,
-    backgroundColor: '#D8D8D8',
+    backgroundColor: colors.btnPrimary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -239,7 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   iconBtnSecondary: {
-    backgroundColor: '#252525',
+    backgroundColor: colors.btnSecondary,
   },
   iconBtnLabel: {
     fontSize: 16,
@@ -247,7 +261,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   iconBtnLabelSecondary: {
-    color: '#D0D0D0',
+    color: colors.text,
   },
   settingsBtn: {
     position: 'absolute', top: 2, right: 4,
@@ -257,15 +271,35 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 2, left: 4,
     paddingHorizontal: 14, paddingVertical: 10,
   },
+  sessionsBtn: {
+    position: 'absolute', top: 2, left: 46,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  quickSplitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  quickSplitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
   demoLink: {
     alignItems: 'center',
     paddingVertical: 8,
   },
   demoLinkText: {
     fontSize: 15,
-    color: '#888',
+    color: colors.textMuted,
   },
   demoLinkDisabled: {
-    color: '#333',
+    color: '#3A3A3C',
   },
 });
