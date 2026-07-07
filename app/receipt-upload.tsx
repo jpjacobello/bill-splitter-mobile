@@ -191,6 +191,7 @@ export default function ReceiptUploadScreen() {
   useEffect(() => {
     if (demo !== 'true' || demoFired.current) return;
     demoFired.current = true;
+    setReceipt(mockReceipt);
     setIsDemoMode(true);
     setParsing(true);
     const t = setTimeout(() => setParsing(false), 1800);

@@ -41,7 +41,8 @@ export default function PayYourShareScreen() {
   const [session, setSession] = useState<BillSession | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [name, setName] = useState('');
-  const [selected, setSelected] = useState<Map<string, number>>(new Map()); // itemId → units (0.5 increments)
+  // itemId → { units: how many of the item you had (0.5 steps), ways: split those N ways }
+  const [selected, setSelected] = useState<Map<string, { units: number; ways: number }>>(new Map());
   const [submitting, setSubmitting] = useState(false);
   const unsubRef = useRef<(() => void) | null>(null);
 
@@ -79,19 +80,24 @@ export default function PayYourShareScreen() {
     };
   }, [id]);
 
-  // units available to claim on this item (in unit terms, 0.5-stepped)
+  // true fraction (0–1) of the item still unclaimed — source of truth for guards
+  const remainingFraction = (alreadyClaimed: number) => Math.max(0, 1 - alreadyClaimed);
+
+  // units still claimable on a multi-qty item, floored to the 0.5 grid so the
+  // stepper can never exceed the real remaining (floor, not round — round could overstate)
   const remainingUnits = (item: ReceiptItem, alreadyClaimed: number) =>
-    Math.round(item.quantity * Math.max(0, 1 - alreadyClaimed) * 2) / 2;
+    Math.floor(item.quantity * remainingFraction(alreadyClaimed) / 0.5) * 0.5;
 
   const toggleItem = (item: ReceiptItem, alreadyClaimed: number) => {
-    const remain = remainingUnits(item, alreadyClaimed);
-    if (remain <= 0) return;
+    if (remainingFraction(alreadyClaimed) <= 0) return;
     setSelected((prev) => {
       const next = new Map(prev);
       if (next.has(item.id)) {
         next.delete(item.id);
       } else {
-        next.set(item.id, Math.min(1, remain)); // default: 1 unit (or half if that's all that's left)
+        // default: 1 unit (or the half-unit remainder on a multi-qty item), split just for me
+        const startUnits = item.quantity > 1 ? Math.min(1, remainingUnits(item, alreadyClaimed)) : 1;
+        next.set(item.id, { units: startUnits, ways: 1 });
       }
       return next;
     });
@@ -101,13 +107,24 @@ export default function PayYourShareScreen() {
     const remain = remainingUnits(item, alreadyClaimed);
     setSelected((prev) => {
       const next = new Map(prev);
-      const current = next.get(item.id) ?? 0;
-      const updated = Math.max(0, Math.min(remain, Math.round((current + delta) * 2) / 2));
+      const cur = next.get(item.id);
+      if (!cur) return next;
+      const updated = Math.max(0, Math.min(remain, Math.round((cur.units + delta) * 2) / 2));
       if (updated < 0.5) {
         next.delete(item.id);
       } else {
-        next.set(item.id, updated);
+        next.set(item.id, { ...cur, units: updated });
       }
+      return next;
+    });
+  };
+
+  const setWays = (item: ReceiptItem, ways: number) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      const cur = next.get(item.id);
+      if (!cur) return next;
+      next.set(item.id, { ...cur, ways });
       return next;
     });
   };
@@ -116,6 +133,10 @@ export default function PayYourShareScreen() {
     const item = session?.receipt.items.find((i) => i.id === itemId);
     return item && item.quantity > 0 ? units / item.quantity : units;
   };
+
+  // final claimed fraction for a selection = (your share of the item) ÷ ways split
+  const selToFraction = (itemId: string, sel: { units: number; ways: number }) =>
+    unitsToFraction(itemId, sel.units) / (sel.ways || 1);
 
   const fmtUnits = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(1));
 
@@ -129,9 +150,9 @@ export default function PayYourShareScreen() {
     setSubmitting(true);
     const newClaims: ClaimInput[] = isEqual
       ? [{ itemId: 'equal-split', fraction: equalFraction }]
-      : [...selected].map(([itemId, units]) => ({
+      : [...selected].map(([itemId, sel]) => ({
           itemId,
-          fraction: unitsToFraction(itemId, units),
+          fraction: selToFraction(itemId, sel),
         }));
 
     try {
@@ -232,7 +253,7 @@ export default function PayYourShareScreen() {
       session!.receipt,
       isEqual
         ? [{ itemId: 'equal-split', fraction: equalFraction }]
-        : [...selected].map(([itemId, units]) => ({ itemId, fraction: unitsToFraction(itemId, units) }))
+        : [...selected].map(([itemId, sel]) => ({ itemId, fraction: selToFraction(itemId, sel) }))
     );
     return (
       <View style={styles.centered}>
@@ -307,9 +328,9 @@ export default function PayYourShareScreen() {
     );
   }
 
-  const pendingClaims: ClaimInput[] = [...selected].map(([itemId, units]) => ({
+  const pendingClaims: ClaimInput[] = [...selected].map(([itemId, sel]) => ({
     itemId,
-    fraction: unitsToFraction(itemId, units),
+    fraction: selToFraction(itemId, sel),
   }));
   const breakdown = calcShare(receipt, pendingClaims);
 
@@ -333,11 +354,15 @@ export default function PayYourShareScreen() {
           const alreadyClaimed = getClaimedFraction(claims, item.id);
           const claimerNames = getClaimerNames(claims, item.id);
           const remain = remainingUnits(item, alreadyClaimed);
-          const isFullyClaimed = alreadyClaimed >= 1.0 || remain <= 0;
+          const remainFrac = remainingFraction(alreadyClaimed);
+          const isFullyClaimed = alreadyClaimed >= 0.999;
           const isSelected = selected.has(item.id);
-          const units = selected.get(item.id) ?? 0;
+          const sel = selected.get(item.id);
+          const units = sel?.units ?? 0;
+          const ways = sel?.ways ?? 1;
           const unitPrice = item.quantity > 0 ? item.price / item.quantity : item.price;
-          const myShare = unitPrice * units;
+          const myShare = (unitPrice * units) / ways;
+          const wayOptions = [1, 2, 3, 4, 5];
 
           return (
             <View
@@ -368,7 +393,7 @@ export default function PayYourShareScreen() {
                     <Text style={styles.claimedBy}>Claimed by {claimerNames.join(', ')}</Text>
                   )}
                   {!isFullyClaimed && alreadyClaimed > 0 && (
-                    <Text style={styles.partialLabel}>{fmtUnits(remain)} of {item.quantity} left</Text>
+                    <Text style={styles.partialLabel}>{Math.round(remainFrac * 100)}% left</Text>
                   )}
                 </View>
                 {item.quantity > 1 && <Text style={styles.itemQty}>×{item.quantity}</Text>}
@@ -378,25 +403,55 @@ export default function PayYourShareScreen() {
               </TouchableOpacity>
 
               {isSelected && (
-                <View style={styles.stepperRow}>
-                  <Text style={styles.stepperLabel}>How much did you have?</Text>
-                  <View style={styles.stepperControls}>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => adjustUnits(item, alreadyClaimed, -0.5)}
-                    >
-                      <Text style={styles.stepperBtnText}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.stepperValue}>{fmtUnits(units)}</Text>
-                    <TouchableOpacity
-                      style={[styles.stepperBtn, units >= remain && styles.stepperBtnDisabled]}
-                      onPress={() => adjustUnits(item, alreadyClaimed, 0.5)}
-                      disabled={units >= remain}
-                    >
-                      <Text style={styles.stepperBtnText}>+</Text>
-                    </TouchableOpacity>
+                <View style={styles.selectDetail}>
+                  {item.quantity > 1 && (
+                    <View style={styles.stepperRow}>
+                      <Text style={styles.stepperLabel}>How many did you have?</Text>
+                      <View style={styles.stepperControls}>
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => adjustUnits(item, alreadyClaimed, -0.5)}
+                        >
+                          <Text style={styles.stepperBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.stepperValue}>{fmtUnits(units)}</Text>
+                        <TouchableOpacity
+                          style={[styles.stepperBtn, units >= remain && styles.stepperBtnDisabled]}
+                          onPress={() => adjustUnits(item, alreadyClaimed, 0.5)}
+                          disabled={units >= remain}
+                        >
+                          <Text style={styles.stepperBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  <View style={styles.waysRow}>
+                    <Text style={styles.stepperLabel}>Split how many ways?</Text>
+                    <View style={styles.waysChips}>
+                      {wayOptions.map((n) => {
+                        const frac = unitsToFraction(item.id, units) / n;
+                        const disabled = frac > remainFrac + 0.001;
+                        const active = ways === n;
+                        return (
+                          <TouchableOpacity
+                            key={n}
+                            style={[
+                              styles.wayChip,
+                              active && styles.wayChipActive,
+                              disabled && styles.wayChipDisabled,
+                            ]}
+                            onPress={() => setWays(item, n)}
+                            disabled={disabled}
+                          >
+                            <Text style={[styles.wayChipText, active && styles.wayChipTextActive]}>
+                              {n === 1 ? 'Just me' : n}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
-                  <Text style={styles.stepperShare}>{formatCurrency(myShare)}</Text>
+                  <Text style={styles.stepperShare}>You pay {formatCurrency(myShare)}</Text>
                 </View>
               )}
             </View>
@@ -519,11 +574,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(100,151,212,0.14)',
     borderColor: 'rgba(100,151,212,0.40)',
   },
+  selectDetail: {
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+    marginTop: 2, paddingTop: 8, paddingBottom: 10,
+  },
   stepperRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2, gap: 10,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
-    marginTop: 2,
+    paddingHorizontal: 12, paddingBottom: 8, gap: 10,
   },
   stepperLabel: { fontSize: 13, color: colors.textSecondary, flex: 1 },
   stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -536,7 +593,25 @@ const styles = StyleSheet.create({
   stepperBtnDisabled: { opacity: 0.3 },
   stepperBtnText: { fontSize: 20, fontWeight: '700', color: colors.text, lineHeight: 22 },
   stepperValue: { fontSize: 16, fontWeight: '700', color: colors.text, minWidth: 24, textAlign: 'center' },
-  stepperShare: { fontSize: 14, fontWeight: '700', color: '#6497D4', minWidth: 52, textAlign: 'right' },
+  stepperShare: {
+    fontSize: 14, fontWeight: '700', color: '#6497D4',
+    textAlign: 'right', paddingHorizontal: 12, paddingTop: 8,
+  },
+  waysRow: { paddingHorizontal: 12, paddingBottom: 2, gap: 8 },
+  waysChips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  wayChip: {
+    minWidth: 34, height: 32, paddingHorizontal: 12, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+  },
+  wayChipActive: {
+    backgroundColor: 'rgba(100,151,212,0.20)',
+    borderColor: 'rgba(100,151,212,0.55)',
+  },
+  wayChipDisabled: { opacity: 0.3 },
+  wayChipText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+  wayChipTextActive: { color: '#6497D4' },
   itemRowClaimed: {
     opacity: 0.45,
   },

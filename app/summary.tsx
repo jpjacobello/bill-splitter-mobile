@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity,
-  FlatList, Alert, Linking,
+  FlatList, Alert,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -13,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../components/Button';
 import { colors } from '../theme';
 import ReceiptPreviewSheet from '../components/ReceiptPreviewSheet';
+import { VenmoLogo } from '../components/BrandLogos';
 
 const PERSON_COLORS = colors.person;
 const getPersonColor = (index: number) => PERSON_COLORS[index % PERSON_COLORS.length];
@@ -21,7 +21,7 @@ import { calcSplit } from '../utils/calcSplit';
 import { openVenmo } from '../utils/venmo';
 import { PersonBreakdown } from '../types';
 import { usePro } from '../hooks/usePro';
-import { saveBillToHistory, getCashAppHandle, setCashAppHandle } from '../utils/proStorage';
+import { saveBillToHistory } from '../utils/proStorage';
 import { formatCurrency } from '../utils/currency';
 
 
@@ -33,7 +33,6 @@ export default function SummaryScreen() {
   const [showOriginalReceipt, setShowOriginalReceipt] = useState(false);
   const [previewPerson, setPreviewPerson] = useState<{ breakdown: PersonBreakdown; colorIndex: number } | null>(null);
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
-  const [cashRequestedIds, setCashRequestedIds] = useState<Set<string>>(new Set());
 
   if (!receipt) return null;
 
@@ -42,37 +41,6 @@ export default function SummaryScreen() {
   const handleVenmo = (b: PersonBreakdown) => {
     openVenmo(b, receipt.merchantName, isPro);
     setRequestedIds((prev) => new Set(prev).add(b.person.id));
-  };
-
-  const handleCashApp = async (b: PersonBreakdown) => {
-    let handle = await getCashAppHandle();
-    if (!handle) {
-      await new Promise<void>((resolve) => {
-        Alert.prompt(
-          'Your Cash App $cashtag',
-          'Included in the copied text so friends know who to pay. Enter without the $.',
-          [
-            { text: 'Skip', style: 'cancel', onPress: () => resolve() },
-            {
-              text: 'Save',
-              onPress: async (value?: string) => {
-                if (value?.trim()) {
-                  await setCashAppHandle(value.trim());
-                  handle = value.trim().replace(/^\$/, '');
-                }
-                resolve();
-              },
-            },
-          ],
-          'plain-text'
-        );
-      });
-    }
-    const note = receipt.merchantName ? receipt.merchantName : 'your share';
-    const handlePart = handle ? ` to $${handle}` : '';
-    await Clipboard.setStringAsync(`Pay${handlePart} ${formatCurrency(b.totalOwed)} for ${note}`);
-    setCashRequestedIds((prev) => new Set(prev).add(b.person.id));
-    Linking.openURL('cashapp://').catch(() => Linking.openURL('https://cash.app'));
   };
 
   const handleStartOver = () => {
@@ -186,19 +154,9 @@ return (
                           style={[styles.venmoBtn, requestedIds.has(b.person.id) && styles.venmoBtnRequested]}
                           onPress={() => handleVenmo(b)}
                         >
-                          <View style={styles.venmoLogo}>
-                            <Text style={styles.venmoLogoText}>V</Text>
-                          </View>
+                          <VenmoLogo size={18} />
                           <Text style={[styles.venmoBtnText, requestedIds.has(b.person.id) && styles.venmoBtnTextRequested]}>
                             {requestedIds.has(b.person.id) ? 'Sent ✓' : 'Request'}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.cashBtn, cashRequestedIds.has(b.person.id) && styles.cashBtnCopied]}
-                          onPress={() => handleCashApp(b)}
-                        >
-                          <Text style={[styles.cashBtnText, cashRequestedIds.has(b.person.id) && styles.cashBtnTextCopied]}>
-                            {cashRequestedIds.has(b.person.id) ? '$ Copied' : '$ Cash'}
                           </Text>
                         </TouchableOpacity>
                       </>
@@ -327,32 +285,12 @@ const styles = StyleSheet.create({
     borderRadius: 10, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
-  venmoLogo: {
-    width: 20, height: 20, borderRadius: 5,
-    backgroundColor: 'rgba(61,149,206,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(61,149,206,0.30)',
-  },
-  venmoLogoText: { fontSize: 11, fontWeight: '900', color: '#3D95CE' },
   venmoBtnText: { color: '#3D95CE', fontSize: 13, fontWeight: '700' },
   venmoBtnRequested: {
     backgroundColor: 'rgba(62,173,116,0.15)',
     borderColor: 'rgba(62,173,116,0.35)',
   },
   venmoBtnTextRequested: { color: colors.green },
-
-  cashBtn: {
-    backgroundColor: 'rgba(0,214,79,0.15)', borderRadius: 10,
-    height: 36, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 10,
-    borderWidth: 1, borderColor: 'rgba(0,214,79,0.35)',
-  },
-  cashBtnCopied: {
-    backgroundColor: 'rgba(62,173,116,0.15)',
-    borderColor: 'rgba(62,173,116,0.35)',
-  },
-  cashBtnText: { fontSize: 13, fontWeight: '700', color: '#00D64F' },
-  cashBtnTextCopied: { color: colors.green },
 
   footer: { gap: 10, marginTop: 4 },
   footerRow: { flexDirection: 'row', gap: 10 },
