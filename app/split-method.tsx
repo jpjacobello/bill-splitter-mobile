@@ -56,7 +56,7 @@ export default function SplitMethodScreen() {
       });
       const url = `${WEB_BASE_URL}/split/${sessionId}`;
       await Share.share({
-        message: `${receipt.merchantName ? receipt.merchantName + ' — ' : ''}Pay your share`,
+        message: `${receipt.merchantName ? receipt.merchantName + ' — ' : ''}grab your share — tap what you ordered`,
         url,
       });
       // Reset the stack: pop the scan/fork screens so Back goes Home, then open the live session

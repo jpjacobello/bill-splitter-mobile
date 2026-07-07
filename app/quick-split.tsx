@@ -139,7 +139,7 @@ export default function QuickSplitScreen() {
 
       const url = `${WEB_BASE_URL}/split/${sessionId}`;
       await Share.share({
-        message: `${receipt.merchantName ? receipt.merchantName + ' — ' : ''}Pay your share (${formatCurrency(perPerson)} each)`,
+        message: `${receipt.merchantName ? receipt.merchantName + ' — ' : ''}grab your share · ${formatCurrency(perPerson)} each`,
         url,
       });
 
