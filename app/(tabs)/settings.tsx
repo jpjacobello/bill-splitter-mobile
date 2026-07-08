@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, View, Text, TextInput,
-  TouchableOpacity, ScrollView, Keyboard, Linking,
+  TouchableOpacity, ScrollView, Keyboard, Linking, Modal, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ActionSheet from '../../components/ActionSheet';
@@ -92,7 +92,8 @@ export default function SettingsScreen() {
   const [tipExpanded, setTipExpanded] = useState(false);
   const [tipReminderExpanded, setTipReminderExpanded] = useState(false);
   const [currency, setCurrencyState] = useState('USD');
-  const [currencyExpanded, setCurrencyExpanded] = useState(false);
+  const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
+  const insets = useSafeAreaInsets();
   const nameInputRef = useRef<TextInput>(null);
   const venmoInputRef = useRef<TextInput>(null);
   const cashInputRef = useRef<TextInput>(null);
@@ -112,7 +113,7 @@ export default function SettingsScreen() {
     setCurrencyState(code);
     setActiveCurrency(code);
     await setCurrency(code);
-    setCurrencyExpanded(false);
+    setCurrencyModalOpen(false);
   };
 
   const handleSaveVenmo = async () => {
@@ -301,32 +302,13 @@ export default function SettingsScreen() {
           <SettingRow
             label="Currency"
             value={currencyLabel}
-            onPress={() => { setCurrencyExpanded((v) => !v); setTipExpanded(false); setTipReminderExpanded(false); }}
+            onPress={() => { setCurrencyModalOpen(true); setTipExpanded(false); setTipReminderExpanded(false); }}
           />
-          {currencyExpanded && (
-            <View style={styles.expandedArea}>
-              <Text style={styles.expandedHint}>Used to display amounts everywhere, including shared bill links.</Text>
-              <View style={styles.currencyChips}>
-                {CURRENCIES.map((c) => (
-                  <TouchableOpacity
-                    key={c.code}
-                    style={[styles.currencyChip, currency === c.code && styles.tipChipActive]}
-                    onPress={() => handleSetCurrency(c.code)}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[styles.tipChipText, currency === c.code && styles.tipChipTextActive]}>
-                      {c.flag} {c.code} {c.symbol}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
           <View style={styles.separator} />
           <SettingRow
             label="Default Tip"
             value={tipLabel}
-            onPress={() => { setTipExpanded((v) => !v); setTipReminderExpanded(false); setCurrencyExpanded(false); }}
+            onPress={() => { setTipExpanded((v) => !v); setTipReminderExpanded(false); }}
           />
           {tipExpanded && (
             <View style={styles.expandedArea}>
@@ -486,6 +468,42 @@ export default function SettingsScreen() {
 
       </ScrollView>
 
+      <Modal
+        visible={currencyModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCurrencyModalOpen(false)}
+        statusBarTranslucent
+      >
+        <Pressable style={styles.currencyBackdrop} onPress={() => setCurrencyModalOpen(false)}>
+          <Pressable style={[styles.currencySheet, { paddingBottom: insets.bottom + 8 }]}>
+            <View style={styles.currencyHandle} />
+            <Text style={styles.currencySheetTitle}>Currency</Text>
+            <Text style={styles.currencySheetHint}>Used to display amounts everywhere, including shared bill links.</Text>
+            <ScrollView style={styles.currencyList} showsVerticalScrollIndicator={false}>
+              {CURRENCIES.map((c) => {
+                const active = currency === c.code;
+                return (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={styles.currencyOption}
+                    onPress={() => handleSetCurrency(c.code)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.currencyFlag}>{c.flag}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.currencyName, active && styles.currencyNameActive]}>{c.name}</Text>
+                      <Text style={styles.currencyMeta}>{c.code} · {c.symbol}</Text>
+                    </View>
+                    {active && <Ionicons name="checkmark" size={20} color={colors.green} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ActionSheet
         visible={resetProOpen}
         title="Reset to Free?"
@@ -597,13 +615,27 @@ const styles = StyleSheet.create({
   radioDesc: { fontSize: 12, color: '#555' },
 
   tipChips: { flexDirection: 'row', gap: 8 },
-  currencyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  currencyChip: {
-    paddingVertical: 8, paddingHorizontal: 12,
-    borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center',
+
+  currencyBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  currencySheet: {
+    backgroundColor: colors.surfaceMid ?? '#1E1E1E',
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingHorizontal: 20, paddingTop: 10, maxHeight: '78%',
+    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
+  currencyHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)', marginBottom: 14 },
+  currencySheetTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
+  currencySheetHint: { fontSize: 12.5, color: colors.textMuted, marginTop: 4, marginBottom: 8, lineHeight: 17 },
+  currencyList: { marginTop: 2 },
+  currencyOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13,
+    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  currencyFlag: { fontSize: 24 },
+  currencyName: { fontSize: 15.5, color: colors.textDim, fontWeight: '500' },
+  currencyNameActive: { color: colors.text, fontWeight: '700' },
+  currencyMeta: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
+
   tipChip: {
     flex: 1, paddingVertical: 8,
     borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)',
