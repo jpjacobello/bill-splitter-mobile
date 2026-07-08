@@ -5,11 +5,11 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as Contacts from 'expo-contacts';
 import ActionSheet from '../../components/ActionSheet';
 import BottomSheet from '../../components/BottomSheet';
 import { colors } from '../../theme';
 import { usePro } from '../../hooks/usePro';
+import { presentMultiContactPickerAsync } from '../../modules/contact-picker';
 import {
   getPeople, addPerson, removePerson, updatePerson, findOrCreatePerson, TrackedPerson,
 } from '../../utils/peopleStorage';
@@ -27,19 +27,6 @@ function personSubtitle(p: TrackedPerson): string {
   return 'No payment handle';
 }
 
-// Best display name for a picked contact — the composed name can be empty on iOS
-// even when first/last exist, so fall back through the other fields.
-function resolveContactName(contact: Contacts.Contact, phone?: string): string {
-  return (
-    contact.name?.trim() ||
-    [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim() ||
-    contact.nickname?.trim() ||
-    contact.company?.trim() ||
-    phone ||
-    'Unknown'
-  );
-}
-
 type GroupDraft = { id?: string; name: string; memberIds: Set<string> };
 
 export default function PeopleScreen() {
@@ -48,7 +35,6 @@ export default function PeopleScreen() {
   const [people, setPeople] = useState<TrackedPerson[]>([]);
   const [groups, setGroups] = useState<GroupWithMembers[]>([]);
 
-  const [deniedOpen, setDeniedOpen] = useState(false);
   const [proOpen, setProOpen] = useState(false);
 
   // 'new' opens the editor for a fresh person; a TrackedPerson edits it.
@@ -62,27 +48,25 @@ export default function PeopleScreen() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Import one contact into the roster and return the resulting person (for the
-  // group editor to auto-select). Returns null on denial/cancel. `silentDenial`
-  // skips the denied sheet when called from inside the group modal (avoids
-  // stacking a modal over a modal).
-  const importOneContact = async (silentDenial = false): Promise<TrackedPerson | null> => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status !== 'granted') { if (!silentDenial) setDeniedOpen(true); return null; }
-    const contact = await Contacts.presentContactPickerAsync();
-    if (!contact) return null;
-    const phone = contact.phoneNumbers?.[0]?.number;
-    const resolved = resolveContactName(contact, phone);
-    const list = await addPerson({ name: resolved, phone, contactId: contact.id });
+  // Native multi-select picker → add each to the roster (deduped) → return the
+  // resulting people so the group editor can select them.
+  const importContacts = async (): Promise<TrackedPerson[]> => {
+    const picked = await presentMultiContactPickerAsync();
+    if (picked.length === 0) return [];
+    let list = await getPeople();
+    const result: TrackedPerson[] = [];
+    for (const c of picked) {
+      list = await addPerson({ name: c.name, phone: c.phone, contactId: c.id });
+      const person =
+        list.find((p) => p.contactId === c.id) ??
+        list.find((p) => p.name === c.name);
+      if (person) result.push(person);
+    }
     setPeople(list);
-    return (
-      list.find((p) => p.contactId === contact.id) ??
-      list.find((p) => p.name === resolved) ??
-      null
-    );
+    return result;
   };
 
-  const importFromContacts = () => { importOneContact(); };
+  const importFromContacts = () => { importContacts(); };
 
   const openNewGroup = () => {
     if (!isPro) { setProOpen(true); return; }
@@ -173,13 +157,6 @@ export default function PeopleScreen() {
       </ScrollView>
 
       <ActionSheet
-        visible={deniedOpen}
-        title="Contacts access needed"
-        message="Enable Contacts in Settings to add people from your address book. You can still add people manually."
-        options={[{ label: 'Add Manually Instead', icon: 'create-outline', onPress: () => setPersonTarget('new') }]}
-        onClose={() => setDeniedOpen(false)}
-      />
-      <ActionSheet
         visible={proOpen}
         title="Divi Pro"
         message="Saved groups let you reload your regular crews into any split. Upgrade in Settings."
@@ -207,7 +184,7 @@ export default function PeopleScreen() {
           setPeople(await getPeople());
           return person;
         }}
-        onAddFromContacts={() => importOneContact(true)}
+        onAddContacts={importContacts}
         onSave={async (draft) => {
           const memberIds = Array.from(draft.memberIds);
           if (draft.id) await updateGroup(draft.id, { name: draft.name.trim(), memberIds });
@@ -295,13 +272,13 @@ function PersonEditor({
 // Members are built by picking from contacts or typing a name — no roster
 // toggle list. pageSheet gives swipe-down dismiss + smooth keyboard handling.
 function GroupEditor({
-  draft, people, onClose, onCreatePerson, onAddFromContacts, onSave, onDelete,
+  draft, people, onClose, onCreatePerson, onAddContacts, onSave, onDelete,
 }: {
   draft: GroupDraft | null;
   people: TrackedPerson[];
   onClose: () => void;
   onCreatePerson: (name: string) => Promise<TrackedPerson>;
-  onAddFromContacts: () => Promise<TrackedPerson | null>;
+  onAddContacts: () => Promise<TrackedPerson[]>;
   onSave: (draft: GroupDraft) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
@@ -323,8 +300,8 @@ function GroupEditor({
   const members = Array.from(selected).map((id) => byId.get(id)).filter(Boolean) as TrackedPerson[];
 
   const addFromContacts = async () => {
-    const person = await onAddFromContacts();
-    if (person) setSelected((prev) => new Set(prev).add(person.id));
+    const persons = await onAddContacts();
+    if (persons.length) setSelected((prev) => new Set([...prev, ...persons.map((p) => p.id)]));
   };
 
   const addNew = async () => {

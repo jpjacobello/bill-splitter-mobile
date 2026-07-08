@@ -7,7 +7,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import * as Contacts from 'expo-contacts';
+import { presentMultiContactPickerAsync } from '../modules/contact-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../components/Button';
@@ -374,16 +374,8 @@ export default function AssignItemsScreen() {
   };
 
   const handlePickContact = async () => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status !== 'granted') return;
-    const contact = await Contacts.presentContactPickerAsync();
-    if (!contact) return;
-
-    const resolved = contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ');
-    if (!resolved) return;
-
-    addPerson(resolved);
-    setTimeout(() => personInputRef.current?.focus(), 50);
+    const picked = await presentMultiContactPickerAsync();
+    picked.forEach((c) => addPerson(c.name));
   };
 
   const handleSheetSplitAmong = (itemId: string, personIds: string[]) => {
