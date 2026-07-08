@@ -88,6 +88,7 @@ function NewChooser({ visible, onClose }: { visible: boolean; onClose: () => voi
         >
           <Pressable style={styles.tiles}>
             <TouchableOpacity style={styles.tile} activeOpacity={0.85} onPress={() => pick('scan')}>
+              <View style={styles.tileHighlight} pointerEvents="none" />
               <View style={[styles.tileIcon, { backgroundColor: 'rgba(62,173,116,0.18)' }]}>
                 <Ionicons name="scan-outline" size={26} color={colors.green} />
               </View>
@@ -95,6 +96,7 @@ function NewChooser({ visible, onClose }: { visible: boolean; onClose: () => voi
               <Text style={styles.tileSub}>Itemize a receipt</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.tile} activeOpacity={0.85} onPress={() => pick('quick')}>
+              <View style={styles.tileHighlight} pointerEvents="none" />
               <View style={[styles.tileIcon, { backgroundColor: 'rgba(100,151,212,0.18)' }]}>
                 <Ionicons name="calculator-outline" size={26} color="#6497D4" />
               </View>
@@ -159,7 +161,10 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1, alignItems: 'flex-start', gap: 10,
     backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: 16,
+    overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
+  tileHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.07)' },
   tileIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   tileTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
   tileSub: { fontSize: 12.5, color: colors.textMuted },

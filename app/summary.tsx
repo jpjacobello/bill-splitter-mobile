@@ -103,6 +103,7 @@ return (
             <View style={[styles.card, isHost && styles.hostCard]}>
               <BlurView style={StyleSheet.absoluteFill} tint="dark" intensity={30} />
               <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.03)' }]} />
+              <View style={styles.cardTopHighlight} pointerEvents="none" />
               <View style={[styles.cardAccent, { backgroundColor: personColor }]} />
               <View style={styles.cardHeader}>
                 <View style={styles.cardLeft}>
@@ -250,6 +251,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
   hostCard: { borderColor: 'rgba(220,220,220,0.35)' },
+  cardTopHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
   cardAccent: {
     position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
     borderTopLeftRadius: 18, borderBottomLeftRadius: 18,

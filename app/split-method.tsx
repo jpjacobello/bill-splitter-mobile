@@ -61,7 +61,7 @@ export default function SplitMethodScreen() {
       });
       // Reset the stack: pop the scan/fork screens so Back goes Home, then open the live session
       if (router.canDismiss()) router.dismissAll();
-      router.push('/sessions');
+      router.push('/activity');
     } catch (e: any) {
       if (e?.message !== 'cancelled' && e?.message !== 'empty') {
         Alert.alert('Error', 'Could not create share link. Check your internet connection.');
