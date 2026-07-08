@@ -10,7 +10,7 @@ import { createSession } from '../services/billSession';
 import { addSession } from '../utils/sessionStorage';
 import { formatCurrency, getActiveCurrency } from '../utils/currency';
 
-const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL ?? 'https://trydivi.vercel.app';
+import { WEB_BASE_URL } from '../utils/config';
 
 export default function SplitMethodScreen() {
   const router = useRouter();

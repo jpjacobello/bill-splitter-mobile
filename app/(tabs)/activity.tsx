@@ -12,7 +12,7 @@ import { getBillHistory, saveBillToHistory } from '../../utils/proStorage';
 import { usePro } from '../../hooks/usePro';
 import { formatCurrency } from '../../utils/currency';
 
-const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL ?? 'https://dist-omega-opal-62.vercel.app';
+import { WEB_BASE_URL } from '../../utils/config';
 const FREE_CAP = 10;
 
 export default function ActivityScreen() {
