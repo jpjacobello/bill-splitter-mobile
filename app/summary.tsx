@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   receiptTotalLabel: { fontSize: 15, color: colors.textSecondary },
-  receiptTotalValue: { fontSize: 17, fontWeight: '700', color: colors.text },
+  receiptTotalValue: { fontSize: 17, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
   reconcileBadge: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
   reconcileOk: { backgroundColor: 'rgba(62,173,116,0.18)' },
   reconcileOff: { backgroundColor: 'rgba(210,60,60,0.18)' },
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   hostBadgeText: { fontSize: 11, fontWeight: '700', color: '#000' },
   itemCount: { fontSize: 13, color: colors.textMuted },
   cardRight: { alignItems: 'flex-end', gap: 6 },
-  totalOwed: { fontSize: 24, fontWeight: '800', color: '#D0D0D0' },
+  totalOwed: { fontSize: 24, fontWeight: '800', color: '#D0D0D0', fontVariant: ['tabular-nums'] },
   inlineActions: { flexDirection: 'row', gap: 6 },
   venmoBtn: {
     backgroundColor: 'rgba(61,149,206,0.20)', borderRadius: 10,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4, paddingBottom: 4,
   },
   calculatedLabel: { fontSize: 14, color: colors.textMuted },
-  calculatedValue: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  calculatedValue: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   startOverBtn: {
     height: 36, borderRadius: 10, overflow: 'hidden',
     alignSelf: 'center', paddingHorizontal: 20,

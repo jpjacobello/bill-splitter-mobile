@@ -299,6 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#D0D0D0',
+    fontVariant: ['tabular-nums'],
   },
   divider: {
     height: 0.5,
@@ -318,6 +319,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#A0A0A0',
     fontWeight: '500',
+    fontVariant: ['tabular-nums'],
   },
   grandTotalRow: {
     marginTop: 4,
@@ -334,6 +336,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#D0D0D0',
+    fontVariant: ['tabular-nums'],
   },
   footer: {
     paddingHorizontal: 16,

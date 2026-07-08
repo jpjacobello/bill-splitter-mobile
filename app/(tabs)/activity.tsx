@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   },
   recIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  rowAmt: { fontSize: 15, fontWeight: '700', color: colors.text },
+  rowAmt: { fontSize: 15, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
 
   nudge: { alignItems: 'center', paddingVertical: 12 },
   nudgeText: { fontSize: 13, color: colors.green, fontWeight: '600' },
