@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 import { colors } from '../theme';
 import { useBillStore } from '../store/useBillStore';
-import { DEFAULT_TIP_KEY } from './settings';
+import { DEFAULT_TIP_KEY } from '../utils/tipPrefs';
 import { formatCurrency } from '../utils/currency';
 
 const TIP_PRESETS = [0.15, 0.18, 0.2, 0.25];

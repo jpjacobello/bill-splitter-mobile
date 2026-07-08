@@ -46,9 +46,7 @@ export default function SessionsScreen() {
   const archiveSession = useCallback(async (session: BillSession) => {
     if (archivedRef.current.has(session.id)) return;
     archivedRef.current.add(session.id);
-    if (isProRef.current) {
-      await saveBillToHistory(sessionToHistory(session));
-    }
+    await saveBillToHistory(sessionToHistory(session));
     await removeSession(session.id);
     unsubsRef.current.get(session.id)?.();
     unsubsRef.current.delete(session.id);

@@ -12,7 +12,7 @@ import { useBillStore } from '../store/useBillStore';
 import { activeParser } from '../services/receiptParser';
 import { flattenDocument } from '../modules/document-flattener';
 import { mockReceipt } from '../data/mockData';
-import { DEFAULT_TIP_KEY } from './settings';
+import { DEFAULT_TIP_KEY } from '../utils/tipPrefs';
 import { colors } from '../theme';
 
 const SCREEN_H = Dimensions.get('window').height;

@@ -51,9 +51,7 @@ export default function SummaryScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Start Over', style: 'destructive', onPress: async () => {
-            if (isPro) {
-              await saveBillToHistory({ merchantName: receipt.merchantName, people, receipt, receiptImageUri: receiptImageUri ?? undefined });
-            }
+            await saveBillToHistory({ merchantName: receipt.merchantName, people, receipt, receiptImageUri: receiptImageUri ?? undefined });
             reset();
             router.replace('/');
           },

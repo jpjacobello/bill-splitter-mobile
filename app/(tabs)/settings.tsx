@@ -7,16 +7,14 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useBillStore } from '../store/useBillStore';
-import { usePro } from '../hooks/usePro';
-import { colors } from '../theme';
-import { getVenmoHandle, setVenmoHandle, getCashAppHandle, setCashAppHandle, getCurrency, setCurrency } from '../utils/proStorage';
-import { CURRENCIES, currencyInfo, setActiveCurrency } from '../utils/currency';
+import { useBillStore } from '../../store/useBillStore';
+import { usePro } from '../../hooks/usePro';
+import { colors } from '../../theme';
+import { getVenmoHandle, setVenmoHandle, getCashAppHandle, setCashAppHandle, getCurrency, setCurrency } from '../../utils/proStorage';
+import { CURRENCIES, currencyInfo, setActiveCurrency } from '../../utils/currency';
 
 const SAVED_NAME_KEY = 'savedHostName';
-export const DEFAULT_TIP_KEY = 'defaultTipPct';
-export const TIP_REMINDER_KEY = 'tipReminderMode';
-export type TipReminderMode = 'always' | 'never';
+import { DEFAULT_TIP_KEY, TIP_REMINDER_KEY, TipReminderMode } from '../../utils/tipPrefs';
 const TIP_PRESETS = [0.15, 0.18, 0.20, 0.25];
 const APP_VERSION = '1.0.0';
 
@@ -165,9 +163,6 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={24} color="#D0D0D0" />
-        </TouchableOpacity>
         <Text style={styles.title}>Settings</Text>
       </View>
 
@@ -513,7 +508,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   title: { fontSize: 22, fontWeight: '700', color: colors.textDim },
-  scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 60 },
+  scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 120 },
 
   sectionHeader: {
     fontSize: 12, fontWeight: '600', color: '#666',

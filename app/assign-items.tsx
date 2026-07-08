@@ -19,7 +19,7 @@ import { ReceiptItem, Person, SavedGroup } from '../types';
 import { usePro } from '../hooks/usePro';
 import { getSavedGroups, saveGroup, deleteSavedGroup } from '../utils/proStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TIP_REMINDER_KEY, TipReminderMode } from './settings';
+import { TIP_REMINDER_KEY, TipReminderMode } from '../utils/tipPrefs';
 import { formatCurrency } from '../utils/currency';
 
 const PERSON_COLORS = colors.person;
