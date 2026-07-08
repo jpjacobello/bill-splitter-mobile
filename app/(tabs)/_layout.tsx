@@ -17,36 +17,19 @@ const TAB_META: Record<string, { label: string; icon: IconName; activeIcon: Icon
   settings: { label: 'Settings', icon: 'settings-outline', activeIcon: 'settings' },
 };
 
+// Subtle: icon color + a small indicator dot that fades in on active. Press dims briefly.
 function TabButton({ name, focused, onPress }: { name: string; focused: boolean; onPress: () => void }) {
   const meta = TAB_META[name];
-  const press = useRef(new Animated.Value(0)).current; // 0 rest → 1 pressed
-  const active = useRef(new Animated.Value(focused ? 1 : 0)).current;
-
+  const dot = useRef(new Animated.Value(focused ? 1 : 0)).current;
   useEffect(() => {
-    Animated.spring(active, { toValue: focused ? 1 : 0, useNativeDriver: true, friction: 6, tension: 140 }).start();
+    Animated.timing(dot, { toValue: focused ? 1 : 0, duration: 180, useNativeDriver: true }).start();
   }, [focused]);
-
   if (!meta) return <View style={styles.slot} />;
-
-  const scale = Animated.multiply(
-    press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.82] }),
-    active.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }),
-  );
-  const lift = active.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
-  const dotScale = active.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
-
   return (
-    <Pressable
-      style={styles.slot}
-      onPressIn={() => Animated.spring(press, { toValue: 1, useNativeDriver: true, friction: 7, tension: 300 }).start()}
-      onPressOut={() => Animated.spring(press, { toValue: 0, useNativeDriver: true, friction: 5, tension: 200 }).start()}
-      onPress={onPress}
-    >
-      <Animated.View style={{ transform: [{ scale }, { translateY: lift }], alignItems: 'center', gap: 3 }}>
-        <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? colors.text : colors.textMuted} />
-        <Text style={[styles.label, focused && styles.labelActive]}>{meta.label}</Text>
-      </Animated.View>
-      <Animated.View style={[styles.activeDot, { opacity: active, transform: [{ scale: dotScale }] }]} />
+    <Pressable style={({ pressed }) => [styles.slot, pressed && { opacity: 0.5 }]} onPress={onPress} hitSlop={6}>
+      <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? colors.text : colors.textMuted} />
+      <Text style={[styles.label, focused && styles.labelActive]}>{meta.label}</Text>
+      <Animated.View style={[styles.activeDot, { opacity: dot }]} />
     </Pressable>
   );
 }
@@ -55,7 +38,6 @@ function FloatingTabBar({ state, navigation, onNew }: BottomTabBarProps & { onNe
   const insets = useSafeAreaInsets();
   const [home, activity, people, settings] = state.routes;
   const activeKey = state.routes[state.index]?.name;
-  const fabScale = useRef(new Animated.Value(0)).current;
 
   const go = (route: (typeof state.routes)[number]) => {
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -75,16 +57,12 @@ function FloatingTabBar({ state, navigation, onNew }: BottomTabBarProps & { onNe
         </BlurView>
       </View>
 
-      <Animated.View style={{ position: 'absolute', top: -18, transform: [{ scale: fabScale.interpolate({ inputRange: [0, 1], outputRange: [1, 0.88] }) }] }}>
-        <Pressable
-          onPressIn={() => Animated.spring(fabScale, { toValue: 1, useNativeDriver: true, friction: 7, tension: 300 }).start()}
-          onPressOut={() => Animated.spring(fabScale, { toValue: 0, useNativeDriver: true, friction: 5, tension: 200 }).start()}
-          onPress={onNew}
-          style={styles.fab}
-        >
-          <Ionicons name="add" size={30} color="#000" />
-        </Pressable>
-      </Animated.View>
+      <Pressable
+        onPress={onNew}
+        style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
+      >
+        <Ionicons name="add" size={30} color="#000" />
+      </Pressable>
     </View>
   );
 }
@@ -95,7 +73,7 @@ function NewChooser({ visible, onClose }: { visible: boolean; onClose: () => voi
   const slide = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.spring(slide, { toValue: visible ? 1 : 0, useNativeDriver: true, friction: 9, tension: 90 }).start();
+    Animated.spring(slide, { toValue: visible ? 1 : 0, useNativeDriver: true, friction: 11, tension: 90 }).start();
   }, [visible]);
 
   const pick = async (which: 'scan' | 'quick') => {
@@ -110,27 +88,23 @@ function NewChooser({ visible, onClose }: { visible: boolean; onClose: () => voi
         <Animated.View
           style={[
             styles.sheet,
-            { paddingBottom: insets.bottom + 20, transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [340, 0] }) }] },
+            { paddingBottom: insets.bottom + 18, transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] },
           ]}
         >
-          <Pressable>
-            <View style={styles.handle} />
-            <Text style={styles.sheetTitle}>New Bill</Text>
-            <TouchableOpacity style={styles.row} activeOpacity={0.8} onPress={() => pick('scan')}>
-              <View style={styles.rowIcon}><Ionicons name="scan-outline" size={22} color={colors.text} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Scan a Receipt</Text>
-                <Text style={styles.rowSub}>Itemize and split by what each person ordered</Text>
+          <Pressable style={styles.tiles}>
+            <TouchableOpacity style={styles.tile} activeOpacity={0.85} onPress={() => pick('scan')}>
+              <View style={[styles.tileIcon, { backgroundColor: 'rgba(62,173,116,0.18)' }]}>
+                <Ionicons name="scan-outline" size={26} color={colors.green} />
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textDisabled} />
+              <Text style={styles.tileTitle}>Scan</Text>
+              <Text style={styles.tileSub}>Itemize a receipt</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.8} onPress={() => pick('quick')}>
-              <View style={styles.rowIcon}><Ionicons name="calculator-outline" size={22} color={colors.text} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Quick Split</Text>
-                <Text style={styles.rowSub}>Split a total evenly — no receipt needed</Text>
+            <TouchableOpacity style={styles.tile} activeOpacity={0.85} onPress={() => pick('quick')}>
+              <View style={[styles.tileIcon, { backgroundColor: 'rgba(100,151,212,0.18)' }]}>
+                <Ionicons name="calculator-outline" size={26} color="#6497D4" />
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textDisabled} />
+              <Text style={styles.tileTitle}>Quick Split</Text>
+              <Text style={styles.tileSub}>Divide a total</Text>
             </TouchableOpacity>
           </Pressable>
         </Animated.View>
@@ -169,32 +143,30 @@ const styles = StyleSheet.create({
     overflow: 'hidden', backgroundColor: 'rgba(28,28,30,0.72)',
   },
   barBorder: { ...StyleSheet.absoluteFillObject, borderRadius: 30, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
-  slot: { flex: 1, alignItems: 'center', justifyContent: 'center', height: BAR_H },
+  slot: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: BAR_H },
   label: { fontSize: 10, fontWeight: '600', color: colors.textMuted },
   labelActive: { color: colors.text },
   activeDot: { position: 'absolute', bottom: 7, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.text },
 
   fab: {
+    position: 'absolute', top: -18,
     width: 58, height: 58, borderRadius: 29, backgroundColor: colors.btnPrimary,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 3, borderColor: colors.bg,
     shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
   },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: '#202023', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 10, gap: 10,
-    borderTopWidth: 1, borderColor: colors.border,
+    backgroundColor: '#202023', borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    paddingHorizontal: 16, paddingTop: 14,
   },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', marginBottom: 10 },
-  sheetTitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted, marginBottom: 4, letterSpacing: 0.5 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+  tiles: { flexDirection: 'row', gap: 12 },
+  tile: {
+    flex: 1, alignItems: 'flex-start', gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: 16,
   },
-  rowIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  rowTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  rowSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  tileIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  tileTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  tileSub: { fontSize: 12.5, color: colors.textMuted },
 });
