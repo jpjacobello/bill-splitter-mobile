@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, Animated,
-  ScrollView, FlatList, TextInput, Keyboard, Alert, Modal,
+  ScrollView, FlatList, TextInput, Keyboard, Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../components/Button';
 import { colors } from '../theme';
 import ItemActionSheet from '../components/ItemActionSheet';
+import ActionSheet, { SheetOption } from '../components/ActionSheet';
 import { useBillStore } from '../store/useBillStore';
 import { getUnassignedTotal } from '../utils/calcSplit';
 import { getEmoji } from '../utils/buildReceiptHtml';
@@ -181,6 +182,7 @@ export default function AssignItemsScreen() {
   const [selectedPersonId, setSelectedPersonId] = useState<string>(people[0]?.id ?? '');
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [activeItem, setActiveItem] = useState<ReceiptItem | null>(null);
+  const [sheet, setSheet] = useState<{ title?: string; message?: string; options: SheetOption[] } | null>(null);
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [personInput, setPersonInput] = useState('');
   const [showGroupsModal, setShowGroupsModal] = useState(false);
@@ -214,16 +216,16 @@ export default function AssignItemsScreen() {
   const handleSeeSummary = () => {
     if (hasReceiptIssue && receipt) {
       const tipMissing = receipt.tip === 0;
-      Alert.alert(
-        tipMissing ? 'No Tip Added' : "Receipt Doesn't Add Up",
-        tipMissing
-          ? 'This receipt has no tip. Add one with the Edit Receipt button up top, or continue without a tip.'
+      setSheet({
+        title: tipMissing ? 'No tip added' : "Receipt doesn't add up",
+        message: tipMissing
+          ? 'This receipt has no tip. Add one with Edit Receipt, or continue without a tip.'
           : "The item total doesn't match the receipt total. Fix it with Edit Receipt, or continue anyway.",
-        [
-          { text: 'Edit Receipt', onPress: () => router.push('/receipt-review?from=assign-items') },
-          { text: 'Continue Anyway', style: 'destructive', onPress: () => router.push('/summary') },
-        ]
-      );
+        options: [
+          { label: 'Edit Receipt', icon: 'create-outline', onPress: () => router.push('/receipt-review?from=assign-items') },
+          { label: 'Continue Anyway', icon: 'arrow-forward-outline', destructive: true, onPress: () => router.push('/summary') },
+        ],
+      });
       return;
     }
     router.push('/summary');
@@ -307,9 +309,10 @@ export default function AssignItemsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedPersonId(person.id);
     const firstName = person.name.split(' ')[0];
-    const options: any[] = [
+    const options: SheetOption[] = [
       {
-        text: `Assign all to ${firstName}`,
+        label: `Assign all to ${firstName}`,
+        icon: 'checkmark-done-outline',
         onPress: () => {
           assignableItems.forEach((item) => {
             if (item.assignedTo.includes(person.id)) return;
@@ -319,8 +322,9 @@ export default function AssignItemsScreen() {
         },
       },
       {
-        text: `Remove all from ${firstName}`,
-        style: 'destructive',
+        label: `Remove all from ${firstName}`,
+        icon: 'close-outline',
+        destructive: true,
         onPress: () => {
           assignableItems.forEach((item) => {
             if (!item.assignedTo.includes(person.id)) return;
@@ -332,8 +336,9 @@ export default function AssignItemsScreen() {
     ];
     if (!person.isHost) {
       options.push({
-        text: 'Remove from split',
-        style: 'destructive',
+        label: 'Remove from split',
+        icon: 'person-remove-outline',
+        destructive: true,
         onPress: () => {
           removePerson(person.id);
           if (selectedPersonId === person.id) {
@@ -342,8 +347,7 @@ export default function AssignItemsScreen() {
         },
       });
     }
-    options.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert(person.name, undefined, options);
+    setSheet({ title: person.name, options });
   };
 
   const handleAddPerson = () => {
@@ -404,7 +408,11 @@ export default function AssignItemsScreen() {
 
   const handleOpenGroups = async () => {
     if (!isPro) {
-      Alert.alert('Divi Pro', 'Saved groups are a Pro feature. Upgrade in Settings.', [{ text: 'OK' }]);
+      setSheet({
+        title: 'Divi Pro',
+        message: 'Saved groups are a Pro feature. Upgrade in Settings to save and reuse your regular crews.',
+        options: [{ label: 'Got it', icon: 'sparkles-outline', onPress: () => {} }],
+      });
       return;
     }
     const groups = await getSavedGroups();
@@ -447,16 +455,16 @@ export default function AssignItemsScreen() {
   };
 
   const handleDeleteGroup = async (id: string) => {
-    Alert.alert('Delete Group?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
+    setSheet({
+      title: 'Delete group?',
+      message: 'This removes the saved group. Your current split is unaffected.',
+      options: [{
+        label: 'Delete', icon: 'trash-outline', destructive: true, onPress: async () => {
           await deleteSavedGroup(id);
-          const updated = await getSavedGroups();
-          setSavedGroups(updated);
+          setSavedGroups(await getSavedGroups());
         },
-      },
-    ]);
+      }],
+    });
   };
 
   const handleSplitDrinksEvenly = () => {
@@ -788,6 +796,14 @@ export default function AssignItemsScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      <ActionSheet
+        visible={sheet !== null}
+        title={sheet?.title}
+        message={sheet?.message}
+        options={sheet?.options ?? []}
+        onClose={() => setSheet(null)}
+      />
     </SafeAreaView>
   );
 }
