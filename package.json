@@ -11,6 +11,7 @@
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.2.14",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "burnt": "^0.13.0",
     "expo": "~54.0.33",
     "expo-blur": "~15.0.8",
     "expo-clipboard": "~8.0.8",
@@ -26,7 +27,10 @@
     "expo-router": "~6.0.23",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
     "firebase": "^12.15.0",
+    "lottie-react-native": "~7.3.1",
+    "moti": "^0.30.0",
     "node-forge": "^1.4.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
