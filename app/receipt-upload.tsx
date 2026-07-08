@@ -268,12 +268,12 @@ export default function ReceiptUploadScreen() {
         {/* Actions */}
         {!imageUri && !isDemoLoaded && !isRetakeMode && !notReceiptMode && (
           <View style={styles.photoActions}>
-            <TouchableOpacity style={styles.photoBtn} onPress={() => pickImage(true)}>
-              <Ionicons name="camera-outline" size={24} color={colors.textDim} />
-              <Text style={styles.photoBtnText}>Camera</Text>
+            <TouchableOpacity style={[styles.photoBtn, styles.photoBtnPrimary]} onPress={() => pickImage(true)} activeOpacity={0.85}>
+              <Ionicons name="camera" size={22} color="#000" />
+              <Text style={[styles.photoBtnText, styles.photoBtnTextPrimary]}>Camera</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.photoBtn} onPress={() => pickImage(false)}>
-              <Ionicons name="image-outline" size={24} color={colors.textDim} />
+            <TouchableOpacity style={[styles.photoBtn, styles.photoBtnSecondary]} onPress={() => pickImage(false)} activeOpacity={0.85}>
+              <Ionicons name="images-outline" size={22} color={colors.text} />
               <Text style={styles.photoBtnText}>Library</Text>
             </TouchableOpacity>
           </View>
@@ -296,18 +296,7 @@ export default function ReceiptUploadScreen() {
                 <Text style={styles.closeBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            !imageUri && !isReturning && !isDemoMode && (
-              <>
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-                <Button label="Use Demo Receipt" onPress={handleDemo} variant="secondary" />
-              </>
-            )
-          )}
+          ) : null}
         </View>
         {/* Retake sheet */}
         {sheetMounted && (
@@ -378,24 +367,26 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.divider,
+    borderWidth: 1.5,
+    borderColor: colors.borderMid,
+    borderStyle: 'dashed',
     borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.025)',
     padding: 32,
-    gap: 8,
+    gap: 6,
   },
   uploadIcon: {
-    fontSize: 48,
-    marginBottom: 8,
+    marginBottom: 14,
+    opacity: 0.9,
   },
   uploadTitle: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.textDim,
   },
   uploadHint: {
     fontSize: 14,
-    color: '#555',
+    color: colors.textMuted,
     textAlign: 'center',
   },
   receiptSection: {
@@ -459,22 +450,33 @@ const styles = StyleSheet.create({
   photoActions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 8,
   },
   photoBtn: {
     flex: 1,
-    height: 72,
-    backgroundColor: '#1E1E1E',
+    height: 76,
     borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 8,
+  },
+  photoBtnPrimary: {
+    backgroundColor: colors.btnPrimary,
+  },
+  photoBtnSecondary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderMid,
   },
   photoBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textDim,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  photoBtnTextPrimary: {
+    color: '#000',
   },
   retakeArea: {
     flex: 1,
@@ -539,21 +541,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: 16,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.divider,
-  },
-  dividerText: {
-    fontSize: 14,
-    color: '#555',
   },
   sheetBackdrop: {
     position: 'absolute',
