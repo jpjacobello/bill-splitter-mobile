@@ -11,7 +11,8 @@ import { BillSession, BillHistoryEntry } from '../../types';
 import { subscribeToSession, closeSession } from '../../services/billSession';
 import { getSessions, removeSession, StoredSession } from '../../utils/sessionStorage';
 import { sessionToHistory, isSessionFullyClaimed } from '../../utils/sessionArchive';
-import { getBillHistory, saveBillToHistory } from '../../utils/proStorage';
+import { getBillHistory, saveBillToHistory, deleteBillFromHistory } from '../../utils/proStorage';
+import BillDetailSheet from '../../components/BillDetailSheet';
 import { usePro } from '../../hooks/usePro';
 import { formatCurrency } from '../../utils/currency';
 
@@ -33,6 +34,8 @@ export default function ActivityScreen() {
   }, [params.tab]);
 
   const [closeTarget, setCloseTarget] = useState<StoredSession | null>(null);
+  const [detailEntry, setDetailEntry] = useState<BillHistoryEntry | null>(null);
+  const [deleteEntry, setDeleteEntry] = useState<BillHistoryEntry | null>(null);
   const [stored, setStored] = useState<StoredSession[]>([]);
   const [liveData, setLiveData] = useState<Map<string, BillSession | null>>(new Map());
   const [history, setHistory] = useState<BillHistoryEntry[]>([]);
@@ -135,14 +138,16 @@ export default function ActivityScreen() {
           ) : (
             <>
               {pastList.map((e) => (
-                <View key={e.id} style={styles.rowCard}>
+                <TouchableOpacity key={e.id} style={styles.rowCard} activeOpacity={0.7}
+                  onPress={() => setDetailEntry(e)} onLongPress={() => setDeleteEntry(e)} delayLongPress={500}>
                   <View style={styles.recIcon}><Ionicons name="receipt-outline" size={18} color={colors.textSecondary} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{e.merchantName || 'Bill'}</Text>
                     <Text style={styles.rowSub}>{new Date(e.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {e.people.length} people</Text>
                   </View>
-                  <Text style={styles.rowAmt}>{formatCurrency(e.receipt.total)}</Text>
-                </View>
+                  <Text style={[styles.rowAmt, moneyText]}>{formatCurrency(e.receipt.total)}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#5a5a5c" style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
               ))}
               {capped && (
                 <TouchableOpacity style={styles.nudge}><Text style={styles.nudgeText}>See all your history with Divi Pro →</Text></TouchableOpacity>
@@ -161,6 +166,26 @@ export default function ActivityScreen() {
           onPress: () => { if (closeTarget) confirmClose(closeTarget); },
         }]}
         onClose={() => setCloseTarget(null)}
+      />
+
+      <BillDetailSheet
+        entry={detailEntry}
+        onClose={() => setDetailEntry(null)}
+        onRequestDelete={(e) => { setDetailEntry(null); setDeleteEntry(e); }}
+      />
+      <ActionSheet
+        visible={deleteEntry !== null}
+        title="Delete bill?"
+        message="This removes it from your history and can't be undone."
+        options={[{
+          label: 'Delete', icon: 'trash-outline', destructive: true,
+          onPress: async () => {
+            if (!deleteEntry) return;
+            await deleteBillFromHistory(deleteEntry.id);
+            setHistory(await getBillHistory());
+          },
+        }]}
+        onClose={() => setDeleteEntry(null)}
       />
     </SafeAreaView>
   );
