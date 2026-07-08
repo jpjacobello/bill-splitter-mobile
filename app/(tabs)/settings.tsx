@@ -616,9 +616,9 @@ const styles = StyleSheet.create({
 
   tipChips: { flexDirection: 'row', gap: 8 },
 
-  currencyBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  currencyBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   currencySheet: {
-    backgroundColor: colors.surfaceMid ?? '#1E1E1E',
+    backgroundColor: colors.sheet,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 20, paddingTop: 10, maxHeight: '78%',
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',

@@ -115,7 +115,7 @@ export default function TabsLayout() {
   return (
     <>
       <Tabs
-        screenOptions={{ headerShown: false }}
+        screenOptions={{ headerShown: false, animation: 'shift', lazy: false }}
         tabBar={(props) => <FloatingTabBar {...props} onNew={() => setChooserOpen(true)} />}
       >
         <Tabs.Screen name="index" />
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
   },
 
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: '#202023', borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 16, paddingTop: 14,

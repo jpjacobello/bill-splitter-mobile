@@ -4,6 +4,12 @@ export const colors = {
   surface: 'rgba(255,255,255,0.04)',
   surfaceMid: 'rgba(255,255,255,0.08)',
 
+  // Modal/bottom-sheet tokens. `sheet` MUST be opaque — sheets sit above app
+  // content, so a translucent panel lets the UI behind bleed through. `scrim`
+  // is the dimming backdrop; keep it dark enough to fully hide the tab bar.
+  sheet: '#1F1F22',
+  scrim: 'rgba(0,0,0,0.72)',
+
   border: 'rgba(255,255,255,0.10)',
   borderMid: 'rgba(255,255,255,0.18)',
 

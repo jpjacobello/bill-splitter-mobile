@@ -446,9 +446,9 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12, color: colors.textDisabled, textAlign: 'center', marginTop: 8 },
 
   // Modals
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.surfaceMid ?? '#1E1E1E', borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    backgroundColor: colors.sheet, borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 20, paddingTop: 10,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },

@@ -124,7 +124,7 @@ export default function ActionSheet({ visible, title, message, options = [], inp
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: '#202023', borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 16, paddingTop: 12,
