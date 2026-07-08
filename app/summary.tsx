@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity,
-  FlatList, Alert,
+  FlatList,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../components/Button';
 import { colors } from '../theme';
 import ReceiptPreviewSheet from '../components/ReceiptPreviewSheet';
+import ActionSheet from '../components/ActionSheet';
 import { VenmoLogo } from '../components/BrandLogos';
 
 const PERSON_COLORS = colors.person;
@@ -33,6 +34,8 @@ export default function SummaryScreen() {
   const [showOriginalReceipt, setShowOriginalReceipt] = useState(false);
   const [previewPerson, setPreviewPerson] = useState<{ breakdown: PersonBreakdown; colorIndex: number } | null>(null);
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
+  const [startOverOpen, setStartOverOpen] = useState(false);
+  const [whoPaidOpen, setWhoPaidOpen] = useState(false);
 
   if (!receipt) return null;
 
@@ -43,21 +46,10 @@ export default function SummaryScreen() {
     setRequestedIds((prev) => new Set(prev).add(b.person.id));
   };
 
-  const handleStartOver = () => {
-    Alert.alert(
-      'Start Over?',
-      'This will clear the current receipt and all assignments.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Start Over', style: 'destructive', onPress: async () => {
-            await saveBillToHistory({ merchantName: receipt.merchantName, people, receipt, receiptImageUri: receiptImageUri ?? undefined });
-            reset();
-            router.replace('/');
-          },
-        },
-      ]
-    );
+  const confirmStartOver = async () => {
+    await saveBillToHistory({ merchantName: receipt.merchantName, people, receipt, receiptImageUri: receiptImageUri ?? undefined });
+    reset();
+    router.replace('/');
   };
 
   const handlePersonShare = (b: PersonBreakdown, colorIndex: number) => {
@@ -105,16 +97,7 @@ return (
           const personColor = getPersonColor(index);
           const hasPaid = b.person.id === paidById;
 
-          const handlePaidChipPress = () => {
-            Alert.alert(
-              'Who paid?',
-              'Select the person who paid the bill.',
-              summary.people.map((p) => ({
-                text: p.person.name,
-                onPress: () => setPaidById(p.person.id),
-              })).concat([{ text: 'Cancel', style: 'cancel' } as any])
-            );
-          };
+          const handlePaidChipPress = () => setWhoPaidOpen(true);
 
           return (
             <View style={[styles.card, isHost && styles.hostCard]}>
@@ -189,7 +172,7 @@ return (
                 <Text style={styles.footerBtnText}>Share Split</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.startOverBtn} onPress={handleStartOver} activeOpacity={0.75}>
+            <TouchableOpacity style={styles.startOverBtn} onPress={() => setStartOverOpen(true)} activeOpacity={0.75}>
               <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={20} />
               <View style={[StyleSheet.absoluteFill, styles.startOverGlass]} />
               <Text style={styles.startOverText}>Start Over</Text>
@@ -218,7 +201,20 @@ return (
         paidById={paidById}
       />
 
-
+      <ActionSheet
+        visible={startOverOpen}
+        title="Start over?"
+        message="This clears the current receipt and all assignments. It's saved to your history first."
+        options={[{ label: 'Start Over', icon: 'refresh-outline', destructive: true, onPress: confirmStartOver }]}
+        onClose={() => setStartOverOpen(false)}
+      />
+      <ActionSheet
+        visible={whoPaidOpen}
+        title="Who paid?"
+        message="Select the person who paid the bill."
+        options={summary.people.map((p) => ({ label: p.person.name, icon: 'person-outline', onPress: () => setPaidById(p.person.id) }))}
+        onClose={() => setWhoPaidOpen(false)}
+      />
     </SafeAreaView>
   );
 }
