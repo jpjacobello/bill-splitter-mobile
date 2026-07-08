@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import ActionSheet from '../../components/ActionSheet';
 import { colors } from '../../theme';
 import { BillSession, BillHistoryEntry } from '../../types';
 import { subscribeToSession, closeSession } from '../../services/billSession';
@@ -18,6 +19,7 @@ const FREE_CAP = 10;
 export default function ActivityScreen() {
   const { isPro } = usePro();
   const [tab, setTab] = useState<'live' | 'past'>('live');
+  const [closeTarget, setCloseTarget] = useState<StoredSession | null>(null);
   const [stored, setStored] = useState<StoredSession[]>([]);
   const [liveData, setLiveData] = useState<Map<string, BillSession | null>>(new Map());
   const [history, setHistory] = useState<BillHistoryEntry[]>([]);
@@ -57,17 +59,13 @@ export default function ActivityScreen() {
   const shareAgain = async (s: StoredSession) => {
     await Share.share({ message: `${s.merchantName ? s.merchantName + ' — ' : ''}Pay your share`, url: `${WEB_BASE_URL}/split/${s.sessionId}` });
   };
-  const close = (s: StoredSession) => {
-    Alert.alert('Close & Save?', 'Ends claiming and saves this bill to your history.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Close', style: 'destructive', onPress: async () => {
-        await closeSession(s.sessionId);
-        const live = liveData.get(s.sessionId);
-        if (live) await archiveSession({ ...live, status: 'closed' });
-        else { await removeSession(s.sessionId); setStored((p) => p.filter((x) => x.sessionId !== s.sessionId)); }
-      } },
-    ]);
+  const confirmClose = async (s: StoredSession) => {
+    await closeSession(s.sessionId);
+    const live = liveData.get(s.sessionId);
+    if (live) await archiveSession({ ...live, status: 'closed' });
+    else { await removeSession(s.sessionId); setStored((p) => p.filter((x) => x.sessionId !== s.sessionId)); }
   };
+  const close = (s: StoredSession) => setCloseTarget(s);
 
   const pastList = isPro ? history : history.slice(0, FREE_CAP);
   const capped = !isPro && history.length > FREE_CAP;
@@ -136,6 +134,17 @@ export default function ActivityScreen() {
           )
         )}
       </ScrollView>
+
+      <ActionSheet
+        visible={closeTarget !== null}
+        title="Close & save?"
+        message="Ends claiming and saves this bill to your history."
+        options={[{
+          label: 'Close Session', icon: 'archive-outline', destructive: true,
+          onPress: () => { if (closeTarget) confirmClose(closeTarget); },
+        }]}
+        onClose={() => setCloseTarget(null)}
+      />
     </SafeAreaView>
   );
 }

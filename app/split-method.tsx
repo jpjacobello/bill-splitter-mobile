@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Alert, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import ActionSheet from '../components/ActionSheet';
 import { colors } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { getVenmoHandle, setVenmoHandle } from '../utils/proStorage';
@@ -16,33 +17,13 @@ export default function SplitMethodScreen() {
   const router = useRouter();
   const { receipt, people, setActiveSessionId } = useBillStore();
   const [sharing, setSharing] = useState(false);
+  const [venmoOpen, setVenmoOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
 
-  const handleShareLink = async () => {
+  const createAndShare = async (handle: string) => {
     if (sharing || !receipt) return;
     setSharing(true);
     try {
-      let handle = await getVenmoHandle();
-      if (!handle) {
-        await new Promise<void>((resolve, reject) => {
-          Alert.prompt(
-            'Your Venmo @handle',
-            'Friends need this to pay you back. Enter without the @.',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => reject(new Error('cancelled')) },
-              {
-                text: 'Save',
-                onPress: async (value?: string) => {
-                  if (!value?.trim()) { reject(new Error('empty')); return; }
-                  await setVenmoHandle(value.trim());
-                  handle = value.trim().replace(/^@/, '');
-                  resolve();
-                },
-              },
-            ],
-            'plain-text'
-          );
-        });
-      }
       const creatorName = people[0]?.name ?? 'Host';
       const sessionId = await createSession(receipt, creatorName, handle, {
         currency: getActiveCurrency(),
@@ -52,7 +33,7 @@ export default function SplitMethodScreen() {
         sessionId,
         merchantName: receipt.merchantName ?? '',
         createdAt: new Date().toISOString(),
-        creatorVenmoHandle: handle ?? '',
+        creatorVenmoHandle: handle,
       });
       const url = `${WEB_BASE_URL}/split/${sessionId}`;
       await Share.share({
@@ -62,13 +43,18 @@ export default function SplitMethodScreen() {
       // Reset the stack: pop the scan/fork screens so Back goes Home, then open the live session
       if (router.canDismiss()) router.dismissAll();
       router.push('/activity');
-    } catch (e: any) {
-      if (e?.message !== 'cancelled' && e?.message !== 'empty') {
-        Alert.alert('Error', 'Could not create share link. Check your internet connection.');
-      }
+    } catch {
+      setErrorOpen(true);
     } finally {
       setSharing(false);
     }
+  };
+
+  const handleShareLink = async () => {
+    if (sharing || !receipt) return;
+    const handle = await getVenmoHandle();
+    if (!handle) { setVenmoOpen(true); return; }
+    createAndShare(handle);
   };
 
   return (
@@ -123,6 +109,28 @@ export default function SplitMethodScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <ActionSheet
+        visible={venmoOpen}
+        title="Your Venmo @handle"
+        message="Friends need this to pay you back. Enter without the @."
+        input={{
+          placeholder: 'venmo-handle',
+          submitLabel: 'Save & Share',
+          onSubmit: async (v) => {
+            await setVenmoHandle(v);
+            createAndShare(v.replace(/^@/, ''));
+          },
+        }}
+        onClose={() => setVenmoOpen(false)}
+      />
+      <ActionSheet
+        visible={errorOpen}
+        title="Couldn't create link"
+        message="Check your internet connection and try again."
+        options={[{ label: 'Try Again', icon: 'refresh-outline', onPress: handleShareLink }]}
+        onClose={() => setErrorOpen(false)}
+      />
     </SafeAreaView>
   );
 }

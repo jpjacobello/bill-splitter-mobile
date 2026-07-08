@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
-  StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Share,
+  StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ActionSheet from '../components/ActionSheet';
 import { colors } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { Receipt } from '../types';
@@ -36,6 +37,8 @@ export default function QuickSplitScreen() {
   const [numPeople, setNumPeople] = useState(2);
   const [hostName, setHostNameLocal] = useState('You');
   const [sharing, setSharing] = useState(false);
+  const [venmoOpen, setVenmoOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(SAVED_NAME_KEY).then((name) => {
@@ -91,7 +94,7 @@ export default function QuickSplitScreen() {
     router.replace('/summary');
   };
 
-  const handleShareLink = async () => {
+  const createAndShare = async (handle: string) => {
     if (!canSplit || sharing) return;
     setSharing(true);
     try {
@@ -99,29 +102,6 @@ export default function QuickSplitScreen() {
         [SAVED_NAME_KEY, hostName],
         [HAS_LAUNCHED_KEY, 'true'],
       ]);
-
-      let handle = await getVenmoHandle();
-      if (!handle) {
-        await new Promise<void>((resolve, reject) => {
-          Alert.prompt(
-            'Your Venmo @handle',
-            'Friends need this to pay you back. Enter without the @.',
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => reject(new Error('cancelled')) },
-              {
-                text: 'Save',
-                onPress: async (value?: string) => {
-                  if (!value?.trim()) { reject(new Error('empty')); return; }
-                  await setVenmoHandle(value.trim());
-                  handle = value.trim().replace(/^@/, '');
-                  resolve();
-                },
-              },
-            ],
-            'plain-text'
-          );
-        });
-      }
 
       const receipt = buildReceipt([]);
       const sessionId = await createSession(receipt, hostName, handle, {
@@ -134,7 +114,7 @@ export default function QuickSplitScreen() {
         sessionId,
         merchantName: receipt.merchantName ?? '',
         createdAt: new Date().toISOString(),
-        creatorVenmoHandle: handle ?? '',
+        creatorVenmoHandle: handle,
       });
 
       const url = `${WEB_BASE_URL}/split/${sessionId}`;
@@ -145,13 +125,18 @@ export default function QuickSplitScreen() {
 
       if (router.canDismiss()) router.dismissAll();
       router.push('/activity');
-    } catch (e: any) {
-      if (e?.message !== 'cancelled' && e?.message !== 'empty') {
-        Alert.alert('Error', 'Could not create share link. Check your internet connection.');
-      }
+    } catch {
+      setErrorOpen(true);
     } finally {
       setSharing(false);
     }
+  };
+
+  const handleShareLink = async () => {
+    if (!canSplit || sharing) return;
+    const handle = await getVenmoHandle();
+    if (!handle) { setVenmoOpen(true); return; }
+    createAndShare(handle);
   };
 
   return (
@@ -273,6 +258,28 @@ export default function QuickSplitScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <ActionSheet
+        visible={venmoOpen}
+        title="Your Venmo @handle"
+        message="Friends need this to pay you back. Enter without the @."
+        input={{
+          placeholder: 'venmo-handle',
+          submitLabel: 'Save & Share',
+          onSubmit: async (v) => {
+            await setVenmoHandle(v);
+            createAndShare(v.replace(/^@/, ''));
+          },
+        }}
+        onClose={() => setVenmoOpen(false)}
+      />
+      <ActionSheet
+        visible={errorOpen}
+        title="Couldn't create link"
+        message="Check your internet connection and try again."
+        options={[{ label: 'Try Again', icon: 'refresh-outline', onPress: handleShareLink }]}
+        onClose={() => setErrorOpen(false)}
+      />
     </SafeAreaView>
   );
 }

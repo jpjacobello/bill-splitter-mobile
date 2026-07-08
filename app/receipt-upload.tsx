@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, View, Text, TouchableOpacity, Alert, Animated, Easing } from 'react-native';
+import { Dimensions, StyleSheet, View, Text, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../components/Button';
+import ActionSheet from '../components/ActionSheet';
 import DigitizedReceipt from '../components/DigitizedReceipt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBillStore } from '../store/useBillStore';
@@ -68,6 +69,7 @@ export default function ReceiptUploadScreen() {
   const [notReceiptMode, setNotReceiptMode] = useState(false);
   const [showRetakeSheet, setShowRetakeSheet] = useState(false);
   const [sheetMounted, setSheetMounted] = useState(false);
+  const [scanErrorOpen, setScanErrorOpen] = useState(false);
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const pendingFired = useRef(false);
   const demoFired = useRef(false);
@@ -141,10 +143,7 @@ export default function ReceiptUploadScreen() {
       setParsing(false);
       setImageUri(null);
       setNotReceiptMode(true);
-      Alert.alert(
-        'Scan Failed',
-        'Could not read the receipt. Please try again or use a clearer photo.',
-      );
+      setScanErrorOpen(true);
       console.error('Receipt parse error:', err);
     }
   };
@@ -182,7 +181,7 @@ export default function ReceiptUploadScreen() {
           setParsing(false);
           setImageUri(null);
           setIsRetakeMode(true);
-          Alert.alert('Scan Failed', 'Could not read the receipt. Please try again or use a clearer photo.');
+          setScanErrorOpen(true);
           console.error('Receipt parse error:', err);
         });
     }
@@ -340,6 +339,13 @@ export default function ReceiptUploadScreen() {
         )}
 
       </View>
+
+      <ActionSheet
+        visible={scanErrorOpen}
+        title="Scan Failed"
+        message="Could not read the receipt. Please try again or use a clearer photo."
+        onClose={() => setScanErrorOpen(false)}
+      />
     </SafeAreaView>
   );
 }

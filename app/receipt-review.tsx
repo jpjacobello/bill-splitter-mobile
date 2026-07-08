@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform, Alert,
+  ScrollView, KeyboardAvoidingView, Platform,
   Modal, Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
+import ActionSheet from '../components/ActionSheet';
 import { colors } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { DEFAULT_TIP_KEY } from '../utils/tipPrefs';
@@ -26,6 +27,7 @@ export default function ReceiptReviewScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { receipt, receiptImageUri, updateItem, deleteItem, addItem, updateReceiptField, updateTip } = useBillStore();
   const [showPhoto, setShowPhoto] = useState(false);
+  const [tipWarnOpen, setTipWarnOpen] = useState(false);
 
   // Apply default tip if receipt has no tip and it wasn't on the original receipt
   useEffect(() => {
@@ -384,20 +386,7 @@ export default function ReceiptReviewScreen() {
             setTipError(false);
 
             if (receipt.tip === 0 && !tipWarningAcknowledged) {
-              Alert.alert(
-                'No Tip Added',
-                'The receipt shows $0.00 for tip. Make sure to add a tip below if needed before continuing.',
-                [
-                  { text: 'Add Tip', style: 'cancel' },
-                  {
-                    text: 'Continue Without Tip',
-                    onPress: () => {
-                      setTipWarningAcknowledged(true);
-                      if (from === 'assign-items') { router.back(); } else { router.push('/assign-items'); }
-                    },
-                  },
-                ]
-              );
+              setTipWarnOpen(true);
               return;
             }
 
@@ -410,6 +399,22 @@ export default function ReceiptReviewScreen() {
           height={60}
         />
       </View>
+
+      <ActionSheet
+        visible={tipWarnOpen}
+        title="No Tip Added"
+        message="The receipt shows $0.00 for tip. Make sure to add a tip below if needed before continuing."
+        options={[
+          {
+            label: 'Continue Without Tip',
+            onPress: () => {
+              setTipWarningAcknowledged(true);
+              if (from === 'assign-items') { router.back(); } else { router.push('/assign-items'); }
+            },
+          },
+        ]}
+        onClose={() => setTipWarnOpen(false)}
+      />
     </SafeAreaView>
   );
 }

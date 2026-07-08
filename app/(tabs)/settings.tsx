@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, View, Text, TextInput,
-  TouchableOpacity, ScrollView, Keyboard, Alert, Linking,
+  TouchableOpacity, ScrollView, Keyboard, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ActionSheet from '../../components/ActionSheet';
 import { useBillStore } from '../../store/useBillStore';
 import { usePro } from '../../hooks/usePro';
 import { colors } from '../../theme';
@@ -74,6 +75,9 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { setHostName } = useBillStore();
   const { isPro, loading: proLoading, activatePro, deactivatePro } = usePro();
+  const [resetProOpen, setResetProOpen] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [comingSoon, setComingSoon] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [nameSaved, setNameSaved] = useState(false);
   const [defaultTip, setDefaultTip] = useState<number | null>(null);
@@ -391,12 +395,7 @@ export default function SettingsScreen() {
                 <TouchableOpacity
                   style={styles.proActiveRow}
                   activeOpacity={1}
-                  onLongPress={() =>
-                    Alert.alert('Reset to Free?', 'For testing only — removes Pro status.', [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Reset', style: 'destructive', onPress: deactivatePro },
-                    ])
-                  }
+                  onLongPress={() => setResetProOpen(true)}
                   delayLongPress={800}
                 >
                   <Text style={styles.rowLabel}>Status</Text>
@@ -419,7 +418,7 @@ export default function SettingsScreen() {
                   chevron={false}
                   labelColor="#3B82F6"
                   last
-                  onPress={() => Alert.alert('Restore Purchases', 'No purchases to restore.')}
+                  onPress={() => setRestoreOpen(true)}
                 />
               </GroupCard>
               <Text style={styles.subFootnote}>You can manage your subscription in the App Store.</Text>
@@ -462,7 +461,7 @@ export default function SettingsScreen() {
             label="Leave a Review"
             icon="heart-outline"
             last
-            onPress={() => Alert.alert('Coming soon', 'App Store listing coming soon!')}
+            onPress={() => setComingSoon('App Store listing coming soon!')}
           />
         </GroupCard>
 
@@ -476,16 +475,36 @@ export default function SettingsScreen() {
           />
           <SettingRow
             label="Privacy Policy"
-            onPress={() => Alert.alert('Coming soon', 'Privacy policy coming soon!')}
+            onPress={() => setComingSoon('Privacy policy coming soon!')}
           />
           <SettingRow
             label="Terms of Service"
             last
-            onPress={() => Alert.alert('Coming soon', 'Terms of service coming soon!')}
+            onPress={() => setComingSoon('Terms of service coming soon!')}
           />
         </GroupCard>
 
       </ScrollView>
+
+      <ActionSheet
+        visible={resetProOpen}
+        title="Reset to Free?"
+        message="For testing only — removes Pro status."
+        options={[{ label: 'Reset', destructive: true, onPress: deactivatePro }]}
+        onClose={() => setResetProOpen(false)}
+      />
+      <ActionSheet
+        visible={restoreOpen}
+        title="Restore Purchases"
+        message="No purchases found to restore."
+        onClose={() => setRestoreOpen(false)}
+      />
+      <ActionSheet
+        visible={!!comingSoon}
+        title="Coming Soon"
+        message={comingSoon ?? ''}
+        onClose={() => setComingSoon(null)}
+      />
     </SafeAreaView>
   );
 }
