@@ -124,7 +124,7 @@ export default function QuickSplitScreen() {
       });
 
       if (router.canDismiss()) router.dismissAll();
-      router.push('/activity');
+      router.push('/activity?tab=live');
     } catch {
       setErrorOpen(true);
     } finally {

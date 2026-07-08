@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../../components/Button';
 import { colors, moneyText } from '../../theme';
 import { BillSession, BillHistoryEntry } from '../../types';
+import { outstandingOwed, owersCount } from '../../utils/sessionOwed';
 import { subscribeToSession } from '../../services/billSession';
 import { getSessions, StoredSession } from '../../utils/sessionStorage';
 import { getBillHistory } from '../../utils/proStorage';
@@ -19,16 +20,6 @@ import { startNewBill } from '../../utils/startBill';
 
 const SAVED_NAME_KEY = 'savedHostName';
 const FREE_RECENT_CAP = 10;
-
-function claimedTotal(session: BillSession | null): number {
-  if (!session) return 0;
-  return Object.values(session.claims ?? {}).reduce((sum, c) => {
-    const item = session.receipt.items.find((i) => i.id === c.itemId);
-    if (item) return sum + item.price * c.fraction;
-    if (c.itemId === 'equal-split' && session.peopleCount) return sum + session.receipt.total / session.peopleCount;
-    return sum;
-  }, 0);
-}
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
@@ -93,13 +84,9 @@ export default function HomeScreen() {
 
   if (!ready) return <View style={styles.container} />;
 
-  const owed = stored.reduce((sum, s) => sum + claimedTotal(liveData.get(s.sessionId) ?? null), 0);
-  // distinct claimants across all live sessions = people who owe you
-  const claimants = new Set<string>();
-  for (const s of stored) {
-    const live = liveData.get(s.sessionId);
-    for (const c of Object.values(live?.claims ?? {})) claimants.add(`${s.sessionId}:${c.claimerName}`);
-  }
+  const owed = stored.reduce((sum, s) => sum + outstandingOwed(liveData.get(s.sessionId) ?? null), 0);
+  // How many people owe you across all live sessions.
+  const peopleOwe = stored.reduce((n, s) => n + owersCount(liveData.get(s.sessionId) ?? null), 0);
   const recent = isPro ? history : history.slice(0, FREE_RECENT_CAP);
   const capped = !isPro && history.length > FREE_RECENT_CAP;
   const dateLine = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
@@ -142,8 +129,8 @@ export default function HomeScreen() {
               <Text style={styles.statLabel}>open {stored.length === 1 ? 'split' : 'splits'}</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={[styles.statNum, moneyText]}>{claimants.size}</Text>
-              <Text style={styles.statLabel}>{claimants.size === 1 ? 'person owes you' : 'people owe you'}</Text>
+              <Text style={[styles.statNum, moneyText]}>{peopleOwe}</Text>
+              <Text style={styles.statLabel}>{peopleOwe === 1 ? 'person owes you' : 'people owe you'}</Text>
             </View>
           </View>
         </View>
@@ -171,7 +158,7 @@ export default function HomeScreen() {
               );
               return (
                 <Row key={s.sessionId} emoji={getEmoji(s.merchantName || '')} accent title={s.merchantName || 'Bill'}
-                  status={status} amount={claimedTotal(live ?? null)} onPress={() => router.push('/activity')} />
+                  status={status} amount={outstandingOwed(live ?? null)} onPress={() => router.push('/activity?tab=live')} />
               );
             })}
           </View>
@@ -182,12 +169,12 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>RECENT · {recent.length}</Text>
-              <TouchableOpacity onPress={() => router.push('/activity')}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/activity?tab=past')}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
             </View>
             {recent.slice(0, 4).map((e) => (
               <Row key={e.id} icon="receipt-outline" title={e.merchantName || 'Bill'}
                 status={<Text style={styles.rowStatusText}>{new Date(e.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · settled</Text>}
-                amount={e.receipt.total} onPress={() => router.push('/activity')} />
+                amount={e.receipt.total} onPress={() => router.push('/activity?tab=past')} />
             ))}
             {capped && (
               <TouchableOpacity style={styles.nudge} onPress={() => router.push('/settings')}>

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ActionSheet from '../../components/ActionSheet';
-import { colors } from '../../theme';
+import { colors, moneyText } from '../../theme';
+import { outstandingOwed } from '../../utils/sessionOwed';
 import { BillSession, BillHistoryEntry } from '../../types';
 import { subscribeToSession, closeSession } from '../../services/billSession';
 import { getSessions, removeSession, StoredSession } from '../../utils/sessionStorage';
@@ -18,7 +20,18 @@ const FREE_CAP = 10;
 
 export default function ActivityScreen() {
   const { isPro } = usePro();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<'live' | 'past'>('live');
+
+  // Home-screen entry points force a specific tab (receipt → past, live → live).
+  useEffect(() => {
+    if (params.tab === 'live' || params.tab === 'past') {
+      setTab(params.tab);
+      router.setParams({ tab: '' }); // clear so manual tab switches stick
+    }
+  }, [params.tab]);
+
   const [closeTarget, setCloseTarget] = useState<StoredSession | null>(null);
   const [stored, setStored] = useState<StoredSession[]>([]);
   const [liveData, setLiveData] = useState<Map<string, BillSession | null>>(new Map());
@@ -97,6 +110,10 @@ export default function ActivityScreen() {
                 <View style={styles.cardHead}>
                   <Text style={styles.cardTitle}>{s.merchantName || 'Bill'}</Text>
                   <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveBadgeText}>Live</Text></View>
+                </View>
+                <View style={styles.cardOwedRow}>
+                  <Text style={[styles.cardOwed, moneyText]}>{formatCurrency(outstandingOwed(live ?? null))}</Text>
+                  <Text style={styles.cardOwedLabel}>owed to you</Text>
                 </View>
                 <Text style={styles.progress}>
                   {isEqual ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid` : `${claimedCount} of ${totalItems} item${totalItems !== 1 ? 's' : ''} claimed`}
@@ -186,6 +203,9 @@ const styles = StyleSheet.create({
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.green },
   liveBadgeText: { fontSize: 11, fontWeight: '700', color: colors.green },
+  cardOwedRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 8, marginBottom: 2 },
+  cardOwed: { fontSize: 24, fontWeight: '800', color: colors.text },
+  cardOwedLabel: { fontSize: 12.5, color: colors.textMuted },
   progress: { fontSize: 13, color: colors.textSecondary },
   cardActions: { flexDirection: 'row', gap: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', paddingTop: 10 },
   actionBtn: {

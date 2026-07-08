@@ -42,7 +42,7 @@ export default function SplitMethodScreen() {
       });
       // Reset the stack: pop the scan/fork screens so Back goes Home, then open the live session
       if (router.canDismiss()) router.dismissAll();
-      router.push('/activity');
+      router.push('/activity?tab=live');
     } catch {
       setErrorOpen(true);
     } finally {
