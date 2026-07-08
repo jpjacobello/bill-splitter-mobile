@@ -16,9 +16,9 @@ import ActionSheet, { SheetOption } from '../components/ActionSheet';
 import { useBillStore } from '../store/useBillStore';
 import { getUnassignedTotal } from '../utils/calcSplit';
 import { getEmoji } from '../utils/buildReceiptHtml';
-import { ReceiptItem, Person, SavedGroup } from '../types';
+import { ReceiptItem, Person } from '../types';
 import { usePro } from '../hooks/usePro';
-import { getSavedGroups, saveGroup, deleteSavedGroup } from '../utils/proStorage';
+import { getGroupsWithMembers, deleteSavedGroup, GroupWithMembers } from '../utils/proStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TIP_REMINDER_KEY, TipReminderMode } from '../utils/tipPrefs';
 import { formatCurrency } from '../utils/currency';
@@ -186,13 +186,9 @@ export default function AssignItemsScreen() {
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [personInput, setPersonInput] = useState('');
   const [showGroupsModal, setShowGroupsModal] = useState(false);
-  const [savedGroups, setSavedGroups] = useState<SavedGroup[]>([]);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [newGroupMembers, setNewGroupMembers] = useState<string[]>([]);
-  const [newMemberInput, setNewMemberInput] = useState('');
+  const [savedGroups, setSavedGroups] = useState<GroupWithMembers[]>([]);
   const personInputRef = useRef<TextInput>(null);
   const peopleScrollRef = useRef<ScrollView>(null);
-  const newMemberInputRef = useRef<TextInput>(null);
   const [tipReminderMode, setTipReminderMode] = useState<TipReminderMode>('always');
 
   useEffect(() => {
@@ -415,43 +411,16 @@ export default function AssignItemsScreen() {
       });
       return;
     }
-    const groups = await getSavedGroups();
+    const groups = await getGroupsWithMembers();
     setSavedGroups(groups);
-    setNewGroupName('');
-    setNewGroupMembers([]);
-    setNewMemberInput('');
     setShowGroupsModal(true);
   };
 
-  const handleLoadGroup = (group: SavedGroup) => {
+  const handleLoadGroup = (group: GroupWithMembers) => {
     people.filter((p) => !p.isHost).forEach((p) => removePerson(p.id));
-    group.members.forEach((name) => addPerson(name));
+    group.members.forEach((m) => addPerson(m.name));
     setShowGroupsModal(false);
     setTimeout(() => peopleScrollRef.current?.scrollToEnd({ animated: true }), 100);
-  };
-
-  const handleAddNewMember = () => {
-    const name = newMemberInput.trim();
-    if (!name) return;
-    setNewGroupMembers((prev) => [...prev, name]);
-    setNewMemberInput('');
-    setTimeout(() => newMemberInputRef.current?.focus(), 50);
-  };
-
-  const handleRemoveNewMember = (index: number) => {
-    setNewGroupMembers((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSaveGroup = async () => {
-    const name = newGroupName.trim();
-    if (!name || newGroupMembers.length === 0) return;
-    await saveGroup({ name, members: newGroupMembers });
-    const updated = await getSavedGroups();
-    setSavedGroups(updated);
-    setNewGroupName('');
-    setNewGroupMembers([]);
-    setNewMemberInput('');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleDeleteGroup = async (id: string) => {
@@ -461,7 +430,7 @@ export default function AssignItemsScreen() {
       options: [{
         label: 'Delete', icon: 'trash-outline', destructive: true, onPress: async () => {
           await deleteSavedGroup(id);
-          setSavedGroups(await getSavedGroups());
+          setSavedGroups(await getGroupsWithMembers());
         },
       }],
     });
@@ -685,86 +654,16 @@ export default function AssignItemsScreen() {
 
           <ScrollView contentContainerStyle={styles.groupsScroll} keyboardShouldPersistTaps="handled">
 
-            {/* ── Create new group ── */}
-            <Text style={styles.groupsSectionLabel}>New Group</Text>
-            <TextInput
-              style={styles.groupNameInput}
-              placeholder="Group name (e.g. Work Team)"
-              placeholderTextColor="#555"
-              value={newGroupName}
-              onChangeText={setNewGroupName}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => {
-                if (newGroupName.trim()) {
-                  newMemberInputRef.current?.focus();
-                }
-              }}
-            />
-
-            {newGroupMembers.length > 0 && (
-              <View style={styles.membersList}>
-                {newGroupMembers.map((name, index) => (
-                  <View key={index} style={styles.memberChip}>
-                    <Text style={styles.memberChipText}>{name}</Text>
-                    <TouchableOpacity onPress={() => handleRemoveNewMember(index)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="close" size={14} color="#888" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <View style={styles.addMemberRow}>
-              <TextInput
-                ref={newMemberInputRef}
-                style={styles.addMemberInput}
-                placeholder="Add a name"
-                placeholderTextColor="#555"
-                value={newMemberInput}
-                onChangeText={setNewMemberInput}
-                autoCapitalize="words"
-                returnKeyType="done"
-                blurOnSubmit={false}
-                onSubmitEditing={() => {
-                  if (newMemberInput.trim()) {
-                    handleAddNewMember();
-                  } else {
-                    newMemberInputRef.current?.blur();
-                  }
-                }}
-              />
-              <TouchableOpacity
-                style={[styles.addMemberBtn, !newMemberInput.trim() && { opacity: 0.4 }]}
-                onPress={handleAddNewMember}
-                disabled={!newMemberInput.trim()}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.addMemberBtnText}>Add</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.saveGroupBtn, (!newGroupName.trim() || newGroupMembers.length === 0) && { opacity: 0.4 }]}
-              onPress={handleSaveGroup}
-              disabled={!newGroupName.trim() || newGroupMembers.length === 0}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.saveGroupBtnText}>
-                Save Group{newGroupMembers.length > 0 ? ` (${newGroupMembers.length})` : ''}
-              </Text>
-            </TouchableOpacity>
-
-            {/* ── Saved groups ── */}
+            {/* ── Load a saved group ── */}
             {savedGroups.length > 0 && (
               <>
-                <Text style={[styles.groupsSectionLabel, { marginTop: 32 }]}>Your Groups</Text>
+                <Text style={styles.groupsSectionLabel}>Your Groups</Text>
                 {savedGroups.map((group) => (
                   <View key={group.id} style={styles.groupCard}>
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name}</Text>
                       <Text style={styles.groupCardMembers} numberOfLines={1}>
-                        {group.members.join(', ')}
+                        {group.members.map((m) => m.name).join(', ')}
                       </Text>
                     </View>
                     <View style={styles.groupCardActions}>
@@ -791,6 +690,7 @@ export default function AssignItemsScreen() {
             {savedGroups.length === 0 && (
               <View style={styles.groupsEmpty}>
                 <Text style={styles.groupsEmptyText}>No saved groups yet.</Text>
+                <Text style={styles.groupsEmptyHint}>Create and manage groups in the People tab.</Text>
               </View>
             )}
           </ScrollView>
@@ -990,45 +890,6 @@ const styles = StyleSheet.create({
     fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.45)',
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10,
   },
-  groupNameInput: {
-    height: 44,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 12, paddingHorizontal: 12,
-    fontSize: 15, color: colors.textDim,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    marginBottom: 10,
-  },
-  membersList: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10,
-  },
-  memberChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
-  },
-  memberChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
-  addMemberRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  addMemberInput: {
-    flex: 1, height: 44,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 12, paddingHorizontal: 12,
-    fontSize: 15, color: colors.text,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  addMemberBtn: {
-    height: 44, paddingHorizontal: 18,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
-  },
-  addMemberBtnText: { fontSize: 14, fontWeight: '600', color: colors.text },
-  saveGroupBtn: {
-    height: 48, paddingHorizontal: 18,
-    backgroundColor: colors.btnPrimary,
-    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-  },
-  saveGroupBtnText: { fontSize: 15, fontWeight: '700', color: '#000' },
   groupCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.05)',
@@ -1053,6 +914,7 @@ const styles = StyleSheet.create({
   },
   groupsEmpty: { paddingTop: 24, alignItems: 'center' },
   groupsEmptyText: { fontSize: 14, color: colors.textDisabled },
+  groupsEmptyHint: { fontSize: 13, color: colors.textDisabled, marginTop: 6, textAlign: 'center' },
   footer: { paddingTop: 8 },
   unassignedSummary: {
     backgroundColor: 'rgba(245,158,11,0.07)', borderRadius: 14,

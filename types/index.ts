@@ -58,7 +58,7 @@ export type BillHistoryEntry = {
 export type SavedGroup = {
   id: string;
   name: string;
-  members: string[]; // display names only (no host)
+  memberIds: string[]; // references TrackedPerson ids in the People roster
 };
 
 export type Claim = {
