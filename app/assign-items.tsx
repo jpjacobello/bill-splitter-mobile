@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, Animated,
-  ScrollView, FlatList, TextInput, Keyboard, Modal,
+  ScrollView, FlatList, TextInput, Keyboard, Modal, Pressable,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as Contacts from 'expo-contacts';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +22,7 @@ import { usePro } from '../hooks/usePro';
 import { getGroupsWithMembers, deleteSavedGroup, GroupWithMembers } from '../utils/proStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TIP_REMINDER_KEY, TipReminderMode } from '../utils/tipPrefs';
-import { formatCurrency } from '../utils/currency';
+import { formatCurrency, currencySymbol } from '../utils/currency';
 
 const PERSON_COLORS = colors.person;
 
@@ -177,7 +178,8 @@ type UndoEntry = {
 
 export default function AssignItemsScreen() {
   const router = useRouter();
-  const { receipt, people, assignItem, splitItemEvenly, splitIntoIndividualUnits, consolidateLikeItems, updateItem, addPerson, removePerson } = useBillStore();
+  const insets = useSafeAreaInsets();
+  const { receipt, people, assignItem, splitItemEvenly, splitIntoIndividualUnits, consolidateLikeItems, updateItem, addPerson, removePerson, updateTip, updateReceiptField } = useBillStore();
   const { isPro } = usePro();
   const [selectedPersonId, setSelectedPersonId] = useState<string>(people[0]?.id ?? '');
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
@@ -190,6 +192,8 @@ export default function AssignItemsScreen() {
   const personInputRef = useRef<TextInput>(null);
   const peopleScrollRef = useRef<ScrollView>(null);
   const [tipReminderMode, setTipReminderMode] = useState<TipReminderMode>('always');
+  const [tipSheetOpen, setTipSheetOpen] = useState(false);
+  const [tipInput, setTipInput] = useState('');
 
   useEffect(() => {
     AsyncStorage.getItem(TIP_REMINDER_KEY).then((val) => {
@@ -211,12 +215,16 @@ export default function AssignItemsScreen() {
 
   const handleSeeSummary = () => {
     if (hasReceiptIssue && receipt) {
-      const tipMissing = receipt.tip === 0;
+      // Missing tip → let the user enter one inline instead of bouncing to Edit.
+      if (receipt.tip === 0) {
+        setTipInput('');
+        setTipSheetOpen(true);
+        return;
+      }
+      // Totals mismatch → still punt to Edit Receipt.
       setSheet({
-        title: tipMissing ? 'No tip added' : "Receipt doesn't add up",
-        message: tipMissing
-          ? 'This receipt has no tip. Add one with Edit Receipt, or continue without a tip.'
-          : "The item total doesn't match the receipt total. Fix it with Edit Receipt, or continue anyway.",
+        title: "Receipt doesn't add up",
+        message: "The item total doesn't match the receipt total. Fix it with Edit Receipt, or continue anyway.",
         options: [
           { label: 'Edit Receipt', icon: 'create-outline', onPress: () => router.push('/receipt-review?from=assign-items') },
           { label: 'Continue Anyway', icon: 'arrow-forward-outline', destructive: true, onPress: () => router.push('/summary') },
@@ -224,6 +232,15 @@ export default function AssignItemsScreen() {
       });
       return;
     }
+    router.push('/summary');
+  };
+
+  const applyTipAndContinue = (tip: number) => {
+    if (receipt) {
+      updateTip(tip);
+      updateReceiptField('total', receipt.subtotal + receipt.tax + (receipt.fees ?? 0) + tip);
+    }
+    setTipSheetOpen(false);
     router.push('/summary');
   };
 
@@ -704,12 +721,108 @@ export default function AssignItemsScreen() {
         options={sheet?.options ?? []}
         onClose={() => setSheet(null)}
       />
+
+      <Modal
+        visible={tipSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTipSheetOpen(false)}
+        statusBarTranslucent
+      >
+        <KeyboardAvoidingView style={styles.tipFlex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable style={styles.tipBackdrop} onPress={() => setTipSheetOpen(false)}>
+            <Pressable style={[styles.tipSheet, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.tipHandle} />
+              <Text style={styles.tipTitle}>Add a tip?</Text>
+              <Text style={styles.tipSub}>This receipt has no tip. For the {formatCurrency(receipt.subtotal)} subtotal.</Text>
+
+              <View style={styles.tipPills}>
+                {[0.15, 0.20, 0.25].map((pct) => {
+                  const amt = receipt.subtotal * pct;
+                  const active = tipInput === amt.toFixed(2);
+                  return (
+                    <TouchableOpacity
+                      key={pct}
+                      style={[styles.tipPill, active && styles.tipPillActive]}
+                      onPress={() => setTipInput(amt.toFixed(2))}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.tipPillPct, active && styles.tipPillTextActive]}>{Math.round(pct * 100)}%</Text>
+                      <Text style={[styles.tipPillAmt, active && styles.tipPillTextActive]}>{formatCurrency(amt)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.tipInputWrap}>
+                <Text style={styles.tipInputPrefix}>{currencySymbol()}</Text>
+                <TextInput
+                  style={styles.tipInputField}
+                  value={tipInput}
+                  onChangeText={setTipInput}
+                  placeholder="Enter tip amount"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.tipAddBtn}
+                onPress={() => applyTipAndContinue(parseFloat(tipInput) || 0)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.tipAddText}>Add Tip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tipSkipBtn} onPress={() => { setTipSheetOpen(false); router.push('/summary'); }} activeOpacity={0.7}>
+                <Text style={styles.tipSkipText}>Skip, no tip</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+
+  // Inline tip sheet
+  tipFlex: { flex: 1 },
+  tipBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
+  tipSheet: {
+    backgroundColor: colors.sheet,
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingHorizontal: 20, paddingTop: 10,
+    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+  },
+  tipHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)', marginBottom: 14 },
+  tipTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
+  tipSub: { fontSize: 13, color: colors.textMuted, marginTop: 4, marginBottom: 16, lineHeight: 18 },
+  tipPills: { flexDirection: 'row', gap: 10 },
+  tipPill: {
+    flex: 1, height: 60, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 2,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderMid,
+  },
+  tipPillActive: { backgroundColor: colors.btnPrimary, borderColor: colors.btnPrimary },
+  tipPillPct: { fontSize: 15, fontWeight: '700', color: colors.text },
+  tipPillAmt: { fontSize: 12.5, color: colors.textMuted },
+  tipPillTextActive: { color: '#000' },
+  tipInputWrap: {
+    flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 14, paddingHorizontal: 16, marginTop: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+  },
+  tipInputPrefix: { fontSize: 17, color: colors.textMuted, marginRight: 6 },
+  tipInputField: { flex: 1, fontSize: 17, color: colors.text, height: '100%' },
+  tipAddBtn: {
+    height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.btnPrimary, marginTop: 16,
+  },
+  tipAddText: { fontSize: 15.5, fontWeight: '700', color: '#000' },
+  tipSkipBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 2 },
+  tipSkipText: { fontSize: 14.5, fontWeight: '600', color: colors.textMuted },
+
   header: {
     paddingHorizontal: 24, paddingTop: 16, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)',
