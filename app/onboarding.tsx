@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,42 +24,38 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.inner}>
-            <View style={styles.hero}>
-              <View style={styles.badge}><Text style={styles.badgeText}>DIVI</Text></View>
-              <Text style={styles.title}>Split the bill,{'\n'}not the{'\n'}friendship.</Text>
-              <Text style={styles.subtitle}>Scan a receipt, assign items,{'\n'}and settle up in seconds.</Text>
-            </View>
-            <View style={styles.actions}>
-              <TextInput
-                style={styles.nameInput}
-                placeholder="Your name"
-                placeholderTextColor="#777"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                returnKeyType="done"
-                onSubmitEditing={handleContinue}
-              />
-              <Button label="Get Started" onPress={handleContinue} disabled={!name.trim()} />
-            </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.inner}>
+          <View style={styles.hero}>
+            <View style={styles.badge}><Text style={styles.badgeText}>DIVI</Text></View>
+            <Text style={styles.title}>Split the bill,{'\n'}not the{'\n'}friendship.</Text>
+            <Text style={styles.subtitle}>Scan a receipt, assign items,{'\n'}and settle up in seconds.</Text>
           </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+          <View style={styles.actions}>
+            <TextInput
+              style={styles.nameInput}
+              placeholder="Your name"
+              placeholderTextColor="#777"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={handleContinue}
+            />
+            <Button label="Get Started" onPress={handleContinue} disabled={!name.trim()} />
+          </View>
+        </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  flex: { flex: 1 },
-  inner: { flex: 1, paddingHorizontal: 24, paddingBottom: 40, justifyContent: 'flex-end' },
-  hero: { marginBottom: 48 },
+  // Content sits in the upper half so the input clears the keyboard — nothing
+  // has to shift when the field is focused.
+  inner: { flex: 1, paddingHorizontal: 24, paddingTop: 64, justifyContent: 'flex-start' },
+  hero: { marginBottom: 36 },
   badge: {
     alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12,
     paddingHorizontal: 18, paddingVertical: 10, marginBottom: 24,

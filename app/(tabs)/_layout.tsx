@@ -115,7 +115,7 @@ export default function TabsLayout() {
   return (
     <>
       <Tabs
-        screenOptions={{ headerShown: false, animation: 'shift', lazy: false }}
+        screenOptions={{ headerShown: false, lazy: false }}
         tabBar={(props) => <FloatingTabBar {...props} onNew={() => setChooserOpen(true)} />}
       >
         <Tabs.Screen name="index" />

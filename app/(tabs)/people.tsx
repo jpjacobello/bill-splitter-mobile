@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
-  ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -265,17 +264,17 @@ function PersonEditor({
       <Text style={styles.sheetTitle}>{isNew ? 'Add Person' : 'Edit Person'}</Text>
 
       <Text style={styles.fieldLabel}>Name</Text>
-      <BottomSheetTextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name"
+      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name"
         placeholderTextColor={colors.textMuted} autoCapitalize="words" />
 
       <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Phone</Text>
-      <BottomSheetTextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567"
+      <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567"
         placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
 
       <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Venmo</Text>
       <View style={styles.prefixWrap}>
         <Text style={styles.prefix}>@</Text>
-        <BottomSheetTextInput style={styles.prefixInput} value={venmo} onChangeText={setVenmo} placeholder="venmo-username"
+        <TextInput style={styles.prefixInput} value={venmo} onChangeText={setVenmo} placeholder="venmo-username"
           placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} />
       </View>
 
@@ -351,7 +350,7 @@ function GroupEditor({
       <Text style={styles.sheetTitle}>{draft?.id ? 'Edit Group' : 'New Group'}</Text>
 
       <Text style={styles.fieldLabel}>Group name</Text>
-      <BottomSheetTextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Roommates"
+      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Roommates"
         placeholderTextColor={colors.textMuted} autoCapitalize="words" />
 
       <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Members</Text>
@@ -361,7 +360,7 @@ function GroupEditor({
       </TouchableOpacity>
 
       <View style={styles.addMemberRow}>
-        <BottomSheetTextInput style={styles.addMemberInput} value={newName} onChangeText={setNewName}
+        <TextInput style={styles.addMemberInput} value={newName} onChangeText={setNewName}
           placeholder="Or type a name" placeholderTextColor={colors.textMuted}
           autoCapitalize="words" returnKeyType="done" onSubmitEditing={addNew} />
         <TouchableOpacity style={[styles.addMemberBtn, !newName.trim() && { opacity: 0.4 }]} onPress={addNew} disabled={!newName.trim()} activeOpacity={0.8}>
