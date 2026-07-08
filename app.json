@@ -18,9 +18,11 @@
       "bundleIdentifier": "com.jpjacobello.divi",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
-          "venmo",
           "venmo"
         ],
+        "NSContactsUsageDescription": "Divi uses your contacts so you can quickly add the people you split bills with.",
+        "NSCameraUsageDescription": "Divi uses the camera to scan your receipts.",
+        "NSPhotoLibraryUsageDescription": "Divi accesses your photo library to import receipt images.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

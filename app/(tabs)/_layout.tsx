@@ -17,19 +17,14 @@ const TAB_META: Record<string, { label: string; icon: IconName; activeIcon: Icon
   settings: { label: 'Settings', icon: 'settings-outline', activeIcon: 'settings' },
 };
 
-// Subtle: icon color + a small indicator dot that fades in on active. Press dims briefly.
+// Subtle: active icon + label highlight white; press dims briefly. No bounce.
 function TabButton({ name, focused, onPress }: { name: string; focused: boolean; onPress: () => void }) {
   const meta = TAB_META[name];
-  const dot = useRef(new Animated.Value(focused ? 1 : 0)).current;
-  useEffect(() => {
-    Animated.timing(dot, { toValue: focused ? 1 : 0, duration: 180, useNativeDriver: true }).start();
-  }, [focused]);
   if (!meta) return <View style={styles.slot} />;
   return (
     <Pressable style={({ pressed }) => [styles.slot, pressed && { opacity: 0.5 }]} onPress={onPress} hitSlop={6}>
       <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? colors.text : colors.textMuted} />
       <Text style={[styles.label, focused && styles.labelActive]}>{meta.label}</Text>
-      <Animated.View style={[styles.activeDot, { opacity: dot }]} />
     </Pressable>
   );
 }
@@ -146,7 +141,6 @@ const styles = StyleSheet.create({
   slot: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: BAR_H },
   label: { fontSize: 10, fontWeight: '600', color: colors.textMuted },
   labelActive: { color: colors.text },
-  activeDot: { position: 'absolute', bottom: 7, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.text },
 
   fab: {
     position: 'absolute', top: -18,
