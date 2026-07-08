@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { StyleSheet, Text, Animated, Pressable, View, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, motion } from '../theme';
 
 type Props = {
   label: string;
@@ -10,19 +11,30 @@ type Props = {
   disabled?: boolean;
   loading?: boolean;
   height?: number;
+  icon?: keyof typeof Ionicons.glyphMap;
 };
 
-export default function Button({ label, onPress, variant = 'primary', disabled, loading, height }: Props) {
+export default function Button({ label, onPress, variant = 'primary', disabled, loading, height, icon }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => {
-    Animated.spring(scale, { toValue: 0.965, useNativeDriver: true, speed: 120, bounciness: 0 }).start();
+    Animated.spring(scale, { toValue: 0.965, useNativeDriver: true, ...motion.pressIn }).start();
   };
   const onPressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 10 }).start();
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.settle }).start();
   };
 
   const h = height ?? 56;
+  const iconColor = variant === 'primary' ? '#000000' : '#D0D0D0';
+
+  const inner = loading
+    ? <ActivityIndicator color={variant === 'primary' ? '#000' : '#D0D0D0'} />
+    : (
+      <View style={styles.content}>
+        {icon && <Ionicons name={icon} size={19} color={iconColor} />}
+        <Text style={variant === 'primary' ? styles.labelPrimary : styles.labelSecondary}>{label}</Text>
+      </View>
+    );
 
   return (
     <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} disabled={disabled || loading}>
@@ -34,15 +46,11 @@ export default function Button({ label, onPress, variant = 'primary', disabled, 
             end={{ x: 0.5, y: 1 }}
             style={[styles.base, { height: h, borderRadius: 16 }]}
           >
-            {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.labelPrimary}>{label}</Text>}
+            {inner}
           </LinearGradient>
-        ) : variant === 'secondary' ? (
-          <View style={[styles.base, styles.secondary, { height: h, borderRadius: 16 }]}>
-            {loading ? <ActivityIndicator color="#D0D0D0" /> : <Text style={styles.labelSecondary}>{label}</Text>}
-          </View>
         ) : (
-          <View style={[styles.base, styles.ghost, { height: h, borderRadius: 16 }]}>
-            {loading ? <ActivityIndicator color="#D0D0D0" /> : <Text style={styles.labelSecondary}>{label}</Text>}
+          <View style={[styles.base, variant === 'secondary' ? styles.secondary : styles.ghost, { height: h, borderRadius: 16 }]}>
+            {inner}
           </View>
         )}
       </Animated.View>
@@ -56,6 +64,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
+  content: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   secondary: {
     backgroundColor: colors.btnSecondary,
     borderWidth: 1,
@@ -63,6 +72,8 @@ const styles = StyleSheet.create({
   },
   ghost: {
     backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
   disabled: {
     opacity: 0.38,
