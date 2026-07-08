@@ -259,7 +259,7 @@ export default function ReceiptUploadScreen() {
           </View>
         ) : (
           <View style={styles.uploadArea}>
-            <Text style={styles.uploadIcon}>📷</Text>
+            <Ionicons name="receipt-outline" size={46} color="#555" style={styles.uploadIcon} />
             <Text style={styles.uploadTitle}>No receipt yet</Text>
             <Text style={styles.uploadHint}>Take a photo or choose from your library</Text>
           </View>
@@ -269,11 +269,11 @@ export default function ReceiptUploadScreen() {
         {!imageUri && !isDemoLoaded && !isRetakeMode && !notReceiptMode && (
           <View style={styles.photoActions}>
             <TouchableOpacity style={styles.photoBtn} onPress={() => pickImage(true)}>
-              <Text style={styles.photoBtnIcon}>📸</Text>
+              <Ionicons name="camera-outline" size={24} color={colors.textDim} />
               <Text style={styles.photoBtnText}>Camera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.photoBtn} onPress={() => pickImage(false)}>
-              <Text style={styles.photoBtnIcon}>🖼️</Text>
+              <Ionicons name="image-outline" size={24} color={colors.textDim} />
               <Text style={styles.photoBtnText}>Library</Text>
             </TouchableOpacity>
           </View>
@@ -470,9 +470,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-  },
-  photoBtnIcon: {
-    fontSize: 24,
   },
   photoBtnText: {
     fontSize: 14,
