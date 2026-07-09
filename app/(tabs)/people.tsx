@@ -4,10 +4,12 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SymbolView } from 'expo-symbols';
+import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import ActionSheet from '../../components/ActionSheet';
 import BottomSheet from '../../components/BottomSheet';
-import { colors } from '../../theme';
+import { colors, ui as C } from '../../theme';
 import { usePro } from '../../hooks/usePro';
 import { presentMultiContactPickerAsync } from '../../modules/contact-picker';
 import {
@@ -18,7 +20,7 @@ import {
 } from '../../utils/proStorage';
 
 function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
 }
 
 function personSubtitle(p: TrackedPerson): string {
@@ -29,15 +31,21 @@ function personSubtitle(p: TrackedPerson): string {
 
 type GroupDraft = { id?: string; name: string; memberIds: Set<string> };
 
+function Enter({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
+  return (
+    <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: 'timing', duration: 380, delay }}>
+      {children}
+    </MotiView>
+  );
+}
+
 export default function PeopleScreen() {
   const { isPro } = usePro();
 
   const [people, setPeople] = useState<TrackedPerson[]>([]);
   const [groups, setGroups] = useState<GroupWithMembers[]>([]);
-
   const [proOpen, setProOpen] = useState(false);
-
-  // 'new' opens the editor for a fresh person; a TrackedPerson edits it.
   const [personTarget, setPersonTarget] = useState<TrackedPerson | 'new' | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
 
@@ -48,8 +56,6 @@ export default function PeopleScreen() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Native multi-select picker → add each to the roster (deduped) → return the
-  // resulting people so the group editor can select them.
   const importContacts = async (): Promise<TrackedPerson[]> => {
     const picked = await presentMultiContactPickerAsync();
     if (picked.length === 0) return [];
@@ -57,9 +63,7 @@ export default function PeopleScreen() {
     const result: TrackedPerson[] = [];
     for (const c of picked) {
       list = await addPerson({ name: c.name, phone: c.phone, contactId: c.id });
-      const person =
-        list.find((p) => p.contactId === c.id) ??
-        list.find((p) => p.name === c.name);
+      const person = list.find((p) => p.contactId === c.id) ?? list.find((p) => p.name === c.name);
       if (person) result.push(person);
     }
     setPeople(list);
@@ -67,94 +71,102 @@ export default function PeopleScreen() {
   };
 
   const importFromContacts = () => { importContacts(); };
-
-  const openNewGroup = () => {
-    if (!isPro) { setProOpen(true); return; }
-    setGroupDraft({ name: '', memberIds: new Set() });
-  };
-
-  const openEditGroup = (g: GroupWithMembers) => {
-    if (!isPro) { setProOpen(true); return; }
-    setGroupDraft({ id: g.id, name: g.name, memberIds: new Set(g.memberIds) });
-  };
+  const openNewGroup = () => { if (!isPro) { setProOpen(true); return; } setGroupDraft({ name: '', memberIds: new Set() }); };
+  const openEditGroup = (g: GroupWithMembers) => { if (!isPro) { setProOpen(true); return; } setGroupDraft({ id: g.id, name: g.name, memberIds: new Set(g.memberIds) }); };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.header}><Text style={styles.title}>People</Text></View>
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <View style={styles.header}><Text style={styles.title}>People</Text></View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* ── Groups ── */}
-        <View style={styles.sectionHeadRow}>
-          <Text style={styles.sectionHead}>Groups</Text>
-          <TouchableOpacity onPress={openNewGroup} activeOpacity={0.7} style={styles.newGroupBtn}>
-            <Ionicons name="add" size={16} color={colors.text} />
-            <Text style={styles.newGroupText}>New Group</Text>
-          </TouchableOpacity>
-        </View>
-
-        {!isPro ? (
-          <TouchableOpacity style={styles.upsell} activeOpacity={0.85} onPress={() => setProOpen(true)}>
-            <Ionicons name="sparkles-outline" size={20} color={colors.amber} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.upsellTitle}>Saved groups are a Pro feature</Text>
-              <Text style={styles.upsellSub}>Save your regular crews and reload them into any split.</Text>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* ── Groups ── */}
+          <Enter>
+            <View style={styles.sectionHeadRow}>
+              <Text style={styles.section}>GROUPS</Text>
+              <TouchableOpacity onPress={openNewGroup} activeOpacity={0.7} style={styles.newGroupBtn}>
+                <SymbolView name="plus" size={13} tintColor={C.text} />
+                <Text style={styles.newGroupText}>New Group</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        ) : groups.length === 0 ? (
-          <Text style={styles.sectionEmpty}>No groups yet. Tap “New Group” to save a crew.</Text>
-        ) : (
-          groups.map((g) => (
-            <TouchableOpacity key={g.id} style={styles.groupRow} activeOpacity={0.7} onPress={() => openEditGroup(g)}>
-              <View style={styles.groupIcon}><Ionicons name="people" size={18} color="#9EC1EE" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.personName}>{g.name}</Text>
-                <Text style={styles.personSub} numberOfLines={1}>
-                  {g.members.length > 0 ? g.members.map((m) => m.name).join(', ') : 'No members'}
-                </Text>
+
+            {!isPro ? (
+              <TouchableOpacity style={styles.upsell} activeOpacity={0.85} onPress={() => setProOpen(true)}>
+                <SymbolView name="sparkles" size={20} tintColor={colors.amber} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.upsellTitle}>Saved groups are a Pro feature</Text>
+                  <Text style={styles.upsellSub}>Save your regular crews and reload them into any split.</Text>
+                </View>
+              </TouchableOpacity>
+            ) : groups.length === 0 ? (
+              <Text style={styles.sectionEmpty}>No groups yet. Tap “New Group” to save a crew.</Text>
+            ) : (
+              <View style={styles.group}>
+                {groups.map((g, i) => (
+                  <View key={g.id}>
+                    {i > 0 && <View style={styles.sep} />}
+                    <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={() => openEditGroup(g)}>
+                      <View style={[styles.rowIcon, { backgroundColor: C.blue + '22' }]}>
+                        <SymbolView name="person.2.fill" size={17} tintColor={C.blue} type="hierarchical" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>{g.name}</Text>
+                        <Text style={styles.rowSub} numberOfLines={1}>
+                          {g.members.length > 0 ? g.members.map((m) => m.name).join(', ') : 'No members'}
+                        </Text>
+                      </View>
+                      <Text style={styles.count}>{g.members.length}</Text>
+                      <SymbolView name="chevron.right" size={13} tintColor={C.faint} style={{ marginLeft: 6 }} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
-              <Text style={styles.groupCount}>{g.members.length}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textDisabled} />
-            </TouchableOpacity>
-          ))
-        )}
+            )}
+          </Enter>
 
-        {/* ── People ── */}
-        <Text style={[styles.sectionHead, { marginTop: 26 }]}>People</Text>
-        <View style={styles.addRow}>
-          <TouchableOpacity style={styles.addBtn} activeOpacity={0.85} onPress={importFromContacts}>
-            <Ionicons name="person-add-outline" size={18} color="#000" />
-            <Text style={styles.addBtnText}>From Contacts</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.addBtn, styles.addBtnSecondary]} activeOpacity={0.85} onPress={() => setPersonTarget('new')}>
-            <Ionicons name="create-outline" size={18} color={colors.text} />
-            <Text style={[styles.addBtnText, styles.addBtnTextSecondary]}>Add Manually</Text>
-          </TouchableOpacity>
-        </View>
+          {/* ── People ── */}
+          <Enter delay={80}>
+            <Text style={[styles.section, { marginTop: 26 }]}>PEOPLE</Text>
+            <View style={styles.addRow}>
+              <TouchableOpacity style={styles.addBtn} activeOpacity={0.85} onPress={importFromContacts}>
+                <SymbolView name="person.crop.circle.badge.plus" size={18} tintColor={C.bg} />
+                <Text style={styles.addBtnText}>From Contacts</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.addBtn, styles.addBtnSecondary]} activeOpacity={0.85} onPress={() => setPersonTarget('new')}>
+                <SymbolView name="square.and.pencil" size={17} tintColor={C.text} />
+                <Text style={[styles.addBtnText, styles.addBtnTextSecondary]}>Add Manually</Text>
+              </TouchableOpacity>
+            </View>
 
-        {people.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="people-outline" size={44} color={colors.textDisabled} />
-            <Text style={styles.emptyTitle}>No people yet</Text>
-            <Text style={styles.emptySub}>Add friends from your contacts or manually to build groups and link payment handles.</Text>
-          </View>
-        ) : (
-          people.map((p) => (
-            <TouchableOpacity key={p.id} style={styles.personRow} activeOpacity={0.7} onPress={() => setPersonTarget(p)}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{initials(p.name)}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.personName}>{p.name}</Text>
-                <Text style={styles.personSub} numberOfLines={1}>{personSubtitle(p)}</Text>
+            {people.length === 0 ? (
+              <View style={styles.empty}>
+                <View style={styles.emptyIcon}><SymbolView name="person.2" size={30} tintColor={C.dim} type="hierarchical" /></View>
+                <Text style={styles.emptyTitle}>No people yet</Text>
+                <Text style={styles.emptySub}>Add friends from contacts or manually to build groups and link payment handles.</Text>
               </View>
-              {p.venmoHandle && (
-                <Ionicons name="card-outline" size={18} color={colors.green} style={{ marginRight: 6 }} />
-              )}
-              <Ionicons name="chevron-forward" size={16} color={colors.textDisabled} />
-            </TouchableOpacity>
-          ))
-        )}
+            ) : (
+              <View style={styles.group}>
+                {people.map((p, i) => (
+                  <View key={p.id}>
+                    {i > 0 && <View style={styles.sep} />}
+                    <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={() => setPersonTarget(p)}>
+                      <View style={styles.avatar}><Text style={styles.avatarText}>{initials(p.name)}</Text></View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>{p.name}</Text>
+                        <Text style={styles.rowSub} numberOfLines={1}>{personSubtitle(p)}</Text>
+                      </View>
+                      {p.venmoHandle && <SymbolView name="creditcard.fill" size={15} tintColor={C.accent} style={{ marginRight: 8 }} />}
+                      <SymbolView name="chevron.right" size={13} tintColor={C.faint} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
 
-        {people.length > 0 && <Text style={styles.hint}>Tap a person to edit or link a payment handle.</Text>}
-      </ScrollView>
+            {people.length > 0 && <Text style={styles.hint}>Tap a person to edit or link a payment handle.</Text>}
+          </Enter>
+        </ScrollView>
+      </SafeAreaView>
 
       <ActionSheet
         visible={proOpen}
@@ -179,11 +191,7 @@ export default function PeopleScreen() {
         draft={groupDraft}
         people={people}
         onClose={() => setGroupDraft(null)}
-        onCreatePerson={async (name) => {
-          const person = await findOrCreatePerson(name);
-          setPeople(await getPeople());
-          return person;
-        }}
+        onCreatePerson={async (name) => { const person = await findOrCreatePerson(name); setPeople(await getPeople()); return person; }}
         onAddContacts={importContacts}
         onSave={async (draft) => {
           const memberIds = Array.from(draft.memberIds);
@@ -194,13 +202,11 @@ export default function PeopleScreen() {
         }}
         onDelete={async (id) => { await deleteSavedGroup(id); await load(); setGroupDraft(null); }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ── Person editor (pageSheet form) ──────────────────────────────────────────
-// pageSheet gives native swipe-down dismiss; automaticallyAdjustKeyboardInsets
-// makes the fields scroll above the keyboard smoothly (no lurching sheet).
+// ── Person editor ────────────────────────────────────────────────────────────
 function PersonEditor({
   target, onClose, onSubmit, onRemoved,
 }: {
@@ -242,17 +248,17 @@ function PersonEditor({
 
       <Text style={styles.fieldLabel}>Name</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name"
-        placeholderTextColor={colors.textMuted} autoCapitalize="words" />
+        placeholderTextColor={C.faint} autoCapitalize="words" />
 
       <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Phone</Text>
       <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567"
-        placeholderTextColor={colors.textMuted} keyboardType="phone-pad" />
+        placeholderTextColor={C.faint} keyboardType="phone-pad" />
 
       <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Venmo</Text>
       <View style={styles.prefixWrap}>
         <Text style={styles.prefix}>@</Text>
         <TextInput style={styles.prefixInput} value={venmo} onChangeText={setVenmo} placeholder="venmo-username"
-          placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} />
+          placeholderTextColor={C.faint} autoCapitalize="none" autoCorrect={false} />
       </View>
 
       <TouchableOpacity style={[styles.primaryBtn, !name.trim() && { opacity: 0.4 }]} onPress={save} disabled={!name.trim()} activeOpacity={0.85}>
@@ -268,9 +274,7 @@ function PersonEditor({
   );
 }
 
-// ── Group editor (pageSheet form) ───────────────────────────────────────────
-// Members are built by picking from contacts or typing a name — no roster
-// toggle list. pageSheet gives swipe-down dismiss + smooth keyboard handling.
+// ── Group editor ─────────────────────────────────────────────────────────────
 function GroupEditor({
   draft, people, onClose, onCreatePerson, onAddContacts, onSave, onDelete,
 }: {
@@ -295,7 +299,6 @@ function GroupEditor({
     setNewName('');
   }
 
-  // Resolve selected ids → people for the members list.
   const byId = new Map(people.map((p) => [p.id, p]));
   const members = Array.from(selected).map((id) => byId.get(id)).filter(Boolean) as TrackedPerson[];
 
@@ -303,7 +306,6 @@ function GroupEditor({
     const persons = await onAddContacts();
     if (persons.length) setSelected((prev) => new Set([...prev, ...persons.map((p) => p.id)]));
   };
-
   const addNew = async () => {
     const n = newName.trim();
     if (!n) return;
@@ -311,14 +313,7 @@ function GroupEditor({
     setSelected((prev) => new Set(prev).add(person.id));
     setNewName('');
   };
-
-  const removeMember = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
+  const removeMember = (id: string) => setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
 
   const canSave = name.trim().length > 0 && selected.size > 0;
 
@@ -328,20 +323,20 @@ function GroupEditor({
 
       <Text style={styles.fieldLabel}>Group name</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Roommates"
-        placeholderTextColor={colors.textMuted} autoCapitalize="words" />
+        placeholderTextColor={C.faint} autoCapitalize="words" />
 
       <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Members</Text>
       <TouchableOpacity style={styles.contactsRowBtn} onPress={addFromContacts} activeOpacity={0.85}>
-        <Ionicons name="person-add-outline" size={18} color="#000" />
+        <SymbolView name="person.crop.circle.badge.plus" size={18} tintColor={C.bg} />
         <Text style={styles.contactsRowText}>Add from Contacts</Text>
       </TouchableOpacity>
 
       <View style={styles.addMemberRow}>
         <TextInput style={styles.addMemberInput} value={newName} onChangeText={setNewName}
-          placeholder="Or type a name" placeholderTextColor={colors.textMuted}
+          placeholder="Or type a name" placeholderTextColor={C.faint}
           autoCapitalize="words" returnKeyType="done" onSubmitEditing={addNew} />
         <TouchableOpacity style={[styles.addMemberBtn, !newName.trim() && { opacity: 0.4 }]} onPress={addNew} disabled={!newName.trim()} activeOpacity={0.8}>
-          <Ionicons name="add" size={20} color="#000" />
+          <SymbolView name="plus" size={18} tintColor={C.bg} />
         </TouchableOpacity>
       </View>
 
@@ -353,7 +348,7 @@ function GroupEditor({
             <View key={p.id} style={styles.memberChip}>
               <Text style={styles.memberChipText}>{p.name}</Text>
               <TouchableOpacity onPress={() => removeMember(p.id)} hitSlop={8}>
-                <Ionicons name="close-circle" size={17} color={colors.textMuted} />
+                <SymbolView name="xmark.circle.fill" size={16} tintColor={C.faint} />
               </TouchableOpacity>
             </View>
           ))}
@@ -374,108 +369,87 @@ function GroupEditor({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  title: { fontSize: 26, fontWeight: '800', color: colors.text },
-  scroll: { paddingHorizontal: 20, paddingBottom: 120, gap: 10 },
+  container: { flex: 1, backgroundColor: C.bg },
+  header: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 8 },
+  title: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
+  scroll: { paddingHorizontal: 20, paddingBottom: 120 },
 
-  sectionHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  sectionHead: { fontSize: 13, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  sectionEmpty: { fontSize: 13, color: colors.textMuted, paddingVertical: 6 },
+  sectionHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  section: { fontSize: 12.5, fontWeight: '700', color: C.faint, letterSpacing: 1.2, marginLeft: 2 },
+  sectionEmpty: { fontSize: 13.5, color: C.dim, paddingVertical: 8, marginLeft: 2 },
   newGroupBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    paddingVertical: 5, paddingHorizontal: 10, borderRadius: 10,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingVertical: 6, paddingHorizontal: 11, borderRadius: 10,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
   },
-  newGroupText: { fontSize: 13, fontWeight: '600', color: colors.text },
+  newGroupText: { fontSize: 13, fontWeight: '600', color: C.text },
 
   upsell: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
-    borderRadius: 14, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15,
+    borderRadius: 16, backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.22)',
   },
-  upsellTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
-  upsellSub: { fontSize: 12.5, color: colors.textMuted, marginTop: 2, lineHeight: 17 },
+  upsellTitle: { fontSize: 14.5, fontWeight: '700', color: C.text },
+  upsellSub: { fontSize: 12.5, color: C.dim, marginTop: 2, lineHeight: 17 },
 
-  groupRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-  },
-  groupIcon: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(100,151,212,0.25)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  groupCount: { fontSize: 13, fontWeight: '700', color: colors.textMuted, marginRight: 2 },
+  group: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 14 },
+  rowIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { fontSize: 15.5, fontWeight: '600', color: C.text, letterSpacing: -0.2 },
+  rowSub: { fontSize: 12.5, color: C.dim, marginTop: 2 },
+  count: { fontSize: 14, fontWeight: '700', color: C.dim, marginRight: 2 },
+  sep: { height: 1, backgroundColor: C.line, marginLeft: 65 },
 
-  addRow: { flexDirection: 'row', gap: 10, marginTop: 2, marginBottom: 2 },
-  addBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    height: 48, borderRadius: 14, backgroundColor: colors.btnPrimary,
-  },
-  addBtnSecondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  addBtnText: { fontSize: 14, fontWeight: '700', color: '#000' },
-  addBtnTextSecondary: { color: colors.text },
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(91,157,240,0.22)', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700', color: C.blue },
 
-  personRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-  },
-  avatar: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(100,151,212,0.25)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontSize: 14, fontWeight: '700', color: '#9EC1EE' },
-  personName: { fontSize: 15, fontWeight: '700', color: colors.text },
-  personSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  addRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  addBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 48, borderRadius: 14, backgroundColor: C.text },
+  addBtnSecondary: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
+  addBtnText: { fontSize: 14, fontWeight: '700', color: C.bg },
+  addBtnTextSecondary: { color: C.text },
 
-  empty: { alignItems: 'center', gap: 10, paddingTop: 40, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.textDim, textAlign: 'center' },
-  emptySub: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
-  hint: { fontSize: 12, color: colors.textDisabled, textAlign: 'center', marginTop: 8 },
+  empty: { alignItems: 'center', gap: 8, paddingVertical: 30 },
+  emptyIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', marginBottom: 6, borderWidth: 1, borderColor: C.line },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  emptySub: { fontSize: 14, color: C.dim, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
+  hint: { fontSize: 12.5, color: C.faint, textAlign: 'center', marginTop: 14 },
 
-  // Bottom-sheet forms (PersonEditor / GroupEditor)
-  sheetTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 4 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: 6, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
+  // Editor sheets (shared)
+  sheetTitle: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 4 },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: C.dim, marginBottom: 6, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
   input: {
-    height: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: colors.text,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    height: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: C.text,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
   },
   prefixWrap: {
     flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 12, paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
   },
-  prefix: { fontSize: 16, color: colors.textMuted, marginRight: 4 },
-  prefixInput: { flex: 1, fontSize: 16, color: colors.text, height: '100%' },
+  prefix: { fontSize: 16, color: C.dim, marginRight: 4 },
+  prefixInput: { flex: 1, fontSize: 16, color: C.text, height: '100%' },
 
   contactsRowBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    height: 48, borderRadius: 12, backgroundColor: colors.btnPrimary, marginTop: 2,
+    height: 48, borderRadius: 12, backgroundColor: C.text, marginTop: 2,
   },
-  contactsRowText: { fontSize: 15, fontWeight: '700', color: '#000' },
+  contactsRowText: { fontSize: 15, fontWeight: '700', color: C.bg },
   memberChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   memberChip: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderMid,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
   },
-  memberChipText: { fontSize: 14, fontWeight: '600', color: colors.text },
+  memberChipText: { fontSize: 14, fontWeight: '600', color: C.text },
 
   addMemberRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   addMemberInput: {
-    flex: 1, height: 46, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: colors.text,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    flex: 1, height: 46, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: C.text,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
   },
-  addMemberBtn: {
-    width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.btnPrimary,
-  },
+  addMemberBtn: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: C.text },
 
-  primaryBtn: {
-    height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.btnPrimary, marginTop: 18,
-  },
-  primaryBtnText: { fontSize: 15.5, fontWeight: '700', color: '#000' },
+  primaryBtn: { height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.text, marginTop: 18 },
+  primaryBtnText: { fontSize: 15.5, fontWeight: '700', color: C.bg },
   removeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, marginTop: 4 },
   removeText: { fontSize: 14.5, fontWeight: '600', color: colors.red },
 });
