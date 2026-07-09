@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SymbolView } from 'expo-symbols';
+import { MotiView } from 'moti';
 import ActionSheet from '../components/ActionSheet';
-import { colors } from '../theme';
+import { ui as C } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { getVenmoHandle, setVenmoHandle } from '../utils/proStorage';
 import { createSession } from '../services/billSession';
@@ -25,9 +26,7 @@ export default function SplitMethodScreen() {
     setSharing(true);
     try {
       const creatorName = people[0]?.name ?? 'Host';
-      const sessionId = await createSession(receipt, creatorName, handle, {
-        currency: getActiveCurrency(),
-      });
+      const sessionId = await createSession(receipt, creatorName, handle, { currency: getActiveCurrency() });
       setActiveSessionId(sessionId);
       await addSession({
         sessionId,
@@ -40,7 +39,6 @@ export default function SplitMethodScreen() {
         message: `${receipt.merchantName ? receipt.merchantName + ' — ' : ''}grab your share — tap what you ordered`,
         url,
       });
-      // Reset the stack: pop the scan/fork screens so Back goes Home, then open the live session
       if (router.canDismiss()) router.dismissAll();
       router.push('/activity?tab=live');
     } catch {
@@ -58,57 +56,46 @@ export default function SplitMethodScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.body}>
-        <Text style={styles.title}>How do you want{'\n'}to split?</Text>
-        <Text style={styles.subtitle}>
-          {receipt?.merchantName || 'Your bill'} · {formatCurrency(receipt?.total)}
-        </Text>
-
-        <View style={styles.options}>
-          {/* Share Link */}
-          <TouchableOpacity
-            style={[styles.optionCard, sharing && { opacity: 0.6 }]}
-            onPress={handleShareLink}
-            disabled={sharing}
-            activeOpacity={0.82}
-          >
-            <View style={[styles.iconWrap, { backgroundColor: 'rgba(62,173,116,0.15)' }]}>
-              <Ionicons name="link-outline" size={28} color={colors.green} />
-            </View>
-            <Text style={styles.optionTitle}>
-              {sharing ? 'Creating link…' : 'Share a Link'}
-            </Text>
-            <Text style={styles.optionDesc}>
-              Friends open the link on their phone and tap the items they had. No app needed.
-            </Text>
-            <View style={styles.optionFooter}>
-              <Text style={styles.optionTag}>Recommended</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Assign Manually */}
-          <TouchableOpacity
-            style={styles.optionCard}
-            onPress={() => router.push('/assign-items')}
-            activeOpacity={0.82}
-          >
-            <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.07)' }]}>
-              <Ionicons name="people-outline" size={28} color={colors.textSecondary} />
-            </View>
-            <Text style={styles.optionTitle}>Assign Manually</Text>
-            <Text style={styles.optionDesc}>
-              You assign each item to the right person yourself, then request payment from each.
-            </Text>
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <SymbolView name="chevron.left" size={20} tintColor={C.text} />
           </TouchableOpacity>
         </View>
-      </View>
+
+        <View style={styles.body}>
+          <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }} transition={{ type: 'timing', duration: 400 }}>
+            <Text style={styles.title}>How do you want{'\n'}to split?</Text>
+            <Text style={styles.subtitle}>{receipt?.merchantName || 'Your bill'} · {formatCurrency(receipt?.total)}</Text>
+          </MotiView>
+
+          <View style={styles.options}>
+            <MotiView from={{ opacity: 0, translateY: 12 }} animate={{ opacity: 1, translateY: 0 }} transition={{ type: 'timing', duration: 420, delay: 80 }}>
+              <TouchableOpacity style={[styles.optionCard, sharing && { opacity: 0.6 }]} onPress={handleShareLink} disabled={sharing} activeOpacity={0.85}>
+                <View style={[styles.iconWrap, { backgroundColor: C.accentDim }]}>
+                  <SymbolView name="link" size={26} tintColor={C.accent} type="hierarchical" />
+                </View>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>{sharing ? 'Creating link…' : 'Share a Link'}</Text>
+                  <Text style={styles.optionTag}>RECOMMENDED</Text>
+                </View>
+                <Text style={styles.optionDesc}>Friends open the link on their phone and tap the items they had. No app needed.</Text>
+              </TouchableOpacity>
+            </MotiView>
+
+            <MotiView from={{ opacity: 0, translateY: 12 }} animate={{ opacity: 1, translateY: 0 }} transition={{ type: 'timing', duration: 420, delay: 150 }}>
+              <TouchableOpacity style={styles.optionCard} onPress={() => router.push('/assign-items')} activeOpacity={0.85}>
+                <View style={[styles.iconWrap, { backgroundColor: C.blue + '22' }]}>
+                  <SymbolView name="person.2.fill" size={24} tintColor={C.blue} type="hierarchical" />
+                </View>
+                <Text style={styles.optionTitle}>Assign Manually</Text>
+                <Text style={styles.optionDesc}>You assign each item to the right person yourself, then request payment from each.</Text>
+              </TouchableOpacity>
+            </MotiView>
+          </View>
+        </View>
+      </SafeAreaView>
 
       <ActionSheet
         visible={venmoOpen}
@@ -117,10 +104,7 @@ export default function SplitMethodScreen() {
         input={{
           placeholder: 'venmo-handle',
           submitLabel: 'Save & Share',
-          onSubmit: async (v) => {
-            await setVenmoHandle(v);
-            createAndShare(v.replace(/^@/, ''));
-          },
+          onSubmit: async (v) => { await setVenmoHandle(v); createAndShare(v.replace(/^@/, '')); },
         }}
         onClose={() => setVenmoOpen(false)}
       />
@@ -131,39 +115,27 @@ export default function SplitMethodScreen() {
         options={[{ label: 'Try Again', icon: 'refresh-outline', onPress: handleShareLink }]}
         onClose={() => setErrorOpen(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { paddingHorizontal: 8, paddingVertical: 12 },
-  backBtn: { padding: 8, alignSelf: 'flex-start' },
+  container: { flex: 1, backgroundColor: C.bg },
+  header: { paddingHorizontal: 12, paddingVertical: 10 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
 
   body: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  title: { fontSize: 34, fontWeight: '800', color: colors.text, lineHeight: 42, marginBottom: 8 },
-  subtitle: { fontSize: 15, color: colors.textMuted, marginBottom: 36 },
+  title: { fontSize: 32, fontWeight: '800', color: C.text, lineHeight: 40, letterSpacing: -0.6, marginBottom: 8 },
+  subtitle: { fontSize: 15, color: C.dim, marginBottom: 32 },
 
   options: { gap: 14 },
-  optionCard: {
-    backgroundColor: colors.surface, borderRadius: 20,
-    borderWidth: 1, borderColor: colors.border,
-    padding: 22, gap: 10,
-  },
-  iconWrap: {
-    width: 52, height: 52, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 4,
-  },
-  optionTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
-  optionDesc: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
-  optionFooter: { marginTop: 2 },
+  optionCard: { backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 22, gap: 10 },
+  iconWrap: { width: 52, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  optionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  optionTitle: { fontSize: 20, fontWeight: '700', color: C.text, letterSpacing: -0.3 },
   optionTag: {
-    alignSelf: 'flex-start',
-    fontSize: 11, fontWeight: '700', color: colors.green,
-    backgroundColor: 'rgba(62,173,116,0.12)',
-    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
-    textTransform: 'uppercase', letterSpacing: 0.5,
-    overflow: 'hidden',
+    fontSize: 10, fontWeight: '700', color: C.accent, backgroundColor: C.accentDim,
+    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, letterSpacing: 0.6, overflow: 'hidden',
   },
+  optionDesc: { fontSize: 14, color: C.dim, lineHeight: 20 },
 });
