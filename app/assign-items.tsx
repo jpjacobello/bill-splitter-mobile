@@ -10,8 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { presentMultiContactPickerAsync } from '../modules/contact-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Button from '../components/Button';
-import { colors } from '../theme';
+import { colors, ui as C } from '../theme';
 import ItemActionSheet from '../components/ItemActionSheet';
 import ActionSheet, { SheetOption } from '../components/ActionSheet';
 import { useBillStore } from '../store/useBillStore';
@@ -71,7 +70,7 @@ function PersonChip({ person, personIndex, isSelected, count, totalItems, onPres
         <Text style={[styles.avatarText, { color }]}>{initials}</Text>
       </View>
       <View>
-        <Text style={[styles.personChipText, isSelected && { color: colors.text }]}>{person.name}</Text>
+        <Text style={[styles.personChipText, isSelected && { color: C.text }]}>{person.name}</Text>
         <Animated.Text style={[styles.personChipCount, { color, opacity: fillAnim }]}>
           {count}/{totalItems} items
         </Animated.Text>
@@ -472,7 +471,7 @@ export default function AssignItemsScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.groupsBtn} onPress={handleOpenGroups} activeOpacity={0.75}>
-              <Ionicons name="people-outline" size={20} color="#888" />
+              <Ionicons name="people-outline" size={20} color={C.dim} />
             </TouchableOpacity>
           </View>
         </View>
@@ -553,7 +552,7 @@ export default function AssignItemsScreen() {
               ref={personInputRef}
               style={styles.addPersonInput}
               placeholder="Name"
-              placeholderTextColor="#555"
+              placeholderTextColor={C.faint}
               value={personInput}
               onChangeText={setPersonInput}
               returnKeyType="done"
@@ -572,7 +571,7 @@ export default function AssignItemsScreen() {
               <Text style={styles.addPersonConfirmText}>Add</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.contactBtn} onPress={handlePickContact}>
-              <Ionicons name="person-circle-outline" size={26} color="#AAA" />
+              <Ionicons name="person-circle-outline" size={26} color={C.dim} />
             </TouchableOpacity>
           </View>
         )}
@@ -628,11 +627,10 @@ export default function AssignItemsScreen() {
 
       {/* Fixed bottom button */}
       <View style={[styles.stickyFooter, allAssigned && styles.stickyFooterDone]}>
-        <Button
-          label={allAssigned ? 'See Summary →' : 'See Summary'}
-          onPress={handleSeeSummary}
-          height={60}
-        />
+        <TouchableOpacity style={styles.summaryBtn} onPress={handleSeeSummary} activeOpacity={0.85}>
+          <Text style={styles.summaryBtnText}>See Summary</Text>
+          {allAssigned && <Ionicons name="arrow-forward" size={18} color={C.bg} />}
+        </TouchableOpacity>
       </View>
 
       <ItemActionSheet
@@ -657,7 +655,7 @@ export default function AssignItemsScreen() {
           <View style={styles.groupsHeader}>
             <Text style={styles.groupsTitle}>Groups</Text>
             <TouchableOpacity onPress={() => setShowGroupsModal(false)} style={styles.groupsCloseBtn} activeOpacity={0.7}>
-              <Ionicons name="close" size={22} color="#888" />
+              <Ionicons name="close" size={22} color={C.dim} />
             </TouchableOpacity>
           </View>
 
@@ -753,7 +751,7 @@ export default function AssignItemsScreen() {
                   value={tipInput}
                   onChangeText={setTipInput}
                   placeholder="Enter tip amount"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={C.dim}
                   keyboardType="decimal-pad"
                   returnKeyType="done"
                 />
@@ -778,42 +776,42 @@ export default function AssignItemsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: C.bg },
 
   // Inline tip sheet
   tipFlex: { flex: 1 },
   tipBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   tipSheet: {
-    backgroundColor: colors.sheet,
+    backgroundColor: "#161619",
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 20, paddingTop: 10,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
   tipHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)', marginBottom: 14 },
-  tipTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
-  tipSub: { fontSize: 13, color: colors.textMuted, marginTop: 4, marginBottom: 16, lineHeight: 18 },
+  tipTitle: { fontSize: 18, fontWeight: '800', color: C.text },
+  tipSub: { fontSize: 13, color: C.dim, marginTop: 4, marginBottom: 16, lineHeight: 18 },
   tipPills: { flexDirection: 'row', gap: 10 },
   tipPill: {
     flex: 1, height: 60, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 2,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderMid,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
   },
-  tipPillActive: { backgroundColor: colors.btnPrimary, borderColor: colors.btnPrimary },
-  tipPillPct: { fontSize: 15, fontWeight: '700', color: colors.text },
-  tipPillAmt: { fontSize: 12.5, color: colors.textMuted },
-  tipPillTextActive: { color: '#000' },
+  tipPillActive: { backgroundColor: C.text, borderColor: C.text },
+  tipPillPct: { fontSize: 15, fontWeight: '700', color: C.text },
+  tipPillAmt: { fontSize: 12.5, color: C.dim },
+  tipPillTextActive: { color: C.bg },
   tipInputWrap: {
     flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 14, paddingHorizontal: 16, marginTop: 12,
     backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  tipInputPrefix: { fontSize: 17, color: colors.textMuted, marginRight: 6 },
-  tipInputField: { flex: 1, fontSize: 17, color: colors.text, height: '100%' },
+  tipInputPrefix: { fontSize: 17, color: C.dim, marginRight: 6 },
+  tipInputField: { flex: 1, fontSize: 17, color: C.text, height: '100%' },
   tipAddBtn: {
     height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.btnPrimary, marginTop: 16,
+    backgroundColor: C.text, marginTop: 16,
   },
-  tipAddText: { fontSize: 15.5, fontWeight: '700', color: '#000' },
+  tipAddText: { fontSize: 15.5, fontWeight: '700', color: C.bg },
   tipSkipBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 2 },
-  tipSkipText: { fontSize: 14.5, fontWeight: '600', color: colors.textMuted },
+  tipSkipText: { fontSize: 14.5, fontWeight: '600', color: C.dim },
 
   header: {
     paddingHorizontal: 24, paddingTop: 16, paddingBottom: 14,
@@ -823,19 +821,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 10,
   },
-  title: { fontSize: 28, fontWeight: '700', color: colors.text },
+  title: { fontSize: 28, fontWeight: '700', color: C.text },
   undoBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
-  undoBtnText: { fontSize: 13, fontWeight: '600', color: '#AAA' },
+  undoBtnText: { fontSize: 13, fontWeight: '600', color: C.dim },
   progressRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 8,
   },
-  progressLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+  progressLabel: { fontSize: 13, fontWeight: '600', color: C.dim },
   progressLabelDone: { color: colors.green },
   topActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   splitEvenlyBtn: {
@@ -844,7 +842,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
   },
-  splitEvenlyBtnText: { fontSize: 14, fontWeight: '600', color: colors.text },
+  splitEvenlyBtnText: { fontSize: 14, fontWeight: '600', color: C.text },
   clearAllBtn: {
     flex: 1, paddingVertical: 9,
     backgroundColor: 'rgba(200,50,60,0.10)', borderRadius: 11,
@@ -873,7 +871,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   avatarText: { fontSize: 10, fontWeight: '700' },
-  personChipText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  personChipText: { fontSize: 13, fontWeight: '600', color: C.dim },
   personChipCount: { fontSize: 10, marginTop: 1 },
   addPersonChip: {
     height: 38, width: 38, borderRadius: 19,
@@ -881,13 +879,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.20)',
   },
-  addPersonChipText: { fontSize: 20, color: colors.textMuted, lineHeight: 24 },
+  addPersonChipText: { fontSize: 20, color: C.dim, lineHeight: 24 },
   addPersonRow: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
   addPersonInput: {
     flex: 1, height: 40,
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)',
     borderRadius: 12, paddingHorizontal: 12,
-    fontSize: 15, color: colors.text,
+    fontSize: 15, color: C.text,
     backgroundColor: 'rgba(255,255,255,0.07)',
   },
   addPersonConfirmBtn: {
@@ -896,7 +894,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
   },
-  addPersonConfirmText: { fontSize: 14, fontWeight: '600', color: colors.text },
+  addPersonConfirmText: { fontSize: 14, fontWeight: '600', color: C.text },
   contactBtn: {
     width: 40, height: 40, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -905,12 +903,14 @@ const styles = StyleSheet.create({
   },
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16 },
   stickyFooter: {
-    paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, backgroundColor: colors.bg,
+    paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8, backgroundColor: C.bg,
   },
   stickyFooterDone: {
     shadowColor: '#FFFFFF', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.06, shadowRadius: 12,
   },
+  summaryBtn: { height: 56, borderRadius: 15, backgroundColor: C.text, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  summaryBtnText: { fontSize: 16.5, fontWeight: '700', color: C.bg },
   itemChip: {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14,
@@ -925,13 +925,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.07)',
   },
   itemEmoji: { fontSize: 20 },
-  itemName: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
+  itemName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text },
   qtyBadge: {
     backgroundColor: 'rgba(255,255,255,0.10)',
     borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  qtyBadgeText: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
+  qtyBadgeText: { fontSize: 11, fontWeight: '700', color: C.dim },
   addonWrapper: {
     flexDirection: 'row', alignItems: 'stretch', marginLeft: 14, gap: 8,
   },
@@ -946,7 +946,7 @@ const styles = StyleSheet.create({
     gap: 8, borderWidth: 1.5,
   },
   addonEmoji: { fontSize: 16 },
-  addonName: { flex: 1, fontSize: 13, fontWeight: '500', color: '#B0B0B0' },
+  addonName: { flex: 1, fontSize: 13, fontWeight: '500', color: C.dim },
   itemAvatarRow: { flexDirection: 'row', gap: 3, alignItems: 'center' },
   itemAvatar: {
     width: 24, height: 24, borderRadius: 12,
@@ -959,7 +959,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.10)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
   },
-  itemAvatarOverflowText: { fontSize: 9, fontWeight: '700', color: '#999' },
+  itemAvatarOverflowText: { fontSize: 9, fontWeight: '700', color: C.dim },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   receiptEditBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -971,7 +971,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245,158,11,0.10)',
     borderColor: 'rgba(245,158,11,0.35)',
   },
-  receiptEditText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  receiptEditText: { fontSize: 13, fontWeight: '600', color: C.dim },
   receiptEditTextWarning: { color: colors.amber },
   groupsBtn: {
     width: 36, height: 36,
@@ -979,13 +979,13 @@ const styles = StyleSheet.create({
     borderRadius: 10, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
-  groupsContainer: { flex: 1, backgroundColor: colors.bg },
+  groupsContainer: { flex: 1, backgroundColor: C.bg },
   groupsHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#3A3A3C',
+    borderBottomWidth: 1, borderBottomColor: C.line,
   },
-  groupsTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+  groupsTitle: { fontSize: 20, fontWeight: '700', color: C.text },
   groupsCloseBtn: {
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',
@@ -1002,15 +1002,15 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
   groupCardLeft: { flex: 1, gap: 3 },
-  groupCardName: { fontSize: 15, fontWeight: '700', color: colors.text },
-  groupCardMembers: { fontSize: 12, color: colors.textMuted },
+  groupCardName: { fontSize: 15, fontWeight: '700', color: C.text },
+  groupCardMembers: { fontSize: 12, color: C.dim },
   groupCardActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   loadGroupBtn: {
     backgroundColor: 'rgba(255,255,255,0.10)',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  loadGroupBtnText: { fontSize: 13, fontWeight: '700', color: colors.text },
+  loadGroupBtnText: { fontSize: 13, fontWeight: '700', color: C.text },
   deleteGroupBtn: {
     width: 32, height: 32,
     backgroundColor: 'rgba(239,68,68,0.10)',
@@ -1018,8 +1018,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)',
   },
   groupsEmpty: { paddingTop: 24, alignItems: 'center' },
-  groupsEmptyText: { fontSize: 14, color: colors.textDisabled },
-  groupsEmptyHint: { fontSize: 13, color: colors.textDisabled, marginTop: 6, textAlign: 'center' },
+  groupsEmptyText: { fontSize: 14, color: C.faint },
+  groupsEmptyHint: { fontSize: 13, color: C.faint, marginTop: 6, textAlign: 'center' },
   footer: { paddingTop: 8 },
   unassignedSummary: {
     backgroundColor: 'rgba(245,158,11,0.07)', borderRadius: 14,
@@ -1027,8 +1027,8 @@ const styles = StyleSheet.create({
   },
   unassignedSummaryTitle: { fontSize: 14, fontWeight: '600', color: colors.amber },
   splitRemainingBtn: {
-    backgroundColor: colors.btnPrimary, borderRadius: 10,
+    backgroundColor: C.text, borderRadius: 10,
     paddingVertical: 10, alignItems: 'center',
   },
-  splitRemainingText: { fontSize: 14, fontWeight: '700', color: '#000' },
+  splitRemainingText: { fontSize: 14, fontWeight: '700', color: C.bg },
 });
