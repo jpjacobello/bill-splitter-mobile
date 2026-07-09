@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
 
   currencyBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   currencySheet: {
-    backgroundColor: '#161619', borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    backgroundColor: '#26262B', borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 20, paddingTop: 10, maxHeight: '78%',
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
   },

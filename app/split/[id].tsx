@@ -16,10 +16,49 @@ import { useLocalSearchParams } from 'expo-router';
 import { BillSession, Claim, ReceiptItem } from '../../types';
 import { getSession, subscribeToSession, claimItems } from '../../services/billSession';
 import { calcShare, ClaimInput } from '../../utils/calcShare';
-import { colors } from '../../theme';
 import { formatCurrency, setActiveCurrency } from '../../utils/currency';
 
 type Screen = 'loading' | 'error' | 'name' | 'select' | 'done';
+
+// ── "Receipt Stub" visual world — a warm thermal-paper receipt on a dark
+//    night-table. A committed single theme (not the app's dark tokens). ──────
+const PAL = {
+  frame: '#14130F',
+  paper: '#F6F1E7',
+  paper2: '#EFE8D8',
+  ink: '#1A1712',
+  inkDim: '#6B6455',
+  inkFaint: '#95907F',
+  rule: '#DDD4C1',
+  red: '#C1352B',
+  green: '#2F7D57',
+  blue: '#2E6BB0',
+  blueWash: '#E4EDF7',
+};
+
+const MONO = Platform.select({
+  web: 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, "Roboto Mono", monospace',
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
+const SERIF = Platform.select({
+  web: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
+  ios: 'Palatino',
+  android: 'serif',
+  default: 'serif',
+});
+
+// Scalloped perforation notched into the paper edge (frame-colored punches).
+function Perf({ pos }: { pos: 'top' | 'bottom' }) {
+  return (
+    <View style={[styles.perfRow, pos === 'top' ? { top: -6 } : { bottom: -6 }]} pointerEvents="none">
+      {Array.from({ length: 15 }).map((_, i) => (
+        <View key={i} style={styles.perfDot} />
+      ))}
+    </View>
+  );
+}
 
 function getClaimedFraction(claims: Record<string, Claim>, itemId: string): number {
   return Object.values(claims)
@@ -145,6 +184,13 @@ export default function PayYourShareScreen() {
 
   const fmtUnits = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(1));
 
+  // qty-1 "split N ways" → show the resulting fraction, e.g. "⅓ (3 ways)"
+  const FRACTION_GLYPH: Record<number, string> = {
+    2: '½', 3: '⅓', 4: '¼', 5: '⅕', 6: '⅙', 7: '⅐', 8: '⅛', 9: '⅑', 10: '⅒',
+  };
+  const fracLabel = (ways: number) =>
+    ways === 1 ? 'Just me' : `${FRACTION_GLYPH[ways] ?? `1/${ways}`} (${ways} ways)`;
+
   const isEqual = session?.splitType === 'equal';
   const equalFraction = session?.peopleCount ? 1 / session.peopleCount : 1;
 
@@ -201,8 +247,8 @@ export default function PayYourShareScreen() {
   if (screen === 'loading') {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.text} size="large" />
-        <Text style={styles.loadingText}>Loading bill...</Text>
+        <ActivityIndicator color={PAL.paper} size="large" />
+        <Text style={styles.loadingText}>Loading bill…</Text>
       </View>
     );
   }
@@ -210,9 +256,14 @@ export default function PayYourShareScreen() {
   if (screen === 'error') {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorIcon}>⚠</Text>
-        <Text style={styles.errorTitle}>Can't load bill</Text>
-        <Text style={styles.errorMsg}>{errorMsg}</Text>
+        <View style={styles.miniReceipt}>
+          <Perf pos="top" />
+          <Text style={styles.brand}>✦ DIVI</Text>
+          <Text style={styles.errorIcon}>⚠</Text>
+          <Text style={styles.errorTitle}>Can't load bill</Text>
+          <Text style={styles.errorMsg}>{errorMsg}</Text>
+          <Perf pos="bottom" />
+        </View>
       </View>
     );
   }
@@ -220,35 +271,41 @@ export default function PayYourShareScreen() {
   if (screen === 'name') {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.nameScreen}>
-          <View style={styles.nameHeader}>
-            <Text style={styles.diviLogo}>Divi</Text>
-            <Text style={styles.merchantTitle}>{session?.merchantName}</Text>
-            <Text style={styles.nameSubtitle}>
-              {session?.creatorName} is splitting the bill
+        <ScrollView contentContainerStyle={styles.frameScroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.receipt}>
+            <Perf pos="top" />
+            <Text style={styles.brand}>✦ DIVI</Text>
+            <Text style={styles.merchant}>{session?.merchantName}</Text>
+            <Text style={styles.who}>
+              <Text style={styles.whoName}>{session?.creatorName}</Text> is splitting the bill
             </Text>
-          </View>
-          <View style={styles.nameInputBlock}>
-            <Text style={styles.nameLabel}>What's your name?</Text>
+
+            <View style={styles.rule} />
+
+            <Text style={styles.nameLabel}>WHAT'S YOUR NAME?</Text>
             <TextInput
               style={styles.nameInput}
               value={name}
               onChangeText={setName}
               placeholder="Your name"
-              placeholderTextColor={colors.textDisabled}
+              placeholderTextColor={PAL.inkFaint}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={() => name.trim() && setScreen('select')}
             />
+
+            <TouchableOpacity
+              style={[styles.cta, !name.trim() && styles.ctaDisabled]}
+              onPress={() => name.trim() && setScreen('select')}
+              disabled={!name.trim()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.ctaText}>{isEqual ? 'See my share' : 'Choose my items'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.foot}>POWERED BY <Text style={styles.footBrand}>DIVI</Text> · NO APP NEEDED</Text>
+            <Perf pos="bottom" />
           </View>
-          <TouchableOpacity
-            style={[styles.ctaBtn, !name.trim() && styles.ctaBtnDisabled]}
-            onPress={() => name.trim() && setScreen('select')}
-            disabled={!name.trim()}
-          >
-            <Text style={styles.ctaBtnText}>{isEqual ? 'See My Share →' : 'Choose My Items →'}</Text>
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -262,12 +319,18 @@ export default function PayYourShareScreen() {
     );
     return (
       <View style={styles.centered}>
-        <Text style={styles.doneIcon}>✓</Text>
-        <Text style={styles.doneTitle}>Items claimed!</Text>
-        <Text style={styles.doneAmount}>{formatCurrency(breakdown.totalOwed)}</Text>
-        <Text style={styles.doneMsg}>
-          Opening Venmo to pay {session!.creatorName}…
-        </Text>
+        <View style={styles.miniReceipt}>
+          <Perf pos="top" />
+          <Text style={styles.brand}>✦ DIVI</Text>
+          <Text style={styles.doneIcon}>✓</Text>
+          <Text style={styles.doneTitle}>Items claimed</Text>
+          <View style={[styles.stamp, styles.stampGreen]}>
+            <Text style={[styles.stampLbl, { color: PAL.green }]}>PAID</Text>
+            <Text style={[styles.stampAmt, { color: PAL.green }]}>{formatCurrency(breakdown.totalOwed)}</Text>
+          </View>
+          <Text style={styles.doneMsg}>Opening Venmo to pay {session!.creatorName}…</Text>
+          <Perf pos="bottom" />
+        </View>
       </View>
     );
   }
@@ -287,48 +350,59 @@ export default function PayYourShareScreen() {
 
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-        <View style={styles.selectHeader}>
-          <Text style={styles.diviLogoSmall}>Divi</Text>
-          <View style={styles.selectHeaderCenter}>
-            <Text style={styles.selectMerchant}>{receipt.merchantName}</Text>
-            <Text style={styles.selectSubtitle}>{session!.creatorName} split this evenly</Text>
-          </View>
-          <Text style={styles.selectTotal}>{formatCurrency(receipt.total)}</Text>
-        </View>
-
-        <View style={styles.equalBody}>
-          <Text style={styles.equalLabel}>Your share</Text>
-          <Text style={styles.equalAmount}>{formatCurrency(perHead)}</Text>
-          <Text style={styles.equalSub}>
-            {formatCurrency(receipt.total)} split {peopleCount} ways
-          </Text>
-          <View style={styles.equalProgress}>
-            <Text style={styles.equalProgressText}>
-              {seatsTaken} of {peopleCount} paid
-              {seatsLeft > 0 ? ` · ${seatsLeft} left` : ' · all in!'}
+        <ScrollView contentContainerStyle={styles.frameScroll}>
+          <View style={styles.receipt}>
+            <Perf pos="top" />
+            <Text style={styles.brand}>✦ DIVI</Text>
+            <Text style={styles.merchant}>{receipt.merchantName}</Text>
+            <Text style={styles.who}>
+              <Text style={styles.whoName}>{session!.creatorName}</Text> split this evenly
             </Text>
-          </View>
-        </View>
 
-        <View style={styles.stickyFooter}>
-          <TouchableOpacity
-            style={[styles.ctaBtn, styles.ctaBtnFull, (submitting || alreadyPaid || (seatsLeft <= 0 && !alreadyPaid)) && styles.ctaBtnDisabled]}
-            onPress={handleClaim}
-            disabled={submitting || alreadyPaid || (seatsLeft <= 0 && !alreadyPaid)}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#000" size="small" />
-            ) : (
-              <Text style={styles.ctaBtnText}>
-                {alreadyPaid
-                  ? 'You already paid ✓'
-                  : seatsLeft <= 0
-                    ? 'This split is full'
-                    : `Pay ${session!.creatorName} ${formatCurrency(perHead)}`}
+            <View style={styles.rule} />
+
+            <View style={styles.equalBody}>
+              <Text style={styles.equalLead}>YOUR SHARE</Text>
+              <Text style={styles.equalAmount}>{formatCurrency(perHead)}</Text>
+              <Text style={styles.equalSub}>{formatCurrency(receipt.total)} split {peopleCount} ways</Text>
+
+              <View style={styles.seats}>
+                {Array.from({ length: peopleCount }).map((_, i) => (
+                  <View key={i} style={[styles.seat, i < seatsTaken && styles.seatOn]} />
+                ))}
+              </View>
+              <Text style={styles.seatsCap}>
+                {seatsTaken} OF {peopleCount} PAID{seatsLeft > 0 ? ` · ${seatsLeft} LEFT` : ' · ALL IN'}
               </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            </View>
+
+            <View style={styles.ruleSolid} />
+
+            <TouchableOpacity
+              style={[styles.cta, (submitting || alreadyPaid || (seatsLeft <= 0 && !alreadyPaid)) && styles.ctaDisabled]}
+              onPress={handleClaim}
+              disabled={submitting || alreadyPaid || (seatsLeft <= 0 && !alreadyPaid)}
+              activeOpacity={0.85}
+            >
+              {submitting ? (
+                <ActivityIndicator color={PAL.paper} size="small" />
+              ) : (
+                <>
+                  <Text style={styles.ctaText}>
+                    {alreadyPaid
+                      ? 'You already paid ✓'
+                      : seatsLeft <= 0
+                        ? 'This split is full'
+                        : `Pay ${session!.creatorName} ${formatCurrency(perHead)}`}
+                  </Text>
+                  {!alreadyPaid && seatsLeft > 0 && <Text style={styles.venmoBadge}>venmo</Text>}
+                </>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.foot}>POWERED BY <Text style={styles.footBrand}>DIVI</Text> · NO APP NEEDED</Text>
+            <Perf pos="bottom" />
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -341,322 +415,350 @@ export default function PayYourShareScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.selectHeader}>
-        <Text style={styles.diviLogoSmall}>Divi</Text>
-        <View style={styles.selectHeaderCenter}>
-          <Text style={styles.selectMerchant}>{receipt.merchantName}</Text>
-          <Text style={styles.selectSubtitle}>Choose your items, {name}</Text>
-        </View>
-        <Text style={styles.selectTotal}>{formatCurrency(receipt.total)}</Text>
-      </View>
+      <ScrollView contentContainerStyle={styles.frameScroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.receipt}>
+          <Perf pos="top" />
+          <Text style={styles.brand}>✦ DIVI</Text>
+          <Text style={styles.merchant}>{receipt.merchantName}</Text>
+          <Text style={styles.who}>
+            <Text style={styles.whoName}>{session!.creatorName}</Text> is splitting · tap what you had
+          </Text>
 
-      <ScrollView
-        style={styles.itemList}
-        contentContainerStyle={styles.itemListContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {topLevelItems.map((item) => {
-          const alreadyClaimed = getClaimedFraction(claims, item.id);
-          const claimerNames = getClaimerNames(claims, item.id);
-          const remain = remainingUnits(item, alreadyClaimed);
-          const remainFrac = remainingFraction(alreadyClaimed);
-          const isFullyClaimed = alreadyClaimed >= 0.999;
-          const isSelected = selected.has(item.id);
-          const sel = selected.get(item.id);
-          const units = sel?.units ?? 0;
-          const ways = sel?.ways ?? 1;
-          const unitPrice = item.quantity > 0 ? item.price / item.quantity : item.price;
-          const myShare = (unitPrice * units) / ways;
-          // can't reduce ways below the point where your share exceeds what's left
-          const waysAtMin = unitsToFraction(item.id, units) / (ways - 1) > remainFrac + 0.001;
+          <View style={styles.rule} />
+          <View style={styles.colHead}>
+            <Text style={styles.colHeadText}>ITEM</Text>
+            <Text style={styles.colHeadText}>PRICE</Text>
+          </View>
 
-          return (
-            <View
-              key={item.id}
-              style={[
-                styles.itemRow,
-                isSelected && styles.itemRowSelected,
-                isFullyClaimed && styles.itemRowClaimed,
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.itemRowTop}
-                onPress={() => toggleItem(item, alreadyClaimed)}
-                activeOpacity={isFullyClaimed ? 1 : 0.7}
-                disabled={isFullyClaimed}
-              >
-                <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                  {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <View style={styles.itemInfo}>
-                  <Text
-                    style={[styles.itemName, isFullyClaimed && styles.itemNameClaimed]}
-                    numberOfLines={1}
+          <View style={styles.items}>
+            {topLevelItems.map((item) => {
+              const alreadyClaimed = getClaimedFraction(claims, item.id);
+              const claimerNames = getClaimerNames(claims, item.id);
+              const remain = remainingUnits(item, alreadyClaimed);
+              const remainFrac = remainingFraction(alreadyClaimed);
+              const isFullyClaimed = alreadyClaimed >= 0.999;
+              const isSelected = selected.has(item.id);
+              const sel = selected.get(item.id);
+              const units = sel?.units ?? 0;
+              const ways = sel?.ways ?? 1;
+              const unitPrice = item.quantity > 0 ? item.price / item.quantity : item.price;
+              const myShare = (unitPrice * units) / ways;
+              // can't reduce ways below the point where your share exceeds what's left
+              const waysAtMin = unitsToFraction(item.id, units) / (ways - 1) > remainFrac + 0.001;
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.item,
+                    isSelected && styles.itemSelected,
+                    isFullyClaimed && styles.itemClaimed,
+                  ]}
+                >
+                  {isSelected && <View style={styles.inkBar} />}
+                  <TouchableOpacity
+                    style={styles.itemLine}
+                    onPress={() => toggleItem(item, alreadyClaimed)}
+                    activeOpacity={isFullyClaimed ? 1 : 0.7}
+                    disabled={isFullyClaimed}
                   >
-                    {item.name.replace(/\s*\(\d+\)\s*$/, '')}
-                  </Text>
-                  {isFullyClaimed && claimerNames.length > 0 && (
-                    <Text style={styles.claimedBy}>Claimed by {claimerNames.join(', ')}</Text>
-                  )}
-                  {!isFullyClaimed && alreadyClaimed > 0 && (
-                    <Text style={styles.partialLabel}>{Math.round(remainFrac * 100)}% left</Text>
+                    <View style={[styles.tick, isSelected && styles.tickOn]}>
+                      {isSelected && <Text style={styles.tickMark}>✓</Text>}
+                    </View>
+                    <View style={styles.itemInfo}>
+                      <Text
+                        style={[styles.itemName, isFullyClaimed && styles.itemNameClaimed]}
+                        numberOfLines={1}
+                      >
+                        {item.name.replace(/\s*\(\d+\)\s*$/, '')}
+                        {item.quantity > 1 && <Text style={styles.itemQty}>  ×{item.quantity}</Text>}
+                      </Text>
+                      {isFullyClaimed && claimerNames.length > 0 && (
+                        <Text style={styles.claimedBy}>Claimed by {claimerNames.join(', ')}</Text>
+                      )}
+                      {!isFullyClaimed && alreadyClaimed > 0 && (
+                        <Text style={styles.partialLabel}>{Math.round(remainFrac * 100)}% left</Text>
+                      )}
+                    </View>
+                    <Text style={[styles.itemPrice, isFullyClaimed && styles.itemPriceClaimed]}>
+                      {formatCurrency(item.price)}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {isSelected && (
+                    <View style={styles.selectDetail}>
+                      {item.quantity > 1 ? (
+                        <View style={styles.stepperRow}>
+                          <Text style={styles.stepperLabel}>How many did you have?</Text>
+                          <View style={styles.stepperControls}>
+                            <TouchableOpacity
+                              style={styles.stepperBtn}
+                              onPress={() => adjustUnits(item, alreadyClaimed, -0.5)}
+                            >
+                              <Text style={styles.stepperBtnText}>−</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.stepperValue}>{fmtUnits(units)}</Text>
+                            <TouchableOpacity
+                              style={[styles.stepperBtn, units >= remain && styles.stepperBtnDisabled]}
+                              onPress={() => adjustUnits(item, alreadyClaimed, 0.5)}
+                              disabled={units >= remain}
+                            >
+                              <Text style={styles.stepperBtnText}>+</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        <View style={styles.stepperRow}>
+                          <Text style={styles.stepperLabel}>Split how many ways?</Text>
+                          <View style={styles.stepperControls}>
+                            <TouchableOpacity
+                              style={[styles.stepperBtn, waysAtMin && styles.stepperBtnDisabled]}
+                              onPress={() => adjustWays(item, alreadyClaimed, -1)}
+                              disabled={waysAtMin}
+                            >
+                              <Text style={styles.stepperBtnText}>−</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.stepperValue}>{fracLabel(ways)}</Text>
+                            <TouchableOpacity
+                              style={styles.stepperBtn}
+                              onPress={() => adjustWays(item, alreadyClaimed, 1)}
+                            >
+                              <Text style={styles.stepperBtnText}>+</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                      <Text style={styles.stepperShare}>you pay {formatCurrency(myShare)}</Text>
+                    </View>
                   )}
                 </View>
-                {item.quantity > 1 && <Text style={styles.itemQty}>×{item.quantity}</Text>}
-                <Text style={[styles.itemPrice, isFullyClaimed && styles.itemPriceClaimed]}>
-                  {formatCurrency(item.price)}
-                </Text>
-              </TouchableOpacity>
+              );
+            })}
+          </View>
 
-              {isSelected && (
-                <View style={styles.selectDetail}>
-                  {item.quantity > 1 ? (
-                    <View style={styles.stepperRow}>
-                      <Text style={styles.stepperLabel}>How many did you have?</Text>
-                      <View style={styles.stepperControls}>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => adjustUnits(item, alreadyClaimed, -0.5)}
-                        >
-                          <Text style={styles.stepperBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.stepperValue}>{fmtUnits(units)}</Text>
-                        <TouchableOpacity
-                          style={[styles.stepperBtn, units >= remain && styles.stepperBtnDisabled]}
-                          onPress={() => adjustUnits(item, alreadyClaimed, 0.5)}
-                          disabled={units >= remain}
-                        >
-                          <Text style={styles.stepperBtnText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={styles.stepperRow}>
-                      <Text style={styles.stepperLabel}>Split how many ways?</Text>
-                      <View style={styles.stepperControls}>
-                        <TouchableOpacity
-                          style={[styles.stepperBtn, waysAtMin && styles.stepperBtnDisabled]}
-                          onPress={() => adjustWays(item, alreadyClaimed, -1)}
-                          disabled={waysAtMin}
-                        >
-                          <Text style={styles.stepperBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.stepperValue}>{ways === 1 ? 'Just me' : ways}</Text>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => adjustWays(item, alreadyClaimed, 1)}
-                        >
-                          <Text style={styles.stepperBtnText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                  <Text style={styles.stepperShare}>You pay {formatCurrency(myShare)}</Text>
+          <View style={styles.ruleSolid} />
+
+          {selected.size > 0 && (
+            <View style={styles.totals}>
+              <View style={styles.trow}>
+                <Text style={styles.trowLabel}>Subtotal</Text>
+                <Text style={styles.trowValue}>{formatCurrency(breakdown.subtotal)}</Text>
+              </View>
+              {breakdown.taxShare > 0 && (
+                <View style={styles.trow}>
+                  <Text style={styles.trowLabel}>Tax</Text>
+                  <Text style={styles.trowValue}>{formatCurrency(breakdown.taxShare)}</Text>
+                </View>
+              )}
+              {breakdown.feesShare > 0 && (
+                <View style={styles.trow}>
+                  <Text style={styles.trowLabel}>Fees</Text>
+                  <Text style={styles.trowValue}>{formatCurrency(breakdown.feesShare)}</Text>
+                </View>
+              )}
+              {breakdown.tipShare > 0 && (
+                <View style={styles.trow}>
+                  <Text style={styles.trowLabel}>Tip</Text>
+                  <Text style={styles.trowValue}>{formatCurrency(breakdown.tipShare)}</Text>
                 </View>
               )}
             </View>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.stickyFooter}>
-        {selected.size > 0 && (
-          <View style={styles.breakdownRows}>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Subtotal</Text>
-              <Text style={styles.breakdownValue}>{formatCurrency(breakdown.subtotal)}</Text>
-            </View>
-            {breakdown.taxShare > 0 && (
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>Tax</Text>
-                <Text style={styles.breakdownValue}>{formatCurrency(breakdown.taxShare)}</Text>
-              </View>
-            )}
-            {breakdown.feesShare > 0 && (
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>Fees</Text>
-                <Text style={styles.breakdownValue}>{formatCurrency(breakdown.feesShare)}</Text>
-              </View>
-            )}
-            {breakdown.tipShare > 0 && (
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>Tip</Text>
-                <Text style={styles.breakdownValue}>{formatCurrency(breakdown.tipShare)}</Text>
-              </View>
-            )}
-          </View>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.ctaBtn,
-            styles.ctaBtnFull,
-            (selected.size === 0 || submitting) && styles.ctaBtnDisabled,
-          ]}
-          onPress={handleClaim}
-          disabled={selected.size === 0 || submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#000" size="small" />
-          ) : (
-            <Text style={styles.ctaBtnText}>
-              {selected.size === 0
-                ? 'Select items to continue'
-                : `Pay ${session!.creatorName} ${formatCurrency(breakdown.totalOwed)} via Venmo`}
-            </Text>
           )}
-        </TouchableOpacity>
-      </View>
+
+          <View style={styles.stamp}>
+            <View>
+              <Text style={styles.stampLbl}>YOUR SHARE</Text>
+              <Text style={styles.stampSub}>
+                {selected.size === 0 ? 'NOTHING YET' : selected.size === 1 ? '1 ITEM' : `${selected.size} ITEMS`}
+              </Text>
+            </View>
+            <Text style={styles.stampAmt}>{formatCurrency(breakdown.totalOwed)}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.cta, (selected.size === 0 || submitting) && styles.ctaDisabled]}
+            onPress={handleClaim}
+            disabled={selected.size === 0 || submitting}
+            activeOpacity={0.85}
+          >
+            {submitting ? (
+              <ActivityIndicator color={PAL.paper} size="small" />
+            ) : selected.size === 0 ? (
+              <Text style={styles.ctaText}>Tap your items to continue</Text>
+            ) : (
+              <>
+                <Text style={styles.ctaText}>Pay {session!.creatorName} {formatCurrency(breakdown.totalOwed)}</Text>
+                <Text style={styles.venmoBadge}>venmo</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.foot}>POWERED BY <Text style={styles.footBrand}>DIVI</Text> · NO APP NEEDED</Text>
+          <Perf pos="bottom" />
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: PAL.frame },
+  frameScroll: {
+    flexGrow: 1, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 30,
+  },
   centered: {
-    flex: 1, backgroundColor: colors.bg,
-    alignItems: 'center', justifyContent: 'center', padding: 32,
+    flex: 1, backgroundColor: PAL.frame,
+    alignItems: 'center', justifyContent: 'center', padding: 20,
   },
+  loadingText: { color: PAL.inkFaint, marginTop: 14, fontSize: 13, fontFamily: MONO, letterSpacing: 1 },
 
-  loadingText: { color: colors.textMuted, marginTop: 14, fontSize: 15 },
+  // ── receipt object ──
+  receipt: {
+    width: '100%', maxWidth: 384,
+    backgroundColor: PAL.paper,
+    paddingHorizontal: 26, paddingTop: 30, paddingBottom: 26,
+    shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 34, shadowOffset: { width: 0, height: 24 },
+    elevation: 12,
+  },
+  miniReceipt: {
+    width: '100%', maxWidth: 340, alignItems: 'center',
+    backgroundColor: PAL.paper, paddingHorizontal: 26, paddingVertical: 34,
+    shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 34, shadowOffset: { width: 0, height: 24 },
+    elevation: 12,
+  },
+  perfRow: {
+    position: 'absolute', left: 8, right: 8, height: 12,
+    flexDirection: 'row', justifyContent: 'space-between',
+  },
+  perfDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: PAL.frame },
 
-  errorIcon: { fontSize: 40, marginBottom: 12 },
-  errorTitle: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 8 },
-  errorMsg: { fontSize: 15, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  brand: {
+    fontFamily: MONO, fontSize: 11, fontWeight: '700', color: PAL.red,
+    letterSpacing: 4, textAlign: 'center',
+  },
+  merchant: {
+    fontFamily: SERIF, fontSize: 32, fontWeight: '600', color: PAL.ink,
+    textAlign: 'center', marginTop: 10, marginBottom: 6, letterSpacing: -0.3,
+  },
+  who: { fontFamily: MONO, fontSize: 12.5, color: PAL.inkDim, textAlign: 'center' },
+  whoName: { color: PAL.ink, fontWeight: '700' },
 
-  // name screen
-  nameScreen: {
-    flex: 1, padding: 28, justifyContent: 'center', gap: 32,
-  },
-  nameHeader: { alignItems: 'center', gap: 8 },
-  diviLogo: {
-    fontSize: 13, fontWeight: '800', color: colors.textMuted,
-    letterSpacing: 3, textTransform: 'uppercase',
-  },
-  merchantTitle: { fontSize: 28, fontWeight: '800', color: colors.text, textAlign: 'center' },
-  nameSubtitle: { fontSize: 15, color: colors.textSecondary, textAlign: 'center' },
-  nameInputBlock: { gap: 10 },
-  nameLabel: { fontSize: 17, fontWeight: '600', color: colors.text },
-  nameInput: {
-    height: 54, backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 14, paddingHorizontal: 16, fontSize: 17,
-    color: colors.text, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
-  },
+  rule: { borderTopWidth: 1.5, borderColor: PAL.rule, borderStyle: 'dashed', marginVertical: 18 },
+  ruleSolid: { borderTopWidth: 1.5, borderColor: PAL.ink, opacity: 0.85, marginVertical: 18 },
 
-  // select screen header
-  selectHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  diviLogoSmall: {
-    fontSize: 11, fontWeight: '800', color: colors.textDisabled,
-    letterSpacing: 2, textTransform: 'uppercase',
-  },
-  selectHeaderCenter: { alignItems: 'center', flex: 1 },
-  selectMerchant: { fontSize: 15, fontWeight: '700', color: colors.text },
-  selectSubtitle: { fontSize: 12, color: colors.textMuted },
-  selectTotal: { fontSize: 15, fontWeight: '700', color: colors.textSecondary },
+  colHead: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2, marginBottom: 4 },
+  colHeadText: { fontFamily: MONO, fontSize: 10, letterSpacing: 2, color: PAL.inkFaint },
 
-  // item list
-  itemList: { flex: 1 },
-  itemListContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
-  itemRow: {
-    borderRadius: 14, marginBottom: 6,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
+  // ── items ──
+  items: { },
+  item: {
+    position: 'relative', paddingVertical: 12, paddingLeft: 16, paddingRight: 4,
+    borderBottomWidth: 1, borderColor: PAL.rule, borderStyle: 'dotted',
   },
-  itemRowTop: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 14, paddingHorizontal: 12,
+  itemSelected: { backgroundColor: PAL.blueWash },
+  itemClaimed: { opacity: 0.5 },
+  inkBar: { position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, borderRadius: 2, backgroundColor: PAL.blue },
+  itemLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tick: {
+    width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: PAL.inkFaint,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  itemRowSelected: {
-    backgroundColor: 'rgba(100,151,212,0.14)',
-    borderColor: 'rgba(100,151,212,0.40)',
+  tickOn: { backgroundColor: PAL.blue, borderColor: PAL.blue },
+  tickMark: { fontSize: 11, fontWeight: '800', color: '#fff', lineHeight: 14 },
+  itemInfo: { flex: 1, gap: 2 },
+  itemName: { fontFamily: MONO, fontSize: 14, color: PAL.ink },
+  itemNameClaimed: { color: PAL.inkFaint },
+  itemQty: { fontSize: 11, color: PAL.inkFaint },
+  claimedBy: { fontFamily: MONO, fontSize: 11, color: PAL.green },
+  partialLabel: { fontFamily: MONO, fontSize: 11, color: PAL.red },
+  itemPrice: {
+    fontFamily: MONO, fontSize: 14, fontWeight: '600', color: PAL.ink,
+    minWidth: 56, textAlign: 'right', fontVariant: ['tabular-nums'],
   },
-  selectDetail: {
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
-    marginTop: 2, paddingTop: 8, paddingBottom: 10,
-  },
-  stepperRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingBottom: 8, gap: 10,
-  },
-  stepperLabel: { fontSize: 13, color: colors.textSecondary, flex: 1 },
-  stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  itemPriceClaimed: { color: PAL.inkFaint },
+
+  selectDetail: { paddingTop: 12, paddingLeft: 29 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  stepperLabel: { fontFamily: MONO, fontSize: 12, color: PAL.inkDim, flex: 1 },
+  stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stepperBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    width: 27, height: 27, borderRadius: 14, borderWidth: 1.5, borderColor: PAL.rule,
+    backgroundColor: PAL.paper, alignItems: 'center', justifyContent: 'center',
   },
   stepperBtnDisabled: { opacity: 0.3 },
-  stepperBtnText: { fontSize: 20, fontWeight: '700', color: colors.text, lineHeight: 22 },
-  stepperValue: { fontSize: 16, fontWeight: '700', color: colors.text, minWidth: 24, textAlign: 'center' },
+  stepperBtnText: { fontFamily: MONO, fontSize: 17, fontWeight: '700', color: PAL.ink, lineHeight: 20 },
+  stepperValue: { fontFamily: MONO, fontSize: 13, fontWeight: '700', color: PAL.ink, minWidth: 92, textAlign: 'center' },
   stepperShare: {
-    fontSize: 14, fontWeight: '700', color: '#6497D4',
-    textAlign: 'right', paddingHorizontal: 12, paddingTop: 8,
+    fontFamily: MONO, fontSize: 12, fontWeight: '700', color: PAL.blue,
+    textAlign: 'right', paddingTop: 8, fontVariant: ['tabular-nums'],
   },
-  itemRowClaimed: {
-    opacity: 0.45,
-  },
-  checkbox: {
-    width: 24, height: 24, borderRadius: 12,
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  },
-  checkboxSelected: {
-    backgroundColor: '#6497D4', borderColor: '#6497D4',
-  },
-  checkmark: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  itemInfo: { flex: 1, gap: 2 },
-  itemName: { fontSize: 15, fontWeight: '500', color: colors.text },
-  itemNameClaimed: { color: colors.textDisabled },
-  claimedBy: { fontSize: 12, color: colors.textMuted },
-  partialLabel: { fontSize: 12, color: colors.amber },
-  itemQty: { fontSize: 13, color: colors.textMuted },
-  itemPrice: { fontSize: 15, fontWeight: '600', color: colors.textSecondary, minWidth: 52, textAlign: 'right' },
-  itemPriceClaimed: { color: colors.textDisabled },
 
-  // equal (quick split) screen
-  equalBody: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 6 },
-  equalLabel: {
-    fontSize: 14, fontWeight: '600', color: colors.textMuted,
-    textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4,
-  },
-  equalAmount: { fontSize: 64, fontWeight: '800', color: colors.text },
-  equalSub: { fontSize: 15, color: colors.textMuted },
-  equalProgress: {
-    marginTop: 24, backgroundColor: 'rgba(62,173,116,0.10)',
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10,
-    borderWidth: 1, borderColor: 'rgba(62,173,116,0.25)',
-  },
-  equalProgressText: { fontSize: 14, fontWeight: '600', color: colors.green },
+  // ── totals ──
+  totals: { gap: 7, marginBottom: 4 },
+  trow: { flexDirection: 'row', justifyContent: 'space-between' },
+  trowLabel: { fontFamily: MONO, fontSize: 12.5, color: PAL.inkDim },
+  trowValue: { fontFamily: MONO, fontSize: 12.5, color: PAL.ink, fontVariant: ['tabular-nums'] },
 
-  // footer
-  stickyFooter: {
-    padding: 16, paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
-    gap: 10,
+  // ── stamp ──
+  stamp: {
+    marginTop: 18, marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+    paddingVertical: 15, paddingHorizontal: 18,
+    borderWidth: 2.5, borderColor: PAL.red, borderRadius: 8,
+    transform: [{ rotate: '-1.4deg' }],
   },
-  breakdownRows: { gap: 4 },
-  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  breakdownLabel: { fontSize: 13, color: colors.textMuted },
-  breakdownValue: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-
-  ctaBtn: {
-    height: 56, backgroundColor: colors.btnPrimary,
-    borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 24,
+  stampGreen: { borderColor: PAL.green, marginTop: 20, alignSelf: 'stretch' },
+  stampLbl: { fontFamily: MONO, fontSize: 11, letterSpacing: 3, fontWeight: '700', color: PAL.red },
+  stampSub: { fontFamily: MONO, fontSize: 9, letterSpacing: 2, color: PAL.red, opacity: 0.75, marginTop: 2 },
+  stampAmt: {
+    fontFamily: MONO, fontSize: 32, fontWeight: '700', color: PAL.red,
+    letterSpacing: -1, fontVariant: ['tabular-nums'],
   },
-  ctaBtnFull: { width: '100%' },
-  ctaBtnDisabled: { opacity: 0.35 },
-  ctaBtnText: { fontSize: 16, fontWeight: '700', color: '#000' },
 
-  // done screen
-  doneIcon: { fontSize: 52, marginBottom: 12 },
-  doneTitle: { fontSize: 26, fontWeight: '800', color: colors.text, marginBottom: 6 },
-  doneAmount: { fontSize: 40, fontWeight: '800', color: colors.green, marginBottom: 8 },
-  doneMsg: { fontSize: 15, color: colors.textMuted, textAlign: 'center' },
+  // ── cta ──
+  cta: {
+    marginTop: 20, height: 54, borderRadius: 12, backgroundColor: PAL.ink,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
+  },
+  ctaDisabled: { opacity: 0.32 },
+  ctaText: { fontFamily: MONO, fontSize: 14, fontWeight: '700', color: PAL.paper, letterSpacing: 0.2 },
+  venmoBadge: {
+    fontFamily: MONO, backgroundColor: '#008CFF', color: '#fff', fontWeight: '800',
+    fontSize: 10.5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, letterSpacing: 0.2,
+    overflow: 'hidden',
+  },
+  foot: {
+    fontFamily: MONO, marginTop: 16, textAlign: 'center', fontSize: 10,
+    letterSpacing: 1.5, color: PAL.inkFaint,
+  },
+  footBrand: { color: PAL.red, fontWeight: '700' },
+
+  // ── name screen ──
+  nameLabel: { fontFamily: MONO, fontSize: 11, letterSpacing: 2, color: PAL.inkFaint, marginBottom: 10 },
+  nameInput: {
+    height: 52, backgroundColor: PAL.paper2, borderRadius: 10, paddingHorizontal: 14,
+    fontFamily: MONO, fontSize: 16, color: PAL.ink,
+    borderWidth: 1.5, borderColor: PAL.rule,
+  },
+
+  // ── equal screen ──
+  equalBody: { alignItems: 'center', paddingVertical: 6 },
+  equalLead: { fontFamily: MONO, fontSize: 11, letterSpacing: 3, color: PAL.inkFaint },
+  equalAmount: {
+    fontFamily: SERIF, fontSize: 64, fontWeight: '600', color: PAL.ink,
+    marginVertical: 4, letterSpacing: -1, fontVariant: ['tabular-nums'],
+  },
+  equalSub: { fontFamily: MONO, fontSize: 12.5, color: PAL.inkDim },
+  seats: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 22, maxWidth: 240 },
+  seat: { width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: PAL.green },
+  seatOn: { backgroundColor: PAL.green },
+  seatsCap: { fontFamily: MONO, fontSize: 11, letterSpacing: 1.5, fontWeight: '700', color: PAL.green, marginTop: 12 },
+
+  // ── error / done ──
+  errorIcon: { fontSize: 34, marginTop: 14, marginBottom: 8 },
+  errorTitle: { fontFamily: SERIF, fontSize: 22, fontWeight: '600', color: PAL.ink, marginBottom: 8 },
+  errorMsg: { fontFamily: MONO, fontSize: 13, color: PAL.inkDim, textAlign: 'center', lineHeight: 20 },
+  doneIcon: { fontSize: 44, color: PAL.green, marginTop: 14, marginBottom: 6 },
+  doneTitle: { fontFamily: SERIF, fontSize: 24, fontWeight: '600', color: PAL.ink, marginBottom: 14 },
+  doneMsg: { fontFamily: MONO, fontSize: 12.5, color: PAL.inkDim, textAlign: 'center', marginTop: 14 },
 });

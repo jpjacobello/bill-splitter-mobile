@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, View, Text, TouchableOpacity, Animated, Easing } from 'react-native';
+import { Dimensions, StyleSheet, View, Text, TouchableOpacity, Animated, Easing, ActivityIndicator, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -59,7 +59,7 @@ function ShimmerText({ text, active }: { text: string; active: boolean }) {
 export default function ReceiptUploadScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isReturning, demo } = useLocalSearchParams<{ isReturning?: string; demo?: string }>();
+  const { isReturning, demo, source } = useLocalSearchParams<{ isReturning?: string; demo?: string; source?: string }>();
   const { setReceipt, receipt, people, pendingImageUri, setPendingImageUri, setReceiptImageUri, reset, updateTip, updateReceiptField } = useBillStore();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -72,6 +72,7 @@ export default function ReceiptUploadScreen() {
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const pendingFired = useRef(false);
   const demoFired = useRef(false);
+  const sourceFired = useRef(false);
 
   const openSheet = () => {
     setSheetMounted(true);
@@ -98,18 +99,20 @@ export default function ReceiptUploadScreen() {
 
   const isDemoLoaded = isDemoMode && imageUri === null;
 
-  const pickImage = async (useCamera: boolean) => {
+  // Returns true once the user actually picks an image; false if they cancel
+  // (or deny permission) before selecting — the caller uses this to back out.
+  const pickImage = async (useCamera: boolean): Promise<boolean> => {
     let uri: string;
 
     if (useCamera) {
       const { scannedImages } = await DocumentScanner.scanDocument();
-      if (!scannedImages || scannedImages.length === 0) return;
+      if (!scannedImages || scannedImages.length === 0) return false;
       uri = scannedImages[0];
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== 'granted') return false;
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-      if (result.canceled || !result.assets[0]) return;
+      if (result.canceled || !result.assets[0]) return false;
       uri = await flattenDocument(result.assets[0].uri).catch(() => result.assets[0].uri);
     }
 
@@ -123,7 +126,7 @@ export default function ReceiptUploadScreen() {
         setParsing(false);
         setImageUri(null);
         setNotReceiptMode(true);
-        return;
+        return true;
       }
       const allIds = people.map((p) => p.id);
       const receipt = {
@@ -145,6 +148,7 @@ export default function ReceiptUploadScreen() {
       setScanErrorOpen(true);
       console.error('Receipt parse error:', err);
     }
+    return true;
   };
 
   useEffect(() => {
@@ -184,6 +188,19 @@ export default function ReceiptUploadScreen() {
           console.error('Receipt parse error:', err);
         });
     }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Entered from the + dial with an intent → fire the picker.
+  // Wait for the screen transition to finish first — presenting the native
+  // camera/scanner mid-transition makes it flash open then go black.
+  useEffect(() => {
+    if ((source !== 'camera' && source !== 'library') || sourceFired.current) return;
+    sourceFired.current = true;
+    const task = InteractionManager.runAfterInteractions(async () => {
+      const picked = await pickImage(source === 'camera');
+      if (!picked && router.canGoBack()) router.back();
+    });
+    return () => task.cancel();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -257,24 +274,9 @@ export default function ReceiptUploadScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.uploadArea}>
-            <Ionicons name="receipt-outline" size={46} color={C.faint} style={styles.uploadIcon} />
-            <Text style={styles.uploadTitle}>No receipt yet</Text>
-            <Text style={styles.uploadHint}>Take a photo or choose from your library</Text>
-          </View>
-        )}
-
-        {/* Actions */}
-        {!imageUri && !isDemoLoaded && !isRetakeMode && !notReceiptMode && (
-          <View style={styles.photoActions}>
-            <TouchableOpacity style={[styles.photoBtn, styles.photoBtnPrimary]} onPress={() => pickImage(true)} activeOpacity={0.85}>
-              <Ionicons name="camera" size={22} color={C.bg} />
-              <Text style={[styles.photoBtnText, styles.photoBtnTextPrimary]}>Camera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.photoBtn, styles.photoBtnSecondary]} onPress={() => pickImage(false)} activeOpacity={0.85}>
-              <Ionicons name="images-outline" size={22} color={C.text} />
-              <Text style={styles.photoBtnText}>Library</Text>
-            </TouchableOpacity>
+          <View style={styles.launcher}>
+            <ActivityIndicator color={C.faint} />
+            <Text style={styles.launcherText}>Opening {source === 'library' ? 'library' : 'camera'}…</Text>
           </View>
         )}
 
@@ -367,31 +369,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: C.faint,
   },
-  uploadArea: {
+  launcher: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: C.line,
-    borderStyle: 'dashed',
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    padding: 32,
-    gap: 6,
+    gap: 14,
   },
-  uploadIcon: {
-    marginBottom: 14,
-    opacity: 0.9,
-  },
-  uploadTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: C.text,
-  },
-  uploadHint: {
+  launcherText: {
     fontSize: 14,
-    color: C.dim,
-    textAlign: 'center',
+    color: C.faint,
   },
   receiptSection: {
     gap: 12,
@@ -450,37 +436,6 @@ const styles = StyleSheet.create({
   demoLoadedSub: {
     fontSize: 14,
     color: C.faint,
-  },
-  photoActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  photoBtn: {
-    flex: 1,
-    height: 76,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  photoBtnPrimary: {
-    backgroundColor: C.text,
-  },
-  photoBtnSecondary: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-  },
-  photoBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.text,
-  },
-  photoBtnTextPrimary: {
-    color: C.bg,
   },
   retakeArea: {
     flex: 1,
@@ -564,7 +519,7 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: '#161619',
+    backgroundColor: '#26262B',
     gap: 10,
     borderWidth: 0.5,
     borderBottomWidth: 0,

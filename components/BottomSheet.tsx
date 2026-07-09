@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim },
   sheet: {
-    backgroundColor: '#161619',
+    backgroundColor: '#26262B',
     borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 20,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',

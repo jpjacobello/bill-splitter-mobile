@@ -5,7 +5,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView, SFSymbol } from 'expo-symbols';
 import { MotiView } from 'moti';
-import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AnimatedMoney from '../../components/AnimatedMoney';
 import Perforation from '../../components/Perforation';
@@ -17,7 +16,6 @@ import { getSessions, StoredSession } from '../../utils/sessionStorage';
 import { getBillHistory } from '../../utils/proStorage';
 import { usePro } from '../../hooks/usePro';
 import { formatCurrency } from '../../utils/currency';
-import { startNewBill } from '../../utils/startBill';
 
 const SAVED_NAME_KEY = 'savedHostName';
 const FREE_RECENT_CAP = 10;
@@ -98,17 +96,6 @@ export default function HomeScreen() {
   const peopleOwe = stored.reduce((n, s) => n + owersCount(liveData.get(s.sessionId) ?? null), 0);
   const recent = isPro ? history : history.slice(0, FREE_RECENT_CAP);
   const capped = !isPro && history.length > FREE_RECENT_CAP;
-  const isEmpty = stored.length === 0 && recent.length === 0;
-
-  const startScan = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await startNewBill();
-    router.push('/receipt-upload');
-  };
-  const quickSplit = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/quick-split');
-  };
 
   return (
     <View style={styles.container}>
@@ -154,37 +141,10 @@ export default function HomeScreen() {
             </View>
           </Enter>
 
-          {/* Primary actions */}
+          {/* Live — permanent: live rows when active, else a share-link pitch */}
           <Enter delay={130}>
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.primaryBtn} activeOpacity={0.85} onPress={startScan}>
-                <SymbolView name="viewfinder" size={18} tintColor={C.bg} />
-                <Text style={styles.primaryText}>Scan a receipt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.85} onPress={quickSplit}>
-                <SymbolView name="divide" size={18} tintColor={C.text} />
-                <Text style={styles.secondaryText}>Quick split</Text>
-              </TouchableOpacity>
-            </View>
-          </Enter>
-
-          {/* Empty state */}
-          {isEmpty && (
-            <Enter delay={190}>
-              <View style={styles.empty}>
-                <View style={styles.emptyIcon}>
-                  <SymbolView name="doc.text.viewfinder" size={30} tintColor={C.dim} type="hierarchical" />
-                </View>
-                <Text style={styles.emptyTitle}>Start your first split</Text>
-                <Text style={styles.emptySub}>Scan a receipt and split it by what each person ordered.</Text>
-              </View>
-            </Enter>
-          )}
-
-          {/* Active */}
-          {stored.length > 0 && (
-            <Enter delay={190}>
-              <Text style={styles.section}>ACTIVE</Text>
+            <Text style={styles.section}>LIVE</Text>
+            {stored.length > 0 ? (
               <View style={styles.group}>
                 {stored.map((s, i) => {
                   const live = liveData.get(s.sessionId);
@@ -205,12 +165,19 @@ export default function HomeScreen() {
                   );
                 })}
               </View>
-            </Enter>
-          )}
+            ) : (
+              <View style={styles.liveEmpty}>
+                <View style={styles.liveEmptyIcon}>
+                  <SymbolView name="dot.radiowaves.left.and.right" size={22} tintColor={C.accent} type="hierarchical" />
+                </View>
+                <Text style={styles.liveEmptyText}>Share a bill and watch friends pay in real time — no app for them.</Text>
+              </View>
+            )}
+          </Enter>
 
           {/* Recent */}
           {recent.length > 0 && (
-            <Enter delay={250}>
+            <Enter delay={190}>
               <View style={styles.sectionHead}>
                 <Text style={styles.section}>RECENT</Text>
                 <TouchableOpacity onPress={() => router.push('/activity?tab=past')} activeOpacity={0.6}>
@@ -263,11 +230,6 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, color: C.dim },
   statDivider: { width: 1, height: 22, backgroundColor: C.line },
 
-  actions: { flexDirection: 'row', gap: 10, marginBottom: 30 },
-  primaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 15, backgroundColor: C.text },
-  primaryText: { fontSize: 15.5, fontWeight: '700', color: C.bg },
-  secondaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 15, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
-  secondaryText: { fontSize: 15.5, fontWeight: '700', color: C.text },
 
   section: { fontSize: 12.5, fontWeight: '700', color: C.faint, letterSpacing: 1.2, marginBottom: 10, marginLeft: 2 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -286,8 +248,13 @@ const styles = StyleSheet.create({
   nudge: { alignItems: 'center', paddingVertical: 10, marginTop: -14, marginBottom: 12 },
   nudgeText: { fontSize: 13, color: C.accent, fontWeight: '600' },
 
-  empty: { alignItems: 'center', gap: 8, paddingVertical: 20, marginBottom: 12 },
-  emptyIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', marginBottom: 6, borderWidth: 1, borderColor: C.line },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text },
-  emptySub: { fontSize: 14, color: C.dim, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
+  liveEmpty: {
+    backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line,
+    padding: 20, marginBottom: 26, alignItems: 'center', gap: 12,
+  },
+  liveEmptyIcon: {
+    width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.accent + '22',
+  },
+  liveEmptyText: { fontSize: 13.5, color: C.dim, textAlign: 'center', lineHeight: 19, paddingHorizontal: 8 },
 });

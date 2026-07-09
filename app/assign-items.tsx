@@ -18,7 +18,9 @@ import { getUnassignedTotal } from '../utils/calcSplit';
 import { getEmoji } from '../utils/buildReceiptHtml';
 import { ReceiptItem, Person } from '../types';
 import { usePro } from '../hooks/usePro';
-import { getGroupsWithMembers, deleteSavedGroup, GroupWithMembers } from '../utils/proStorage';
+import { getGroupsWithMembers, deleteSavedGroup, saveGroup, updateGroup, GroupWithMembers } from '../utils/proStorage';
+import { getPeople, addPerson as addTrackedPerson, findOrCreatePerson, TrackedPerson } from '../utils/peopleStorage';
+import GroupEditor, { GroupDraft } from '../components/GroupEditor';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TIP_REMINDER_KEY, TipReminderMode } from '../utils/tipPrefs';
 import { formatCurrency, currencySymbol } from '../utils/currency';
@@ -188,6 +190,8 @@ export default function AssignItemsScreen() {
   const [personInput, setPersonInput] = useState('');
   const [showGroupsModal, setShowGroupsModal] = useState(false);
   const [savedGroups, setSavedGroups] = useState<GroupWithMembers[]>([]);
+  const [rosterPeople, setRosterPeople] = useState<TrackedPerson[]>([]);
+  const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const personInputRef = useRef<TextInput>(null);
   const peopleScrollRef = useRef<ScrollView>(null);
   const [tipReminderMode, setTipReminderMode] = useState<TipReminderMode>('always');
@@ -419,9 +423,31 @@ export default function AssignItemsScreen() {
       });
       return;
     }
-    const groups = await getGroupsWithMembers();
+    const [groups, ppl] = await Promise.all([getGroupsWithMembers(), getPeople()]);
     setSavedGroups(groups);
+    setRosterPeople(ppl);
     setShowGroupsModal(true);
+  };
+
+  const reloadGroups = async () => {
+    const [groups, ppl] = await Promise.all([getGroupsWithMembers(), getPeople()]);
+    setSavedGroups(groups);
+    setRosterPeople(ppl);
+  };
+
+  // Pull picked contacts into the peopleStorage roster; return the created rows.
+  const importContactsToRoster = async (): Promise<TrackedPerson[]> => {
+    const picked = await presentMultiContactPickerAsync();
+    if (picked.length === 0) return [];
+    let list = rosterPeople;
+    const result: TrackedPerson[] = [];
+    for (const c of picked) {
+      list = await addTrackedPerson({ name: c.name, phone: c.phone, contactId: c.id });
+      const person = list.find((p) => p.contactId === c.id) ?? list.find((p) => p.name === c.name);
+      if (person) result.push(person);
+    }
+    setRosterPeople(list);
+    return result;
   };
 
   const handleLoadGroup = (group: GroupWithMembers) => {
@@ -429,19 +455,6 @@ export default function AssignItemsScreen() {
     group.members.forEach((m) => addPerson(m.name));
     setShowGroupsModal(false);
     setTimeout(() => peopleScrollRef.current?.scrollToEnd({ animated: true }), 100);
-  };
-
-  const handleDeleteGroup = async (id: string) => {
-    setSheet({
-      title: 'Delete group?',
-      message: 'This removes the saved group. Your current split is unaffected.',
-      options: [{
-        label: 'Delete', icon: 'trash-outline', destructive: true, onPress: async () => {
-          await deleteSavedGroup(id);
-          setSavedGroups(await getGroupsWithMembers());
-        },
-      }],
-    });
   };
 
   const handleSplitDrinksEvenly = () => {
@@ -654,19 +667,34 @@ export default function AssignItemsScreen() {
         <SafeAreaView style={styles.groupsContainer} edges={['top', 'left', 'right']}>
           <View style={styles.groupsHeader}>
             <Text style={styles.groupsTitle}>Groups</Text>
-            <TouchableOpacity onPress={() => setShowGroupsModal(false)} style={styles.groupsCloseBtn} activeOpacity={0.7}>
-              <Ionicons name="close" size={22} color={C.dim} />
-            </TouchableOpacity>
+            <View style={styles.groupsHeaderActions}>
+              <TouchableOpacity
+                onPress={() => setGroupDraft({ name: '', memberIds: new Set() })}
+                style={styles.newGroupBtn}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="add" size={16} color={C.bg} />
+                <Text style={styles.newGroupBtnText}>New Group</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowGroupsModal(false)} style={styles.groupsCloseBtn} activeOpacity={0.7}>
+                <Ionicons name="close" size={22} color={C.dim} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView contentContainerStyle={styles.groupsScroll} keyboardShouldPersistTaps="handled">
 
-            {/* ── Load a saved group ── */}
+            {/* ── Load or edit a saved group ── */}
             {savedGroups.length > 0 && (
               <>
                 <Text style={styles.groupsSectionLabel}>Your Groups</Text>
                 {savedGroups.map((group) => (
-                  <View key={group.id} style={styles.groupCard}>
+                  <TouchableOpacity
+                    key={group.id}
+                    style={styles.groupCard}
+                    activeOpacity={0.7}
+                    onPress={() => setGroupDraft({ id: group.id, name: group.name, memberIds: new Set(group.memberIds) })}
+                  >
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name}</Text>
                       <Text style={styles.groupCardMembers} numberOfLines={1}>
@@ -681,15 +709,8 @@ export default function AssignItemsScreen() {
                       >
                         <Text style={styles.loadGroupBtnText}>Load</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteGroupBtn}
-                        onPress={() => handleDeleteGroup(group.id)}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons name="trash-outline" size={16} color="#F87171" />
-                      </TouchableOpacity>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </>
             )}
@@ -697,12 +718,28 @@ export default function AssignItemsScreen() {
             {savedGroups.length === 0 && (
               <View style={styles.groupsEmpty}>
                 <Text style={styles.groupsEmptyText}>No saved groups yet.</Text>
-                <Text style={styles.groupsEmptyHint}>Create and manage groups in the People tab.</Text>
+                <Text style={styles.groupsEmptyHint}>Tap “New Group” to save a crew you split with often, then reload them into any bill.</Text>
               </View>
             )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      <GroupEditor
+        draft={groupDraft}
+        people={rosterPeople}
+        onClose={() => setGroupDraft(null)}
+        onCreatePerson={async (name) => { const person = await findOrCreatePerson(name); setRosterPeople(await getPeople()); return person; }}
+        onAddContacts={importContactsToRoster}
+        onSave={async (draft) => {
+          const memberIds = Array.from(draft.memberIds);
+          if (draft.id) await updateGroup(draft.id, { name: draft.name.trim(), memberIds });
+          else await saveGroup({ name: draft.name.trim(), memberIds });
+          await reloadGroups();
+          setGroupDraft(null);
+        }}
+        onDelete={async (id) => { await deleteSavedGroup(id); await reloadGroups(); setGroupDraft(null); }}
+      />
 
       <ActionSheet
         visible={sheet !== null}
@@ -782,7 +819,7 @@ const styles = StyleSheet.create({
   tipFlex: { flex: 1 },
   tipBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   tipSheet: {
-    backgroundColor: "#161619",
+    backgroundColor: "#26262B",
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 20, paddingTop: 10,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
@@ -986,6 +1023,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.line,
   },
   groupsTitle: { fontSize: 20, fontWeight: '700', color: C.text },
+  groupsHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  newGroupBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: C.text, borderRadius: 10,
+    paddingLeft: 8, paddingRight: 12, paddingVertical: 7,
+  },
+  newGroupBtnText: { fontSize: 13, fontWeight: '700', color: C.bg },
   groupsCloseBtn: {
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',

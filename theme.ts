@@ -1,32 +1,36 @@
 // Refined-native design language (approved 2026-07-08). New screens use these;
 // legacy `colors` below stays until every screen migrates.
 export const ui = {
-  bg: '#0B0B0D',
-  card: '#151518',
-  cardHi: '#1B1B1F',
-  line: 'rgba(255,255,255,0.07)',
-  text: '#F5F5F7',
-  dim: '#9A9AA2',
-  faint: '#65656E',
-  accent: '#37C97F',
-  accentDim: 'rgba(55,201,127,0.14)',
-  blue: '#5B9DF0',
+  // Higher-contrast dark (2026-07-09): lifted bg + clearly separated cards so
+  // surfaces read in bright light. See theme-contrast preview.
+  bg: '#161619',
+  card: '#232329',
+  cardHi: '#2C2C33',
+  line: 'rgba(255,255,255,0.13)',
+  text: '#F6F6F8',
+  dim: '#ABABB4',
+  faint: '#7A7A85',
+  accent: '#3ED88A',
+  accentDim: 'rgba(62,216,138,0.16)',
+  blue: '#6AA6F5',
 } as const;
 
 export const colors = {
-  bg: '#151515',
+  // Lifted to match the higher-contrast `ui` scheme (2026-07-09). Translucent
+  // surfaces below ride on the lighter bg, so they lift automatically.
+  bg: '#161619',
 
-  surface: 'rgba(255,255,255,0.04)',
-  surfaceMid: 'rgba(255,255,255,0.08)',
+  surface: 'rgba(255,255,255,0.05)',
+  surfaceMid: 'rgba(255,255,255,0.09)',
 
   // Modal/bottom-sheet tokens. `sheet` MUST be opaque — sheets sit above app
   // content, so a translucent panel lets the UI behind bleed through. `scrim`
   // is the dimming backdrop; keep it dark enough to fully hide the tab bar.
-  sheet: '#1F1F22',
+  sheet: '#26262B',
   scrim: 'rgba(0,0,0,0.72)',
 
-  border: 'rgba(255,255,255,0.10)',
-  borderMid: 'rgba(255,255,255,0.18)',
+  border: 'rgba(255,255,255,0.13)',
+  borderMid: 'rgba(255,255,255,0.20)',
 
   text: '#F4F4F4',
   textDim: '#D0D0D0',
@@ -39,8 +43,8 @@ export const colors = {
   amber: '#F59E0B',
 
   btnPrimary: '#D8D8D8',
-  btnSecondary: '#252525',
-  divider: '#2C2C2C',
+  btnSecondary: '#2C2C33',
+  divider: '#34343B',
 
   person: [
     '#6497D4',

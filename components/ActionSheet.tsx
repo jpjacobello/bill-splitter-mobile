@@ -128,7 +128,7 @@ export default function ActionSheet({ visible, title, message, options = [], inp
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: '#161619', borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    backgroundColor: '#26262B', borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 16, paddingTop: 10,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
   },
