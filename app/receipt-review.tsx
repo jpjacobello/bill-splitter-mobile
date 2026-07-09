@@ -8,9 +8,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Button from '../components/Button';
 import ActionSheet from '../components/ActionSheet';
-import { colors } from '../theme';
+import { colors, ui as C } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { DEFAULT_TIP_KEY } from '../utils/tipPrefs';
 import { formatCurrency } from '../utils/currency';
@@ -185,7 +184,7 @@ export default function ReceiptReviewScreen() {
                 value={item.name}
                 onChangeText={(t) => updateItem(item.id, { name: t })}
                 placeholder="Item name"
-                placeholderTextColor="#555"
+                placeholderTextColor={C.faint}
                 numberOfLines={1}
               />
               <TextInput
@@ -221,7 +220,7 @@ export default function ReceiptReviewScreen() {
               <TextInput
                 style={styles.itemNameInput}
                 placeholder="Item name"
-                placeholderTextColor="#555"
+                placeholderTextColor={C.faint}
                 value={row.name}
                 autoFocus={idx === pendingRows.length - 1}
                 numberOfLines={1}
@@ -233,7 +232,7 @@ export default function ReceiptReviewScreen() {
               <TextInput
                 style={styles.itemPriceInput}
                 placeholder="0.00"
-                placeholderTextColor="#555"
+                placeholderTextColor={C.faint}
                 value={row.price}
                 onChangeText={(t) => updatePendingRow(row.id, 'price', t)}
                 onBlur={() => {
@@ -377,8 +376,9 @@ export default function ReceiptReviewScreen() {
         {tipError && (
           <Text style={styles.footerError}>Please select or enter a tip amount.</Text>
         )}
-        <Button
-          label="Continue"
+        <TouchableOpacity
+          style={styles.continueBtn}
+          activeOpacity={0.85}
           onPress={() => {
             const hasIncomplete = pendingRows.some((r) => !r.name.trim() || !r.price.trim());
             if (hasIncomplete) { setPendingRowError(true); return; }
@@ -396,8 +396,9 @@ export default function ReceiptReviewScreen() {
               router.push('/assign-items');
             }
           }}
-          height={60}
-        />
+        >
+          <Text style={styles.continueBtnText}>Continue</Text>
+        </TouchableOpacity>
       </View>
 
       <ActionSheet
@@ -420,12 +421,12 @@ export default function ReceiptReviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
   header: { marginBottom: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title: { fontSize: 28, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  merchant: { fontSize: 15, color: colors.textSecondary },
+  title: { fontSize: 28, fontWeight: '700', color: C.text, marginBottom: 4 },
+  merchant: { fontSize: 15, color: C.dim },
   photoThumb: {
     width: 52, height: 68, borderRadius: 8, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
@@ -451,7 +452,7 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: {
-    fontSize: 12, fontWeight: '600', color: colors.textMuted,
+    fontSize: 12, fontWeight: '600', color: C.dim,
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10,
   },
 
@@ -461,7 +462,7 @@ const styles = StyleSheet.create({
   },
   reconcileOk: { backgroundColor: 'rgba(62,173,116,0.10)', borderWidth: 1, borderColor: 'rgba(62,173,116,0.28)' },
   reconcileOff: { backgroundColor: 'rgba(210,60,60,0.10)', borderWidth: 1, borderColor: 'rgba(210,60,60,0.28)' },
-  reconcileText: { fontSize: 13, fontWeight: '500', color: colors.text },
+  reconcileText: { fontSize: 13, fontWeight: '500', color: C.text },
 
   // Items
   itemRow: {
@@ -472,19 +473,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   itemNameInput: {
-    flex: 1, fontSize: 15, color: colors.text,
+    flex: 1, fontSize: 15, color: C.text,
     paddingVertical: 6, paddingHorizontal: 8,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   itemPriceInput: {
-    width: 76, fontSize: 15, color: colors.text, textAlign: 'right',
+    width: 76, fontSize: 15, color: C.text, textAlign: 'right',
     paddingVertical: 6, paddingHorizontal: 8,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   itemQtyInput: {
-    width: 32, fontSize: 13, color: '#C8C8CA', fontWeight: '600', textAlign: 'center',
+    width: 32, fontSize: 13, color: C.text, fontWeight: '600', textAlign: 'center',
     paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
@@ -496,7 +497,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
     marginTop: 2,
   },
-  addItemBtnText: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
+  addItemBtnText: { fontSize: 14, color: C.dim, fontWeight: '500' },
   discountRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 10, paddingHorizontal: 12,
@@ -505,7 +506,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   discountName: {
-    flex: 1, fontSize: 15, color: colors.textSecondary, fontStyle: 'italic',
+    flex: 1, fontSize: 15, color: C.dim, fontStyle: 'italic',
   },
   discountAmount: {
     fontSize: 15, fontWeight: '600', color: colors.green,
@@ -531,25 +532,27 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
   tipChipActive: { backgroundColor: 'rgba(220,220,220,0.95)' },
-  tipChipText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  tipChipTextActive: { color: '#000' },
-  totalLabel: { fontSize: 15, color: colors.textSecondary },
+  tipChipText: { fontSize: 12, fontWeight: '600', color: C.dim },
+  tipChipTextActive: { color: C.bg },
+  totalLabel: { fontSize: 15, color: C.dim },
   totalInput: {
-    fontSize: 15, color: colors.text, fontWeight: '500',
+    fontSize: 15, color: C.text, fontWeight: '500',
     textAlign: 'right', minWidth: 76,
     paddingVertical: 6, paddingHorizontal: 8,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
   },
   readOnlyValue: {
-    fontSize: 15, color: colors.textSecondary, fontWeight: '500',
+    fontSize: 15, color: C.dim, fontWeight: '500',
     textAlign: 'right', minWidth: 76,
     paddingVertical: 6, paddingHorizontal: 8,
   },
   grandTotalRow: { borderBottomWidth: 0, marginTop: 4, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)' },
-  grandTotalLabel: { fontSize: 17, fontWeight: '700', color: colors.text },
-  grandTotalValue: { fontSize: 17, fontWeight: '700', color: colors.text },
+  grandTotalLabel: { fontSize: 17, fontWeight: '700', color: C.text },
+  grandTotalValue: { fontSize: 17, fontWeight: '700', color: C.text },
 
   footerError: { fontSize: 13, color: '#E53E3E', marginBottom: 8, textAlign: 'center' },
-  stickyFooter: { paddingHorizontal: 24, paddingBottom: 24, paddingTop: 8, backgroundColor: colors.bg },
+  stickyFooter: { paddingHorizontal: 24, paddingBottom: 24, paddingTop: 8, backgroundColor: C.bg },
+  continueBtn: { height: 56, borderRadius: 15, backgroundColor: C.text, alignItems: 'center', justifyContent: 'center' },
+  continueBtnText: { fontSize: 16.5, fontWeight: '700', color: C.bg },
 });
