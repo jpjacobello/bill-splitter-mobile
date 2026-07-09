@@ -176,6 +176,12 @@ export default function SettingsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* TEMP — design preview entry (remove later) */}
+        <SectionHeader label="Preview" />
+        <GroupCard>
+          <SettingRow label="🎨 Home redesign (preview)" onPress={() => router.push('/home-preview')} last />
+        </GroupCard>
+
         {/* ── Profile ── */}
         <SectionHeader label="Profile" />
         <GroupCard>
