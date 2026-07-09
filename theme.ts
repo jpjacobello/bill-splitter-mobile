@@ -1,3 +1,18 @@
+// Refined-native design language (approved 2026-07-08). New screens use these;
+// legacy `colors` below stays until every screen migrates.
+export const ui = {
+  bg: '#0B0B0D',
+  card: '#151518',
+  cardHi: '#1B1B1F',
+  line: 'rgba(255,255,255,0.07)',
+  text: '#F5F5F7',
+  dim: '#9A9AA2',
+  faint: '#65656E',
+  accent: '#37C97F',
+  accentDim: 'rgba(55,201,127,0.14)',
+  blue: '#5B9DF0',
+} as const;
+
 export const colors = {
   bg: '#151515',
 

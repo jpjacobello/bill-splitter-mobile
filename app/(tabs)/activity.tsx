@@ -3,9 +3,11 @@ import { ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SymbolView, SFSymbol } from 'expo-symbols';
+import { MotiView } from 'moti';
 import ActionSheet from '../../components/ActionSheet';
-import { colors, moneyText } from '../../theme';
+import Perforation from '../../components/Perforation';
+import { moneyText, ui as C } from '../../theme';
 import { outstandingOwed } from '../../utils/sessionOwed';
 import { BillSession, BillHistoryEntry } from '../../types';
 import { subscribeToSession, closeSession } from '../../services/billSession';
@@ -19,6 +21,15 @@ import { formatCurrency } from '../../utils/currency';
 import { WEB_BASE_URL } from '../../utils/config';
 const FREE_CAP = 10;
 
+function Enter({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
+  return (
+    <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: 'timing', duration: 380, delay }}>
+      {children}
+    </MotiView>
+  );
+}
+
 export default function ActivityScreen() {
   const { isPro } = usePro();
   const router = useRouter();
@@ -29,7 +40,7 @@ export default function ActivityScreen() {
   useEffect(() => {
     if (params.tab === 'live' || params.tab === 'past') {
       setTab(params.tab);
-      router.setParams({ tab: '' }); // clear so manual tab switches stick
+      router.setParams({ tab: '' });
     }
   }, [params.tab]);
 
@@ -81,120 +92,130 @@ export default function ActivityScreen() {
     if (live) await archiveSession({ ...live, status: 'closed' });
     else { await removeSession(s.sessionId); setStored((p) => p.filter((x) => x.sessionId !== s.sessionId)); }
   };
-  const close = (s: StoredSession) => setCloseTarget(s);
 
   const pastList = isPro ? history : history.slice(0, FREE_CAP);
   const capped = !isPro && history.length > FREE_CAP;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.header}><Text style={styles.title}>Activity</Text></View>
-      <View style={styles.segment}>
-        {(['live', 'past'] as const).map((t) => (
-          <TouchableOpacity key={t} style={[styles.segBtn, tab === t && styles.segBtnActive]} onPress={() => setTab(t)}>
-            <Text style={[styles.segText, tab === t && styles.segTextActive]}>{t === 'live' ? 'Live' : 'Past'}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <View style={styles.header}><Text style={styles.title}>Activity</Text></View>
+        <View style={styles.segment}>
+          {(['live', 'past'] as const).map((t) => (
+            <TouchableOpacity key={t} style={[styles.segBtn, tab === t && styles.segBtnActive]} onPress={() => setTab(t)} activeOpacity={0.7}>
+              <Text style={[styles.segText, tab === t && styles.segTextActive]}>{t === 'live' ? 'Live' : 'Past'}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {tab === 'live' ? (
-          stored.length === 0 ? (
-            <Empty icon="radio-outline" title="No active sessions" sub="Share a bill link to start tracking who's paid." />
-          ) : stored.map((s) => {
-            const live = liveData.get(s.sessionId);
-            const isEqual = live?.splitType === 'equal';
-            const claims = Object.values(live?.claims ?? {});
-            const totalItems = live?.receipt.items.filter((i) => i.price > 0 && !i.parentId).length ?? 0;
-            const claimedCount = new Set(claims.map((c) => c.itemId)).size;
-            const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
-            return (
-              <View key={s.sessionId} style={styles.card}>
-                <View style={styles.cardHead}>
-                  <Text style={styles.cardTitle}>{s.merchantName || 'Bill'}</Text>
-                  <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveBadgeText}>Live</Text></View>
-                </View>
-                <View style={styles.cardOwedRow}>
-                  <Text style={[styles.cardOwed, moneyText]}>{formatCurrency(outstandingOwed(live ?? null))}</Text>
-                  <Text style={styles.cardOwedLabel}>owed to you</Text>
-                </View>
-                <Text style={styles.progress}>
-                  {isEqual ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid` : `${claimedCount} of ${totalItems} item${totalItems !== 1 ? 's' : ''} claimed`}
-                </Text>
-                <View style={styles.cardActions}>
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => shareAgain(s)} activeOpacity={0.75}>
-                    <Ionicons name="share-outline" size={14} color={colors.textSecondary} /><Text style={styles.actionText}>Share Again</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, styles.actionDestructive]} onPress={() => close(s)} activeOpacity={0.75}>
-                    <Text style={[styles.actionText, styles.actionTextDestructive]}>Close Session</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })
-        ) : (
-          pastList.length === 0 ? (
-            <Empty icon="time-outline" title="No past bills" sub="Completed splits show up here." />
-          ) : (
-            <>
-              {pastList.map((e) => (
-                <TouchableOpacity key={e.id} style={styles.rowCard} activeOpacity={0.7}
-                  onPress={() => setDetailEntry(e)} onLongPress={() => setDeleteEntry(e)} delayLongPress={500}>
-                  <View style={styles.recIcon}><Ionicons name="receipt-outline" size={18} color={colors.textSecondary} /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{e.merchantName || 'Bill'}</Text>
-                    <Text style={styles.rowSub}>{new Date(e.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {e.people.length} people</Text>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {tab === 'live' ? (
+            stored.length === 0 ? (
+              <Empty symbol="dot.radiowaves.left.and.right" title="No active sessions" sub="Share a bill link to start tracking who's paid." />
+            ) : stored.map((s, idx) => {
+              const live = liveData.get(s.sessionId);
+              const isEqual = live?.splitType === 'equal';
+              const claims = Object.values(live?.claims ?? {});
+              const totalItems = live?.receipt.items.filter((i) => i.price > 0 && !i.parentId).length ?? 0;
+              const claimedCount = new Set(claims.map((c) => c.itemId)).size;
+              const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
+              return (
+                <Enter key={s.sessionId} delay={idx * 60}>
+                  <View style={styles.card}>
+                    <View style={styles.cardHead}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>{s.merchantName || 'Bill'}</Text>
+                      <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveBadgeText}>LIVE</Text></View>
+                    </View>
+                    <View style={styles.cardOwedRow}>
+                      <Text style={[styles.cardOwed, moneyText]}>{formatCurrency(outstandingOwed(live ?? null))}</Text>
+                      <Text style={styles.cardOwedLabel}>owed to you</Text>
+                    </View>
+                    <Text style={styles.progress}>
+                      {isEqual ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid` : `${claimedCount} of ${totalItems} item${totalItems !== 1 ? 's' : ''} claimed`}
+                    </Text>
+                    <Perforation dots={30} />
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity style={styles.actionBtn} onPress={() => shareAgain(s)} activeOpacity={0.75}>
+                        <SymbolView name="square.and.arrow.up" size={15} tintColor={C.text} />
+                        <Text style={styles.actionText}>Share again</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.actionBtn, styles.actionDestructive]} onPress={() => setCloseTarget(s)} activeOpacity={0.75}>
+                        <Text style={[styles.actionText, styles.actionTextDestructive]}>Close</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <Text style={[styles.rowAmt, moneyText]}>{formatCurrency(e.receipt.total)}</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#5a5a5c" style={{ marginLeft: 6 }} />
-                </TouchableOpacity>
-              ))}
-              {capped && (
-                <TouchableOpacity style={styles.nudge}><Text style={styles.nudgeText}>See all your history with Divi Pro →</Text></TouchableOpacity>
-              )}
-            </>
-          )
-        )}
-      </ScrollView>
+                </Enter>
+              );
+            })
+          ) : (
+            pastList.length === 0 ? (
+              <Empty symbol="clock" title="No past bills" sub="Completed splits show up here." />
+            ) : (
+              <Enter>
+                <View style={styles.group}>
+                  {pastList.map((e, i) => (
+                    <View key={e.id}>
+                      {i > 0 && <View style={styles.sep} />}
+                      <TouchableOpacity style={styles.row} activeOpacity={0.6}
+                        onPress={() => setDetailEntry(e)} onLongPress={() => setDeleteEntry(e)} delayLongPress={500}>
+                        <View style={styles.rowIcon}><SymbolView name="checkmark.circle.fill" size={17} tintColor={C.blue} type="hierarchical" /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowTitle} numberOfLines={1}>{e.merchantName || 'Bill'}</Text>
+                          <Text style={styles.rowSub}>{new Date(e.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {e.people.length} people</Text>
+                        </View>
+                        <Text style={[styles.rowAmt, moneyText]}>{formatCurrency(e.receipt.total)}</Text>
+                        <SymbolView name="chevron.right" size={13} tintColor={C.faint} style={{ marginLeft: 6 }} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+                {capped && (
+                  <TouchableOpacity style={styles.nudge} activeOpacity={0.7}><Text style={styles.nudgeText}>See all your history with Divi Pro</Text></TouchableOpacity>
+                )}
+              </Enter>
+            )
+          )}
+        </ScrollView>
 
-      <ActionSheet
-        visible={closeTarget !== null}
-        title="Close & save?"
-        message="Ends claiming and saves this bill to your history."
-        options={[{
-          label: 'Close Session', icon: 'archive-outline', destructive: true,
-          onPress: () => { if (closeTarget) confirmClose(closeTarget); },
-        }]}
-        onClose={() => setCloseTarget(null)}
-      />
+        <ActionSheet
+          visible={closeTarget !== null}
+          title="Close & save?"
+          message="Ends claiming and saves this bill to your history."
+          options={[{
+            label: 'Close Session', icon: 'archive-outline', destructive: true,
+            onPress: () => { if (closeTarget) confirmClose(closeTarget); },
+          }]}
+          onClose={() => setCloseTarget(null)}
+        />
 
-      <BillDetailSheet
-        entry={detailEntry}
-        onClose={() => setDetailEntry(null)}
-        onRequestDelete={(e) => { setDetailEntry(null); setDeleteEntry(e); }}
-      />
-      <ActionSheet
-        visible={deleteEntry !== null}
-        title="Delete bill?"
-        message="This removes it from your history and can't be undone."
-        options={[{
-          label: 'Delete', icon: 'trash-outline', destructive: true,
-          onPress: async () => {
-            if (!deleteEntry) return;
-            await deleteBillFromHistory(deleteEntry.id);
-            setHistory(await getBillHistory());
-          },
-        }]}
-        onClose={() => setDeleteEntry(null)}
-      />
-    </SafeAreaView>
+        <BillDetailSheet
+          entry={detailEntry}
+          onClose={() => setDetailEntry(null)}
+          onRequestDelete={(e) => { setDetailEntry(null); setDeleteEntry(e); }}
+        />
+        <ActionSheet
+          visible={deleteEntry !== null}
+          title="Delete bill?"
+          message="This removes it from your history and can't be undone."
+          options={[{
+            label: 'Delete', icon: 'trash-outline', destructive: true,
+            onPress: async () => {
+              if (!deleteEntry) return;
+              await deleteBillFromHistory(deleteEntry.id);
+              setHistory(await getBillHistory());
+            },
+          }]}
+          onClose={() => setDeleteEntry(null)}
+        />
+      </SafeAreaView>
+    </View>
   );
 }
 
-function Empty({ icon, title, sub }: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string }) {
+function Empty({ symbol, title, sub }: { symbol: SFSymbol; title: string; sub: string }) {
   return (
     <View style={styles.empty}>
-      <Ionicons name={icon} size={44} color={colors.textDisabled} />
+      <View style={styles.emptyIcon}><SymbolView name={symbol} size={30} tintColor={C.dim} type="hierarchical" /></View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptySub}>{sub}</Text>
     </View>
@@ -202,58 +223,56 @@ function Empty({ icon, title, sub }: { icon: keyof typeof Ionicons.glyphMap; tit
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  title: { fontSize: 26, fontWeight: '800', color: colors.text },
+  container: { flex: 1, backgroundColor: C.bg },
+  header: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 8 },
+  title: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
   segment: {
-    flexDirection: 'row', marginHorizontal: 20, marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 4, gap: 4,
+    flexDirection: 'row', marginHorizontal: 20, marginBottom: 14,
+    backgroundColor: C.card, borderRadius: 12, padding: 4, gap: 4, borderWidth: 1, borderColor: C.line,
   },
   segBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9 },
-  segBtnActive: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  segText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  segTextActive: { color: colors.text },
+  segBtnActive: { backgroundColor: 'rgba(255,255,255,0.10)' },
+  segText: { fontSize: 14, fontWeight: '600', color: C.dim },
+  segTextActive: { color: C.text },
 
   scroll: { paddingHorizontal: 20, paddingBottom: 120, gap: 14 },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, gap: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-  },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+
+  card: { backgroundColor: C.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: C.line },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  cardTitle: { fontSize: 16.5, fontWeight: '700', color: C.text, flex: 1, letterSpacing: -0.2 },
   liveBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(62,173,116,0.15)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1, borderColor: 'rgba(62,173,116,0.25)',
+    backgroundColor: C.accentDim, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
   },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.green },
-  liveBadgeText: { fontSize: 11, fontWeight: '700', color: colors.green },
-  cardOwedRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 8, marginBottom: 2 },
-  cardOwed: { fontSize: 24, fontWeight: '800', color: colors.text },
-  cardOwedLabel: { fontSize: 12.5, color: colors.textMuted },
-  progress: { fontSize: 13, color: colors.textSecondary },
-  cardActions: { flexDirection: 'row', gap: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', paddingTop: 10 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.accent },
+  liveBadgeText: { fontSize: 10.5, fontWeight: '700', color: C.accent, letterSpacing: 0.6 },
+  cardOwedRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 14 },
+  cardOwed: { fontSize: 30, fontWeight: '800', color: C.text, letterSpacing: -0.6 },
+  cardOwedLabel: { fontSize: 12.5, color: C.dim },
+  progress: { fontSize: 13, color: C.dim, marginTop: 4 },
+  cardActions: { flexDirection: 'row', gap: 10 },
   actionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 11, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12,
+    borderWidth: 1, borderColor: C.line,
   },
-  actionDestructive: { backgroundColor: 'rgba(224,90,106,0.10)', borderColor: 'rgba(224,90,106,0.25)' },
-  actionText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  actionTextDestructive: { color: colors.red },
+  actionDestructive: { flex: 0, paddingHorizontal: 18, backgroundColor: 'rgba(224,90,106,0.10)', borderColor: 'rgba(224,90,106,0.22)' },
+  actionText: { fontSize: 13.5, fontWeight: '600', color: C.text },
+  actionTextDestructive: { color: '#E86A78' },
 
-  rowCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-  },
-  recIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
-  rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  rowAmt: { fontSize: 15, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
+  group: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 14 },
+  rowIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: C.blue + '22' },
+  rowTitle: { fontSize: 15.5, fontWeight: '600', color: C.text, letterSpacing: -0.2 },
+  rowSub: { fontSize: 12.5, color: C.dim, marginTop: 2 },
+  rowAmt: { fontSize: 15.5, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+  sep: { height: 1, backgroundColor: C.line, marginLeft: 65 },
 
-  nudge: { alignItems: 'center', paddingVertical: 12 },
-  nudgeText: { fontSize: 13, color: colors.green, fontWeight: '600' },
+  nudge: { alignItems: 'center', paddingVertical: 14 },
+  nudgeText: { fontSize: 13, color: C.accent, fontWeight: '600' },
 
-  empty: { alignItems: 'center', gap: 10, paddingTop: 70, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.textDim, textAlign: 'center' },
-  emptySub: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  empty: { alignItems: 'center', gap: 8, paddingTop: 70, paddingHorizontal: 44 },
+  emptyIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', marginBottom: 6, borderWidth: 1, borderColor: C.line },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text, textAlign: 'center' },
+  emptySub: { fontSize: 14, color: C.dim, textAlign: 'center', lineHeight: 20 },
 });

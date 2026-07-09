@@ -8,7 +8,8 @@ import { MotiView } from 'moti';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AnimatedMoney from '../../components/AnimatedMoney';
-import { moneyText } from '../../theme';
+import Perforation from '../../components/Perforation';
+import { moneyText, ui as C } from '../../theme';
 import { BillSession, BillHistoryEntry } from '../../types';
 import { outstandingOwed, owersCount } from '../../utils/sessionOwed';
 import { subscribeToSession } from '../../services/billSession';
@@ -21,30 +22,9 @@ import { startNewBill } from '../../utils/startBill';
 const SAVED_NAME_KEY = 'savedHostName';
 const FREE_RECENT_CAP = 10;
 
-const C = {
-  bg: '#0B0B0D',
-  card: '#151518',
-  line: 'rgba(255,255,255,0.07)',
-  text: '#F5F5F7',
-  dim: '#9A9AA2',
-  faint: '#65656E',
-  accent: '#37C97F',
-  accentDim: 'rgba(55,201,127,0.14)',
-  blue: '#5B9DF0',
-};
-
 function greeting(): string {
   const h = new Date().getHours();
   return h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening';
-}
-
-// Receipt-style perforation — Divi's recurring signature motif.
-function Perforation() {
-  return (
-    <View style={styles.perf}>
-      {Array.from({ length: 34 }).map((_, i) => <View key={i} style={styles.perfDot} />)}
-    </View>
-  );
 }
 
 function Enter({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
@@ -276,8 +256,6 @@ const styles = StyleSheet.create({
   heroLabel: { fontSize: 12, fontWeight: '700', color: C.faint, letterSpacing: 1.4 },
   heroAmt: { fontSize: 46, fontWeight: '800', color: C.text, letterSpacing: -1.6, marginTop: 6 },
 
-  perf: { flexDirection: 'row', justifyContent: 'space-between', overflow: 'hidden', marginVertical: 16 },
-  perfDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.13)' },
 
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   stat: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
