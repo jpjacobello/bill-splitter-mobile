@@ -37,7 +37,7 @@ export default function ScreenLayout({ title, subtitle, children, scrollable = t
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#151515',
+    backgroundColor: '#161619',
   },
   scroll: {
     flexGrow: 1,

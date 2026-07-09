@@ -3,6 +3,7 @@ import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Receipt } from '../types';
 import { getEmoji } from '../utils/buildReceiptHtml';
 import RainbowScanOverlay from './RainbowScanOverlay';
+import { formatCurrency } from '../utils/currency';
 
 type Props = {
   parsing: boolean;
@@ -106,16 +107,16 @@ export default function DigitizedReceipt({ parsing, receipt, maxHeight }: Props)
             <Divider />
 
             {receipt.items.map((item, i) => (
-              <Row key={i} label={`${getEmoji(item.name)} ${item.name}`} value={`$${item.price.toFixed(2)}`} />
+              <Row key={i} label={`${getEmoji(item.name)} ${item.name}`} value={`${formatCurrency(item.price)}`} />
             ))}
 
             <Divider />
-            <Row label="Subtotal" value={`$${receipt.subtotal.toFixed(2)}`} />
-            {receipt.tax > 0 && <Row label="Tax" value={`$${receipt.tax.toFixed(2)}`} />}
-            {receipt.fees > 0 && <Row label="Fees" value={`$${receipt.fees.toFixed(2)}`} />}
-            {receipt.tip > 0 && <Row label="Tip" value={`$${receipt.tip.toFixed(2)}`} />}
+            <Row label="Subtotal" value={`${formatCurrency(receipt.subtotal)}`} />
+            {receipt.tax > 0 && <Row label="Tax" value={`${formatCurrency(receipt.tax)}`} />}
+            {receipt.fees > 0 && <Row label="Fees" value={`${formatCurrency(receipt.fees)}`} />}
+            {receipt.tip > 0 && <Row label="Tip" value={`${formatCurrency(receipt.tip)}`} />}
             <Divider double />
-            <Row label="TOTAL" value={`$${receipt.total.toFixed(2)}`} bold />
+            <Row label="TOTAL" value={`${formatCurrency(receipt.total)}`} bold />
           </>
         )}
     </ScrollView>

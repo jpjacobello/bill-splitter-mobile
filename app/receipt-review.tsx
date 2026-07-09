@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
-  ScrollView, KeyboardAvoidingView, Platform, Alert,
+  ScrollView, KeyboardAvoidingView, Platform,
   Modal, Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Button from '../components/Button';
+import ActionSheet from '../components/ActionSheet';
+import { colors, ui as C } from '../theme';
 import { useBillStore } from '../store/useBillStore';
-import { DEFAULT_TIP_KEY } from './settings';
+import { DEFAULT_TIP_KEY } from '../utils/tipPrefs';
+import { formatCurrency } from '../utils/currency';
 
 const TIP_PRESETS = [0.15, 0.18, 0.2, 0.25];
 
@@ -24,6 +26,7 @@ export default function ReceiptReviewScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { receipt, receiptImageUri, updateItem, deleteItem, addItem, updateReceiptField, updateTip } = useBillStore();
   const [showPhoto, setShowPhoto] = useState(false);
+  const [tipWarnOpen, setTipWarnOpen] = useState(false);
 
   // Apply default tip if receipt has no tip and it wasn't on the original receipt
   useEffect(() => {
@@ -147,8 +150,8 @@ export default function ReceiptReviewScreen() {
           <View style={[styles.reconcileBadge, reconciles ? styles.reconcileOk : styles.reconcileOff]}>
             <Text style={styles.reconcileText}>
               {reconciles
-                ? `✓ Totals match  ·  $${calculatedTotal.toFixed(2)}`
-                : `⚠ Off by $${diff.toFixed(2)}  ·  Calculated $${calculatedTotal.toFixed(2)} vs receipt $${receipt.total.toFixed(2)}`}
+                ? `✓ Totals match  ·  ${formatCurrency(calculatedTotal)}`
+                : `⚠ Off by ${formatCurrency(diff)}  ·  Calculated ${formatCurrency(calculatedTotal)} vs receipt ${formatCurrency(receipt.total)}`}
             </Text>
           </View>
 
@@ -181,7 +184,7 @@ export default function ReceiptReviewScreen() {
                 value={item.name}
                 onChangeText={(t) => updateItem(item.id, { name: t })}
                 placeholder="Item name"
-                placeholderTextColor="#555"
+                placeholderTextColor={C.faint}
                 numberOfLines={1}
               />
               <TextInput
@@ -197,7 +200,7 @@ export default function ReceiptReviewScreen() {
                 selectTextOnFocus
               />
               <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={styles.deleteBtn}>
-                <Text style={styles.deleteBtnText}>✕</Text>
+                <Ionicons name="trash-outline" size={15} color="#636366" />
               </TouchableOpacity>
             </View>
           ))}
@@ -217,7 +220,7 @@ export default function ReceiptReviewScreen() {
               <TextInput
                 style={styles.itemNameInput}
                 placeholder="Item name"
-                placeholderTextColor="#555"
+                placeholderTextColor={C.faint}
                 value={row.name}
                 autoFocus={idx === pendingRows.length - 1}
                 numberOfLines={1}
@@ -229,7 +232,7 @@ export default function ReceiptReviewScreen() {
               <TextInput
                 style={styles.itemPriceInput}
                 placeholder="0.00"
-                placeholderTextColor="#555"
+                placeholderTextColor={C.faint}
                 value={row.price}
                 onChangeText={(t) => updatePendingRow(row.id, 'price', t)}
                 onBlur={() => {
@@ -239,13 +242,14 @@ export default function ReceiptReviewScreen() {
                 selectTextOnFocus
               />
               <TouchableOpacity onPress={() => removePendingRow(row.id)} style={styles.deleteBtn}>
-                <Text style={styles.deleteBtnText}>✕</Text>
+                <Ionicons name="trash-outline" size={15} color="#636366" />
               </TouchableOpacity>
             </View>
             );
           })}
-          <TouchableOpacity style={styles.addItemBtn} onPress={addPendingRow}>
-            <Text style={styles.addItemBtnText}>+ Add item</Text>
+          <TouchableOpacity style={styles.addItemBtn} onPress={addPendingRow} activeOpacity={0.7}>
+            <Ionicons name="add-circle-outline" size={16} color="#8E8E93" />
+            <Text style={styles.addItemBtnText}>Add item</Text>
           </TouchableOpacity>
 
           {/* ── DISCOUNTS ── */}
@@ -255,9 +259,9 @@ export default function ReceiptReviewScreen() {
               {discountItems.map((item) => (
                 <View key={item.id} style={styles.discountRow}>
                   <Text style={styles.discountName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.discountAmount}>−${Math.abs(item.price).toFixed(2)}</Text>
+                  <Text style={styles.discountAmount}>−{formatCurrency(Math.abs(item.price))}</Text>
                   <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={styles.deleteBtn}>
-                    <Text style={styles.deleteBtnText}>✕</Text>
+                    <Ionicons name="trash-outline" size={15} color="#636366" />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -372,8 +376,9 @@ export default function ReceiptReviewScreen() {
         {tipError && (
           <Text style={styles.footerError}>Please select or enter a tip amount.</Text>
         )}
-        <Button
-          label="Assign Items"
+        <TouchableOpacity
+          style={styles.continueBtn}
+          activeOpacity={0.85}
           onPress={() => {
             const hasIncomplete = pendingRows.some((r) => !r.name.trim() || !r.price.trim());
             if (hasIncomplete) { setPendingRowError(true); return; }
@@ -381,17 +386,7 @@ export default function ReceiptReviewScreen() {
             setTipError(false);
 
             if (receipt.tip === 0 && !tipWarningAcknowledged) {
-              Alert.alert(
-                'No Tip Added',
-                'The receipt shows $0.00 for tip. Make sure to add a tip below if needed before continuing.',
-                [
-                  { text: 'Add Tip', style: 'cancel' },
-                  {
-                    text: 'Continue Without Tip',
-                    onPress: () => { setTipWarningAcknowledged(true); router.push('/assign-items'); },
-                  },
-                ]
-              );
+              setTipWarnOpen(true);
               return;
             }
 
@@ -401,20 +396,37 @@ export default function ReceiptReviewScreen() {
               router.push('/assign-items');
             }
           }}
-          height={60}
-        />
+        >
+          <Text style={styles.continueBtnText}>Continue</Text>
+        </TouchableOpacity>
       </View>
+
+      <ActionSheet
+        visible={tipWarnOpen}
+        title="No Tip Added"
+        message="The receipt shows $0.00 for tip. Make sure to add a tip below if needed before continuing."
+        options={[
+          {
+            label: 'Continue Without Tip',
+            onPress: () => {
+              setTipWarningAcknowledged(true);
+              if (from === 'assign-items') { router.back(); } else { router.push('/assign-items'); }
+            },
+          },
+        ]}
+        onClose={() => setTipWarnOpen(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#151515' },
+  container: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
   header: { marginBottom: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title: { fontSize: 28, fontWeight: '700', color: '#D0D0D0', marginBottom: 4 },
-  merchant: { fontSize: 15, color: '#777' },
+  title: { fontSize: 28, fontWeight: '700', color: C.text, marginBottom: 4 },
+  merchant: { fontSize: 15, color: C.dim },
   photoThumb: {
     width: 52, height: 68, borderRadius: 8, overflow: 'hidden',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
@@ -440,7 +452,7 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: {
-    fontSize: 12, fontWeight: '600', color: '#888',
+    fontSize: 12, fontWeight: '600', color: C.dim,
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10,
   },
 
@@ -448,46 +460,56 @@ const styles = StyleSheet.create({
   reconcileBadge: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 4,
   },
-  reconcileOk: { backgroundColor: '#0A2E1A' },
-  reconcileOff: { backgroundColor: '#2E0A0A' },
-  reconcileText: { fontSize: 13, fontWeight: '500', color: '#D0D0D0' },
+  reconcileOk: { backgroundColor: 'rgba(62,173,116,0.10)', borderWidth: 1, borderColor: 'rgba(62,173,116,0.28)' },
+  reconcileOff: { backgroundColor: 'rgba(210,60,60,0.10)', borderWidth: 1, borderColor: 'rgba(210,60,60,0.28)' },
+  reconcileText: { fontSize: 13, fontWeight: '500', color: C.text },
 
   // Items
   itemRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)',
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 6,
   },
   itemNameInput: {
-    flex: 1, fontSize: 15, color: '#D0D0D0',
+    flex: 1, fontSize: 15, color: C.text,
     paddingVertical: 6, paddingHorizontal: 8,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   itemPriceInput: {
-    width: 76, fontSize: 15, color: '#D0D0D0', textAlign: 'right',
+    width: 76, fontSize: 15, color: C.text, textAlign: 'right',
     paddingVertical: 6, paddingHorizontal: 8,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   itemQtyInput: {
-    width: 32, fontSize: 13, color: '#888', fontWeight: '600', textAlign: 'center',
+    width: 32, fontSize: 13, color: C.text, fontWeight: '600', textAlign: 'center',
     paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   itemRowError: { borderBottomColor: 'rgba(220,38,38,0.40)', backgroundColor: 'rgba(220,38,38,0.06)', borderRadius: 8 },
-  deleteBtn: { paddingHorizontal: 6, paddingVertical: 6 },
-  deleteBtnText: { fontSize: 14, color: '#888' },
-  addItemBtn: { paddingVertical: 6, alignSelf: 'flex-start' },
-  addItemBtnText: { fontSize: 15, color: '#D0D0D0', fontWeight: '700' },
+  deleteBtn: { paddingHorizontal: 4, paddingVertical: 6 },
+  addItemBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 12, paddingHorizontal: 12,
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    marginTop: 2,
+  },
+  addItemBtnText: { fontSize: 14, color: C.dim, fontWeight: '500' },
   discountRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)',
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: 'rgba(62,173,116,0.05)',
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(62,173,116,0.15)',
+    marginBottom: 6,
   },
   discountName: {
-    flex: 1, fontSize: 15, color: '#A0C4A0', fontStyle: 'italic',
+    flex: 1, fontSize: 15, color: C.dim, fontStyle: 'italic',
   },
   discountAmount: {
-    fontSize: 15, fontWeight: '600', color: '#4ADE80',
+    fontSize: 15, fontWeight: '600', color: colors.green,
   },
 
   // Totals
@@ -510,25 +532,27 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
   tipChipActive: { backgroundColor: 'rgba(220,220,220,0.95)' },
-  tipChipText: { fontSize: 12, fontWeight: '600', color: '#D0D0D0' },
-  tipChipTextActive: { color: '#000' },
-  totalLabel: { fontSize: 15, color: '#B0B0B0' },
+  tipChipText: { fontSize: 12, fontWeight: '600', color: C.dim },
+  tipChipTextActive: { color: C.bg },
+  totalLabel: { fontSize: 15, color: C.dim },
   totalInput: {
-    fontSize: 15, color: '#D0D0D0', fontWeight: '500',
+    fontSize: 15, color: C.text, fontWeight: '500',
     textAlign: 'right', minWidth: 76,
     paddingVertical: 6, paddingHorizontal: 8,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
   },
   readOnlyValue: {
-    fontSize: 15, color: '#999', fontWeight: '500',
+    fontSize: 15, color: C.dim, fontWeight: '500',
     textAlign: 'right', minWidth: 76,
     paddingVertical: 6, paddingHorizontal: 8,
   },
-  grandTotalRow: { borderBottomWidth: 0, marginTop: 4, paddingTop: 14 },
-  grandTotalLabel: { fontSize: 17, fontWeight: '700', color: '#D0D0D0' },
-  grandTotalValue: { fontSize: 17, fontWeight: '700', color: '#D0D0D0' },
+  grandTotalRow: { borderBottomWidth: 0, marginTop: 4, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)' },
+  grandTotalLabel: { fontSize: 17, fontWeight: '700', color: C.text },
+  grandTotalValue: { fontSize: 17, fontWeight: '700', color: C.text },
 
   footerError: { fontSize: 13, color: '#E53E3E', marginBottom: 8, textAlign: 'center' },
-  stickyFooter: { paddingHorizontal: 24, paddingBottom: 24, paddingTop: 8, backgroundColor: '#151515' },
+  stickyFooter: { paddingHorizontal: 24, paddingBottom: 24, paddingTop: 8, backgroundColor: C.bg },
+  continueBtn: { height: 56, borderRadius: 15, backgroundColor: C.text, alignItems: 'center', justifyContent: 'center' },
+  continueBtnText: { fontSize: 16.5, fontWeight: '700', color: C.bg },
 });

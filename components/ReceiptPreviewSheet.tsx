@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Receipt, PersonBreakdown } from '../types';
 import { getEmoji } from '../utils/buildReceiptHtml';
 import ShareableReceiptCard, { calcCardScale } from './ShareableReceiptCard';
+import { formatCurrency } from '../utils/currency';
 
 type Props = {
   visible: boolean;
@@ -18,9 +19,10 @@ type Props = {
   person?: { breakdown: PersonBreakdown; colorIndex: number };
   allPeople?: PersonBreakdown[];
   showPeopleSummary?: boolean;
+  paidById?: string;
 };
 
-export default function ReceiptPreviewSheet({ visible, receipt, onClose, person, allPeople, showPeopleSummary }: Props) {
+export default function ReceiptPreviewSheet({ visible, receipt, onClose, person, allPeople, showPeopleSummary, paidById }: Props) {
   const cardRef = useRef<View>(null);
 
   const cardItemCount = person
@@ -106,7 +108,7 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
                 <View key={item.id} style={styles.itemRow}>
                   <Text style={styles.itemEmoji}>{getEmoji(item.name)}</Text>
                   <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.itemPrice}>${share.toFixed(2)}</Text>
+                  <Text style={styles.itemPrice}>{formatCurrency(share)}</Text>
                 </View>
               ))
             : showPeopleSummary && allPeople
@@ -114,16 +116,16 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
                 <View key={b.person.id} style={styles.itemRow}>
                   <Text style={styles.itemEmoji}>{b.person.isHost ? '💳' : '👤'}</Text>
                   <Text style={styles.itemName} numberOfLines={1}>
-                    {b.person.name}{b.person.isHost ? ' (paid)' : ''}
+                    {b.person.name}{b.person.id === paidById ? ' (paid)' : ''}
                   </Text>
-                  <Text style={styles.itemPrice}>${b.totalOwed.toFixed(2)}</Text>
+                  <Text style={styles.itemPrice}>{formatCurrency(b.totalOwed)}</Text>
                 </View>
               ))
             : receipt.items.map((item) => (
                 <View key={item.id} style={styles.itemRow}>
                   <Text style={styles.itemEmoji}>{getEmoji(item.name)}</Text>
                   <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+                  <Text style={styles.itemPrice}>{formatCurrency(item.price)}</Text>
                 </View>
               ))
           }
@@ -133,44 +135,44 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
           {showPeopleSummary ? (
             <View style={[styles.totalRow, styles.grandTotalRow]}>
               <Text style={styles.grandTotalLabel}>Receipt Total</Text>
-              <Text style={styles.grandTotalValue}>${receipt.total.toFixed(2)}</Text>
+              <Text style={styles.grandTotalValue}>{formatCurrency(receipt.total)}</Text>
             </View>
           ) : person ? (
             <>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Subtotal</Text>
-                <Text style={styles.totalValue}>${person.breakdown.subtotal.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(person.breakdown.subtotal)}</Text>
               </View>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tax</Text>
-                <Text style={styles.totalValue}>${person.breakdown.taxShare.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(person.breakdown.taxShare)}</Text>
               </View>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tip</Text>
-                <Text style={styles.totalValue}>${person.breakdown.tipShare.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(person.breakdown.tipShare)}</Text>
               </View>
               <View style={[styles.totalRow, styles.grandTotalRow]}>
                 <Text style={styles.grandTotalLabel}>Total owed</Text>
-                <Text style={styles.grandTotalValue}>${person.breakdown.totalOwed.toFixed(2)}</Text>
+                <Text style={styles.grandTotalValue}>{formatCurrency(person.breakdown.totalOwed)}</Text>
               </View>
             </>
           ) : (
             <>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Subtotal</Text>
-                <Text style={styles.totalValue}>${receipt.subtotal.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(receipt.subtotal)}</Text>
               </View>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tax</Text>
-                <Text style={styles.totalValue}>${receipt.tax.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(receipt.tax)}</Text>
               </View>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tip</Text>
-                <Text style={styles.totalValue}>${receipt.tip.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(receipt.tip)}</Text>
               </View>
               <View style={[styles.totalRow, styles.grandTotalRow]}>
                 <Text style={styles.grandTotalLabel}>Total</Text>
-                <Text style={styles.grandTotalValue}>${receipt.total.toFixed(2)}</Text>
+                <Text style={styles.grandTotalValue}>{formatCurrency(receipt.total)}</Text>
               </View>
             </>
           )}
@@ -194,6 +196,7 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
             person={person?.breakdown}
             allPeople={!person ? allPeople : undefined}
             scale={cardScale}
+            paidById={paidById}
           />
         </View>
       </View>
@@ -296,6 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#D0D0D0',
+    fontVariant: ['tabular-nums'],
   },
   divider: {
     height: 0.5,
@@ -315,6 +319,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#A0A0A0',
     fontWeight: '500',
+    fontVariant: ['tabular-nums'],
   },
   grandTotalRow: {
     marginTop: 4,
@@ -331,6 +336,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#D0D0D0',
+    fontVariant: ['tabular-nums'],
   },
   footer: {
     paddingHorizontal: 16,

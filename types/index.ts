@@ -13,6 +13,7 @@ export type ReceiptItem = {
   unitPrice?: number; // set by OCR; if present, price = unitPrice * quantity
   assignedTo: string[]; // person ids
   tags?: ('drink' | 'food' | 'shared')[]; // optional categorization
+  parentId?: string; // set when this item is a modifier/add-on of another item
 };
 
 export type Receipt = {
@@ -57,5 +58,27 @@ export type BillHistoryEntry = {
 export type SavedGroup = {
   id: string;
   name: string;
-  members: string[]; // display names only (no host)
+  memberIds: string[]; // references TrackedPerson ids in the People roster
+};
+
+export type Claim = {
+  itemId: string;
+  claimerName: string;
+  fraction: number; // 1.0 = full item, 0.5 = half, etc.
+  claimedAt: string; // ISO string
+};
+
+export type BillSession = {
+  id: string;
+  createdAt: string; // ISO string
+  expiresAt: string; // ISO string
+  merchantName: string;
+  creatorName: string;
+  creatorVenmoHandle: string;
+  receipt: Receipt;
+  claims: Record<string, Claim>;
+  status: 'open' | 'closed';
+  splitType?: 'equal' | 'itemized'; // 'equal' = Quick Split flat per-head; default itemized
+  peopleCount?: number; // headcount for equal splits (flat share = total / peopleCount)
+  currency?: string; // ISO code (e.g. 'USD', 'EUR') — how the recipient formats amounts
 };
