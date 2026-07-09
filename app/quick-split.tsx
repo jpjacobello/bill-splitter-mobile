@@ -4,10 +4,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SymbolView } from 'expo-symbols';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ActionSheet from '../components/ActionSheet';
-import { colors } from '../theme';
+import AnimatedMoney from '../components/AnimatedMoney';
+import Perforation from '../components/Perforation';
+import { ui as C, moneyText } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { Receipt } from '../types';
 import { getVenmoHandle, setVenmoHandle } from '../utils/proStorage';
@@ -23,9 +26,7 @@ const TIP_PRESETS = [0, 15, 18, 20];
 const MIN_PEOPLE = 2;
 const MAX_PEOPLE = 20;
 
-function r2(n: number) {
-  return Math.round(n * 100) / 100;
-}
+function r2(n: number) { return Math.round(n * 100) / 100; }
 
 export default function QuickSplitScreen() {
   const router = useRouter();
@@ -41,9 +42,7 @@ export default function QuickSplitScreen() {
   const [errorOpen, setErrorOpen] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(SAVED_NAME_KEY).then((name) => {
-      if (name) setHostNameLocal(name);
-    });
+    AsyncStorage.getItem(SAVED_NAME_KEY).then((name) => { if (name) setHostNameLocal(name); });
   }, []);
 
   const totalNum = parseFloat(total) || 0;
@@ -53,44 +52,26 @@ export default function QuickSplitScreen() {
   const perPerson = canSplit ? r2(grandTotal / numPeople) : 0;
 
   const adjustPeople = (delta: number) => {
+    Haptics.selectionAsync();
     setNumPeople((prev) => Math.min(MAX_PEOPLE, Math.max(MIN_PEOPLE, prev + delta)));
   };
 
   const buildReceipt = (assignedTo: string[]): Receipt => ({
     merchantName: merchantName.trim() || undefined,
-    items: [{
-      id: 'equal-split',
-      name: 'Equal split',
-      price: r2(grandTotal - tipAmount),
-      quantity: 1,
-      assignedTo,
-    }],
+    items: [{ id: 'equal-split', name: 'Equal split', price: r2(grandTotal - tipAmount), quantity: 1, assignedTo }],
     subtotal: r2(grandTotal - tipAmount),
-    tax: 0,
-    fees: 0,
-    tip: tipAmount,
-    total: grandTotal,
-    tipIsFromReceipt: false,
+    tax: 0, fees: 0, tip: tipAmount, total: grandTotal, tipIsFromReceipt: false,
   });
 
   const handleSplit = async () => {
     if (!canSplit) return;
-
-    await AsyncStorage.multiSet([
-      [SAVED_NAME_KEY, hostName],
-      [HAS_LAUNCHED_KEY, 'true'],
-    ]);
-
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await AsyncStorage.multiSet([[SAVED_NAME_KEY, hostName], [HAS_LAUNCHED_KEY, 'true']]);
     reset();
     setHostName(hostName);
-    for (let i = 2; i <= numPeople; i++) {
-      addPerson(`Person ${i}`);
-    }
-
+    for (let i = 2; i <= numPeople; i++) addPerson(`Person ${i}`);
     const { people: storePeople } = useBillStore.getState();
-    const allIds = storePeople.map((p) => p.id);
-
-    setReceipt(buildReceipt(allIds));
+    setReceipt(buildReceipt(storePeople.map((p) => p.id)));
     router.replace('/summary');
   };
 
@@ -98,31 +79,15 @@ export default function QuickSplitScreen() {
     if (!canSplit || sharing) return;
     setSharing(true);
     try {
-      await AsyncStorage.multiSet([
-        [SAVED_NAME_KEY, hostName],
-        [HAS_LAUNCHED_KEY, 'true'],
-      ]);
-
+      await AsyncStorage.multiSet([[SAVED_NAME_KEY, hostName], [HAS_LAUNCHED_KEY, 'true']]);
       const receipt = buildReceipt([]);
       const sessionId = await createSession(receipt, hostName, handle, {
-        splitType: 'equal',
-        peopleCount: numPeople,
-        currency: getActiveCurrency(),
+        splitType: 'equal', peopleCount: numPeople, currency: getActiveCurrency(),
       });
       setActiveSessionId(sessionId);
-      await addSession({
-        sessionId,
-        merchantName: receipt.merchantName ?? '',
-        createdAt: new Date().toISOString(),
-        creatorVenmoHandle: handle,
-      });
-
+      await addSession({ sessionId, merchantName: receipt.merchantName ?? '', createdAt: new Date().toISOString(), creatorVenmoHandle: handle });
       const url = `${WEB_BASE_URL}/split/${sessionId}`;
-      await Share.share({
-        message: `${receipt.merchantName ? receipt.merchantName + ' — ' : ''}grab your share · ${formatCurrency(perPerson)} each`,
-        url,
-      });
-
+      await Share.share({ message: `${receipt.merchantName ? receipt.merchantName + ' — ' : ''}grab your share · ${formatCurrency(perPerson)} each`, url });
       if (router.canDismiss()) router.dismissAll();
       router.push('/activity?tab=live');
     } catch {
@@ -140,137 +105,90 @@ export default function QuickSplitScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quick Split</Text>
-      </View>
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <SymbolView name="chevron.left" size={20} tintColor={C.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Quick Split</Text>
+        </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Occasion */}
-        <TextInput
-          style={styles.merchantInput}
-          placeholder="Occasion (optional)"
-          placeholderTextColor={colors.textMuted}
-          value={merchantName}
-          onChangeText={setMerchantName}
-          returnKeyType="done"
-        />
-
-        {/* Total */}
-        <Text style={styles.sectionLabel}>Total</Text>
-        <View style={styles.totalCard}>
-          <Text style={styles.dollarSign}>{currencySymbol()}</Text>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <TextInput
-            style={styles.totalInput}
-            placeholder="0.00"
-            placeholderTextColor={colors.textMuted}
-            value={total}
-            onChangeText={setTotal}
-            keyboardType="decimal-pad"
+            style={styles.merchantInput}
+            placeholder="Occasion (optional)"
+            placeholderTextColor={C.faint}
+            value={merchantName}
+            onChangeText={setMerchantName}
             returnKeyType="done"
           />
-        </View>
 
-        {/* Tip */}
-        <Text style={styles.sectionLabel}>Tip</Text>
-        <View style={styles.tipRow}>
-          {TIP_PRESETS.map((pct) => (
-            <TouchableOpacity
-              key={pct}
-              style={[styles.tipPill, tipPct === pct && styles.tipPillActive]}
-              onPress={() => setTipPct(pct)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.tipPillText, tipPct === pct && styles.tipPillTextActive]}>
-                {pct === 0 ? 'No tip' : `${pct}%`}
-              </Text>
+          <Text style={styles.sectionLabel}>TOTAL</Text>
+          <View style={styles.totalCard}>
+            <Text style={styles.dollarSign}>{currencySymbol()}</Text>
+            <TextInput
+              style={styles.totalInput}
+              placeholder="0.00"
+              placeholderTextColor={C.faint}
+              value={total}
+              onChangeText={setTotal}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+            />
+          </View>
+
+          <Text style={styles.sectionLabel}>TIP</Text>
+          <View style={styles.tipRow}>
+            {TIP_PRESETS.map((pct) => (
+              <TouchableOpacity key={pct} style={[styles.tipPill, tipPct === pct && styles.tipPillActive]} onPress={() => setTipPct(pct)} activeOpacity={0.75}>
+                <Text style={[styles.tipPillText, tipPct === pct && styles.tipPillTextActive]}>{pct === 0 ? 'No tip' : `${pct}%`}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.sectionLabel}>PEOPLE</Text>
+          <View style={styles.peopleCard}>
+            <TouchableOpacity style={[styles.counterBtn, numPeople <= MIN_PEOPLE && styles.counterBtnDisabled]} onPress={() => adjustPeople(-1)} disabled={numPeople <= MIN_PEOPLE} activeOpacity={0.7}>
+              <SymbolView name="minus" size={20} tintColor={numPeople <= MIN_PEOPLE ? C.faint : C.text} />
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* People */}
-        <Text style={styles.sectionLabel}>People</Text>
-        <View style={styles.peopleCard}>
-          <TouchableOpacity
-            style={[styles.counterBtn, numPeople <= MIN_PEOPLE && styles.counterBtnDisabled]}
-            onPress={() => adjustPeople(-1)}
-            disabled={numPeople <= MIN_PEOPLE}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="remove" size={22} color={numPeople <= MIN_PEOPLE ? colors.textDisabled : colors.text} />
-          </TouchableOpacity>
-          <View style={styles.counterCenter}>
-            <Text style={styles.counterNum}>{numPeople}</Text>
-            <Text style={styles.counterLabel}>people</Text>
+            <View style={styles.counterCenter}>
+              <Text style={styles.counterNum}>{numPeople}</Text>
+              <Text style={styles.counterLabel}>people</Text>
+            </View>
+            <TouchableOpacity style={[styles.counterBtn, numPeople >= MAX_PEOPLE && styles.counterBtnDisabled]} onPress={() => adjustPeople(1)} disabled={numPeople >= MAX_PEOPLE} activeOpacity={0.7}>
+              <SymbolView name="plus" size={20} tintColor={numPeople >= MAX_PEOPLE ? C.faint : C.text} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[styles.counterBtn, numPeople >= MAX_PEOPLE && styles.counterBtnDisabled]}
-            onPress={() => adjustPeople(1)}
-            disabled={numPeople >= MAX_PEOPLE}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add" size={22} color={numPeople >= MAX_PEOPLE ? colors.textDisabled : colors.text} />
+
+          {canSplit && (
+            <View style={styles.previewCard}>
+              <Text style={styles.previewLabel}>EACH PERSON OWES</Text>
+              <AnimatedMoney value={perPerson} style={styles.previewAmount} duration={450} />
+              <Perforation dots={26} />
+              <Text style={styles.previewSub}>{formatCurrency(grandTotal)} ÷ {numPeople} people</Text>
+            </View>
+          )}
+
+          <View style={{ height: 120 }} />
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={[styles.shareLinkBtn, (!canSplit || sharing) && styles.splitBtnDisabled]} onPress={handleShareLink} disabled={!canSplit || sharing} activeOpacity={canSplit ? 0.85 : 1}>
+            <SymbolView name="link" size={18} tintColor={canSplit && !sharing ? C.bg : C.faint} />
+            <Text style={[styles.shareLinkBtnText, (!canSplit || sharing) && styles.splitBtnTextDisabled]}>{sharing ? 'Creating link…' : 'Share a Link'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.splitTextBtn} onPress={handleSplit} disabled={!canSplit} activeOpacity={canSplit ? 0.7 : 1}>
+            <Text style={[styles.splitTextBtnText, !canSplit && styles.splitBtnTextDisabled]}>Split it myself</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Per-person preview */}
-        {canSplit && (
-          <View style={styles.previewCard}>
-            <Text style={styles.previewLabel}>Each person owes</Text>
-            <Text style={styles.previewAmount}>{formatCurrency(perPerson)}</Text>
-            <Text style={styles.previewSub}>
-              {formatCurrency(grandTotal)} ÷ {numPeople} people
-            </Text>
-          </View>
-        )}
-
-        <View style={{ height: 120 }} />
-      </ScrollView>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.shareLinkBtn, (!canSplit || sharing) && styles.splitBtnDisabled]}
-          onPress={handleShareLink}
-          disabled={!canSplit || sharing}
-          activeOpacity={canSplit ? 0.85 : 1}
-        >
-          <Ionicons name="link-outline" size={18} color={canSplit && !sharing ? '#000' : colors.textMuted} />
-          <Text style={[styles.shareLinkBtnText, (!canSplit || sharing) && styles.splitBtnTextDisabled]}>
-            {sharing ? 'Creating link…' : 'Share a Link'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.splitTextBtn}
-          onPress={handleSplit}
-          disabled={!canSplit}
-          activeOpacity={canSplit ? 0.7 : 1}
-        >
-          <Text style={[styles.splitTextBtnText, !canSplit && styles.splitBtnTextDisabled]}>
-            Split it myself
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </SafeAreaView>
 
       <ActionSheet
         visible={venmoOpen}
         title="Your Venmo @handle"
         message="Friends need this to pay you back. Enter without the @."
-        input={{
-          placeholder: 'venmo-handle',
-          submitLabel: 'Save & Share',
-          onSubmit: async (v) => {
-            await setVenmoHandle(v);
-            createAndShare(v.replace(/^@/, ''));
-          },
-        }}
+        input={{ placeholder: 'venmo-handle', submitLabel: 'Save & Share', onSubmit: async (v) => { await setVenmoHandle(v); createAndShare(v.replace(/^@/, '')); } }}
         onClose={() => setVenmoOpen(false)}
       />
       <ActionSheet
@@ -280,90 +198,55 @@ export default function QuickSplitScreen() {
         options={[{ label: 'Try Again', icon: 'refresh-outline', onPress: handleShareLink }]}
         onClose={() => setErrorOpen(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 8, paddingVertical: 12,
-  },
-  backBtn: { padding: 8, marginRight: 4 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  container: { flex: 1, backgroundColor: C.bg },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginRight: 2 },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
   scroll: { paddingHorizontal: 20, paddingTop: 4 },
 
   merchantInput: {
-    height: 48, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 12, paddingHorizontal: 14, fontSize: 15,
-    color: colors.text, backgroundColor: colors.surface, marginBottom: 24,
+    height: 50, borderWidth: 1, borderColor: C.line, borderRadius: 14, paddingHorizontal: 16,
+    fontSize: 15, color: C.text, backgroundColor: C.card, marginBottom: 24,
   },
-  sectionLabel: {
-    fontSize: 13, fontWeight: '600', color: colors.textMuted,
-    letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 10,
-  },
+  sectionLabel: { fontSize: 12.5, fontWeight: '700', color: C.faint, letterSpacing: 1.2, marginBottom: 10, marginLeft: 2 },
   totalCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surface, borderRadius: 16,
-    borderWidth: 1, borderColor: colors.border,
-    paddingHorizontal: 18, marginBottom: 24, height: 72,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 18,
+    borderWidth: 1, borderColor: C.line, paddingHorizontal: 18, marginBottom: 24, height: 76,
   },
-  dollarSign: { fontSize: 28, fontWeight: '300', color: colors.textSecondary, marginRight: 4 },
-  totalInput: { flex: 1, fontSize: 36, fontWeight: '600', color: colors.text, paddingVertical: 0 },
+  dollarSign: { fontSize: 28, fontWeight: '400', color: C.dim, marginRight: 4 },
+  totalInput: { flex: 1, fontSize: 38, fontWeight: '700', color: C.text, paddingVertical: 0, letterSpacing: -1 },
 
   tipRow: { flexDirection: 'row', gap: 8, marginBottom: 24 },
-  tipPill: {
-    flex: 1, height: 40, borderRadius: 10,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  tipPillActive: { backgroundColor: colors.green, borderColor: colors.green },
-  tipPillText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  tipPill: { flex: 1, height: 42, borderRadius: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+  tipPillActive: { backgroundColor: C.accent, borderColor: C.accent },
+  tipPillText: { fontSize: 13.5, fontWeight: '600', color: C.dim },
   tipPillTextActive: { color: '#fff' },
 
   peopleCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surface, borderRadius: 16,
-    borderWidth: 1, borderColor: colors.border,
-    paddingHorizontal: 8, marginBottom: 24, height: 80,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 18,
+    borderWidth: 1, borderColor: C.line, paddingHorizontal: 8, marginBottom: 24, height: 82,
   },
-  counterBtn: {
-    width: 52, height: 52, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.border,
-  },
+  counterBtn: { width: 54, height: 54, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line },
   counterBtnDisabled: { opacity: 0.3 },
   counterCenter: { flex: 1, alignItems: 'center' },
-  counterNum: { fontSize: 40, fontWeight: '700', color: colors.text, lineHeight: 44 },
-  counterLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
+  counterNum: { fontSize: 40, fontWeight: '800', color: C.text, lineHeight: 44, letterSpacing: -1 },
+  counterLabel: { fontSize: 12, color: C.dim, fontWeight: '500' },
 
-  previewCard: {
-    backgroundColor: 'rgba(62,173,116,0.10)', borderRadius: 16,
-    borderWidth: 1, borderColor: 'rgba(62,173,116,0.25)',
-    padding: 20, alignItems: 'center',
-  },
-  previewLabel: {
-    fontSize: 13, color: colors.green, fontWeight: '600',
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
-  },
-  previewAmount: { fontSize: 48, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  previewSub: { fontSize: 14, color: colors.textMuted },
+  previewCard: { backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 22, alignItems: 'center' },
+  previewLabel: { fontSize: 12, color: C.accent, fontWeight: '700', letterSpacing: 1.2, marginBottom: 8 },
+  previewAmount: { fontSize: 46, fontWeight: '800', color: C.text, letterSpacing: -1.4 },
+  previewSub: { fontSize: 13.5, color: C.dim },
 
-  footer: {
-    paddingHorizontal: 20, paddingBottom: 24, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.bg,
-  },
-  splitBtnDisabled: { backgroundColor: colors.surface },
-  splitBtnTextDisabled: { color: colors.textMuted },
-  shareLinkBtn: {
-    height: 54, borderRadius: 14, backgroundColor: colors.btnPrimary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-  },
-  shareLinkBtnText: { fontSize: 17, fontWeight: '700', color: '#000' },
-  splitTextBtn: {
-    height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4,
-  },
-  splitTextBtnText: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
+  footer: { paddingHorizontal: 20, paddingBottom: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.bg },
+  splitBtnDisabled: { backgroundColor: C.card },
+  splitBtnTextDisabled: { color: C.faint },
+  shareLinkBtn: { height: 54, borderRadius: 15, backgroundColor: C.text, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  shareLinkBtnText: { fontSize: 16.5, fontWeight: '700', color: C.bg },
+  splitTextBtn: { height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  splitTextBtnText: { fontSize: 15, fontWeight: '600', color: C.dim },
 });
