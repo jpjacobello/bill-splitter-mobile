@@ -126,7 +126,7 @@ export default function PeopleScreen() {
 
           {/* ── People ── */}
           <Enter delay={80}>
-            <Text style={[styles.section, { marginTop: 26 }]}>PEOPLE</Text>
+            <Text style={[styles.section, { marginTop: 28, marginBottom: 12 }]}>PEOPLE</Text>
             <View style={styles.addRow}>
               <TouchableOpacity style={styles.addBtn} activeOpacity={0.85} onPress={importFromContacts}>
                 <SymbolView name="person.crop.circle.badge.plus" size={18} tintColor={C.bg} />
@@ -244,21 +244,23 @@ function PersonEditor({
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={styles.sheetTitle}>{isNew ? 'Add Person' : 'Edit Person'}</Text>
+      <View style={styles.editorHead}>
+        <View style={styles.bigAvatar}><Text style={styles.bigAvatarText}>{name.trim() ? initials(name) : '?'}</Text></View>
+        <Text style={styles.editorTitle}>{isNew ? 'Add Person' : name.trim() || 'Edit Person'}</Text>
+      </View>
 
-      <Text style={styles.fieldLabel}>Name</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name"
-        placeholderTextColor={C.faint} autoCapitalize="words" />
-
-      <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Phone</Text>
-      <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567"
-        placeholderTextColor={C.faint} keyboardType="phone-pad" />
-
-      <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Venmo</Text>
-      <View style={styles.prefixWrap}>
-        <Text style={styles.prefix}>@</Text>
-        <TextInput style={styles.prefixInput} value={venmo} onChangeText={setVenmo} placeholder="venmo-username"
-          placeholderTextColor={C.faint} autoCapitalize="none" autoCorrect={false} />
+      <View style={styles.formCard}>
+        <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="Name"
+          placeholderTextColor={C.faint} autoCapitalize="words" />
+        <View style={styles.formSep} />
+        <TextInput style={styles.formInput} value={phone} onChangeText={setPhone} placeholder="Phone"
+          placeholderTextColor={C.faint} keyboardType="phone-pad" />
+        <View style={styles.formSep} />
+        <View style={styles.formPrefixRow}>
+          <Text style={styles.formPrefix}>@</Text>
+          <TextInput style={styles.formPrefixInput} value={venmo} onChangeText={setVenmo} placeholder="venmo-username"
+            placeholderTextColor={C.faint} autoCapitalize="none" autoCorrect={false} />
+        </View>
       </View>
 
       <TouchableOpacity style={[styles.primaryBtn, !name.trim() && { opacity: 0.4 }]} onPress={save} disabled={!name.trim()} activeOpacity={0.85}>
@@ -266,7 +268,6 @@ function PersonEditor({
       </TouchableOpacity>
       {person && (
         <TouchableOpacity style={styles.removeBtn} onPress={() => { onRemoved(person.id); onClose(); }} activeOpacity={0.7}>
-          <Ionicons name="person-remove-outline" size={17} color={colors.red} />
           <Text style={styles.removeText}>Remove Person</Text>
         </TouchableOpacity>
       )}
@@ -319,13 +320,22 @@ function GroupEditor({
 
   return (
     <BottomSheet visible={draft !== null} onClose={onClose}>
-      <Text style={styles.sheetTitle}>{draft?.id ? 'Edit Group' : 'New Group'}</Text>
+      <View style={styles.editorHead}>
+        <View style={[styles.bigAvatar, { backgroundColor: C.blue + '22' }]}>
+          <SymbolView name="person.2.fill" size={26} tintColor={C.blue} type="hierarchical" />
+        </View>
+        <Text style={styles.editorTitle}>{name.trim() || (draft?.id ? 'Edit Group' : 'New Group')}</Text>
+      </View>
 
-      <Text style={styles.fieldLabel}>Group name</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Roommates"
-        placeholderTextColor={C.faint} autoCapitalize="words" />
+      <View style={styles.formCard}>
+        <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="Group name"
+          placeholderTextColor={C.faint} autoCapitalize="words" />
+      </View>
 
-      <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Members</Text>
+      <View style={styles.membersHead}>
+        <Text style={styles.membersLabel}>MEMBERS</Text>
+        {selected.size > 0 && <Text style={styles.membersCount}>{selected.size}</Text>}
+      </View>
       <TouchableOpacity style={styles.contactsRowBtn} onPress={addFromContacts} activeOpacity={0.85}>
         <SymbolView name="person.crop.circle.badge.plus" size={18} tintColor={C.bg} />
         <Text style={styles.contactsRowText}>Add from Contacts</Text>
@@ -340,12 +350,11 @@ function GroupEditor({
         </TouchableOpacity>
       </View>
 
-      {members.length === 0 ? (
-        <Text style={styles.sectionEmpty}>No members yet — add from contacts or type a name.</Text>
-      ) : (
+      {members.length > 0 && (
         <View style={styles.memberChips}>
           {members.map((p) => (
             <View key={p.id} style={styles.memberChip}>
+              <View style={styles.chipAvatar}><Text style={styles.chipAvatarText}>{initials(p.name)}</Text></View>
               <Text style={styles.memberChipText}>{p.name}</Text>
               <TouchableOpacity onPress={() => removeMember(p.id)} hitSlop={8}>
                 <SymbolView name="xmark.circle.fill" size={16} tintColor={C.faint} />
@@ -360,7 +369,6 @@ function GroupEditor({
       </TouchableOpacity>
       {draft?.id && (
         <TouchableOpacity style={styles.removeBtn} onPress={() => draft.id && onDelete(draft.id)} activeOpacity={0.7}>
-          <Ionicons name="trash-outline" size={17} color={colors.red} />
           <Text style={styles.removeText}>Delete Group</Text>
         </TouchableOpacity>
       )}
@@ -414,19 +422,24 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 14, color: C.dim, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
   hint: { fontSize: 12.5, color: C.faint, textAlign: 'center', marginTop: 14 },
 
-  // Editor sheets (shared)
-  sheetTitle: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 4 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: C.dim, marginBottom: 6, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
-  input: {
-    height: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, color: C.text,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
-  },
-  prefixWrap: {
-    flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 12, paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
-  },
-  prefix: { fontSize: 16, color: C.dim, marginRight: 4 },
-  prefixInput: { flex: 1, fontSize: 16, color: C.text, height: '100%' },
+  // Editor sheets (shared) — iOS grouped inset form + live avatar header
+  editorHead: { alignItems: 'center', gap: 12, marginTop: 4, marginBottom: 20 },
+  bigAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(91,157,240,0.22)', alignItems: 'center', justifyContent: 'center' },
+  bigAvatarText: { fontSize: 24, fontWeight: '700', color: C.blue },
+  editorTitle: { fontSize: 20, fontWeight: '800', color: C.text, letterSpacing: -0.3, textAlign: 'center' },
+
+  formCard: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 14, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
+  formInput: { height: 52, paddingHorizontal: 16, fontSize: 16, color: C.text },
+  formSep: { height: 1, backgroundColor: C.line, marginLeft: 16 },
+  formPrefixRow: { flexDirection: 'row', alignItems: 'center', height: 52, paddingHorizontal: 16 },
+  formPrefix: { fontSize: 16, color: C.dim, marginRight: 4 },
+  formPrefixInput: { flex: 1, fontSize: 16, color: C.text, height: '100%' },
+
+  membersHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20, marginBottom: 10, marginLeft: 2 },
+  membersLabel: { fontSize: 12, fontWeight: '700', color: C.faint, letterSpacing: 1 },
+  membersCount: { fontSize: 12, fontWeight: '700', color: C.dim },
+  chipAvatar: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(91,157,240,0.25)', alignItems: 'center', justifyContent: 'center' },
+  chipAvatarText: { fontSize: 10, fontWeight: '700', color: C.blue },
 
   contactsRowBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,

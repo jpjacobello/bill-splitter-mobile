@@ -101,10 +101,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim },
   sheet: {
-    backgroundColor: colors.sheet,
-    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    backgroundColor: '#161619',
+    borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 20,
-    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
   },
   grip: { alignItems: 'center', paddingTop: 12, paddingBottom: 14 },
   handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)' },
