@@ -5,7 +5,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../../theme';
+import { colors, ui as C } from '../../theme';
 import { startNewBill } from '../../utils/startBill';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -23,7 +23,7 @@ function TabButton({ name, focused, onPress }: { name: string; focused: boolean;
   if (!meta) return <View style={styles.slot} />;
   return (
     <Pressable style={({ pressed }) => [styles.slot, pressed && { opacity: 0.5 }]} onPress={onPress} hitSlop={6}>
-      <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? colors.text : colors.textMuted} />
+      <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? C.text : C.faint} />
       <Text style={[styles.label, focused && styles.labelActive]}>{meta.label}</Text>
     </Pressable>
   );
@@ -137,35 +137,36 @@ const styles = StyleSheet.create({
   },
   bar: {
     height: BAR_H, borderRadius: 30, flexDirection: 'row', alignItems: 'center',
-    overflow: 'hidden', backgroundColor: 'rgba(28,28,30,0.72)',
+    overflow: 'hidden', backgroundColor: 'rgba(18,18,21,0.80)',
   },
-  barBorder: { ...StyleSheet.absoluteFillObject, borderRadius: 30, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  barBorder: { ...StyleSheet.absoluteFillObject, borderRadius: 30, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)' },
   slot: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: BAR_H },
-  label: { fontSize: 10, fontWeight: '600', color: colors.textMuted },
-  labelActive: { color: colors.text },
+  label: { fontSize: 10, fontWeight: '600', color: C.faint },
+  labelActive: { color: C.text },
 
   fab: {
     position: 'absolute', top: -18,
-    width: 58, height: 58, borderRadius: 29, backgroundColor: colors.btnPrimary,
+    width: 58, height: 58, borderRadius: 29, backgroundColor: C.text,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: colors.bg,
+    borderWidth: 3, borderColor: C.bg,
     shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
   },
 
   backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: '#202023', borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    backgroundColor: '#161619', borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 16, paddingTop: 14,
+    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
   },
   tiles: { flexDirection: 'row', gap: 12 },
   tile: {
     flex: 1, alignItems: 'flex-start', gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: 16,
+    backgroundColor: C.card, borderRadius: 20, padding: 16,
     overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: C.line,
   },
   tileHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.07)' },
   tileIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  tileTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  tileSub: { fontSize: 12.5, color: colors.textMuted },
+  tileTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+  tileSub: { fontSize: 12.5, color: C.dim },
 });

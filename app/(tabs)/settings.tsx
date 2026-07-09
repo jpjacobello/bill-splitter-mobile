@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ActionSheet from '../../components/ActionSheet';
 import { useBillStore } from '../../store/useBillStore';
 import { usePro } from '../../hooks/usePro';
-import { colors } from '../../theme';
+import { colors, ui as C } from '../../theme';
 import { getVenmoHandle, setVenmoHandle, getCashAppHandle, setCashAppHandle, getCurrency, setCurrency } from '../../utils/proStorage';
 import { CURRENCIES, currencyInfo, setActiveCurrency } from '../../utils/currency';
 
@@ -54,8 +54,8 @@ function SettingRow({
         <Text style={[styles.rowLabel, labelColor ? { color: labelColor } : undefined]}>{label}</Text>
         <View style={styles.rowRight}>
           {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-          {icon ? <Ionicons name={icon} size={18} color="#555" /> : null}
-          {chevron && onPress ? <Ionicons name="chevron-forward" size={16} color="#444" style={{ marginLeft: 2 }} /> : null}
+          {icon ? <Ionicons name={icon} size={18} color={C.faint} /> : null}
+          {chevron && onPress ? <Ionicons name="chevron-forward" size={16} color={C.faint} style={{ marginLeft: 2 }} /> : null}
         </View>
       </Wrapper>
       {!last && <View style={styles.separator} />}
@@ -195,7 +195,7 @@ export default function SettingsScreen() {
                   value={name}
                   onChangeText={(t) => { setName(t); setNameSaved(false); }}
                   placeholder="Your name"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={C.faint}
                   autoCapitalize="words"
                   returnKeyType="done"
                   onSubmitEditing={handleSaveName}
@@ -236,7 +236,7 @@ export default function SettingsScreen() {
                   value={venmoHandle}
                   onChangeText={(t) => { setVenmoHandleState(t); setVenmoSaved(false); }}
                   placeholder="yourhandle"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={C.faint}
                   autoCapitalize="none"
                   returnKeyType="done"
                   onSubmitEditing={handleSaveVenmo}
@@ -274,7 +274,7 @@ export default function SettingsScreen() {
                   value={cashHandle}
                   onChangeText={(t) => { setCashHandleState(t); setCashSaved(false); }}
                   placeholder="yourcashtag"
-                  placeholderTextColor="#555"
+                  placeholderTextColor={C.faint}
                   autoCapitalize="none"
                   returnKeyType="done"
                   onSubmitEditing={handleSaveCash}
@@ -358,7 +358,7 @@ export default function SettingsScreen() {
                     <Text style={styles.radioDesc}>{desc}</Text>
                   </View>
                   {tipReminder === mode && (
-                    <Ionicons name="checkmark" size={18} color="#3B82F6" />
+                    <Ionicons name="checkmark" size={18} color={C.blue} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -390,13 +390,13 @@ export default function SettingsScreen() {
                 <SettingRow
                   label="Manage Subscription"
                   chevron={false}
-                  labelColor="#3B82F6"
+                  labelColor={C.blue}
                   onPress={() => Linking.openURL('itms-apps://apps.apple.com/account/subscriptions')}
                 />
                 <SettingRow
                   label="Restore Purchases"
                   chevron={false}
-                  labelColor="#3B82F6"
+                  labelColor={C.blue}
                   last
                   onPress={() => setRestoreOpen(true)}
                 />
@@ -493,7 +493,7 @@ export default function SettingsScreen() {
                       <Text style={[styles.currencyName, active && styles.currencyNameActive]}>{c.name}</Text>
                       <Text style={styles.currencyMeta}>{c.code} · {c.symbol}</Text>
                     </View>
-                    {active && <Ionicons name="checkmark" size={20} color={colors.green} />}
+                    {active && <Ionicons name="checkmark" size={20} color={C.accent} />}
                   </TouchableOpacity>
                 );
               })}
@@ -526,150 +526,106 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: C.bg },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 6, paddingBottom: 8,
   },
-  backBtn: {
-    width: 36, height: 36,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 4,
-  },
-  title: { fontSize: 22, fontWeight: '700', color: colors.textDim },
-  scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 120 },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+  title: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120 },
 
   sectionHeader: {
-    fontSize: 12, fontWeight: '600', color: '#666',
-    letterSpacing: 0.5, textTransform: 'uppercase',
-    marginBottom: 8, marginTop: 28, marginLeft: 4,
+    fontSize: 12.5, fontWeight: '700', color: C.faint,
+    letterSpacing: 1.2, textTransform: 'uppercase',
+    marginBottom: 10, marginTop: 26, marginLeft: 2,
   },
 
   card: {
-    backgroundColor: '#1C1C1C',
-    borderRadius: 14,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
+    backgroundColor: C.card, borderRadius: 18,
+    borderWidth: 1, borderColor: C.line, overflow: 'hidden',
   },
 
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 50,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14, minHeight: 52,
   },
-  rowLabel: { fontSize: 15, color: colors.textDim, fontWeight: '400' },
+  rowLabel: { fontSize: 15.5, color: C.text, fontWeight: '500' },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rowValue: { fontSize: 15, color: '#666' },
-  separator: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.07)', marginLeft: 16 },
+  rowValue: { fontSize: 15, color: C.dim },
+  separator: { height: 1, backgroundColor: C.line, marginLeft: 16 },
 
-  expandedArea: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255,255,255,0.07)',
-  },
-  expandedHint: {
-    fontSize: 12, color: '#555', marginBottom: 12, marginTop: 12,
-  },
+  expandedArea: { paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: C.line },
+  expandedHint: { fontSize: 12.5, color: C.dim, marginBottom: 12, marginTop: 12 },
   nameRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 12 },
   nameInput: {
-    flex: 1, height: 44,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 10, paddingHorizontal: 14,
-    fontSize: 15, color: '#FFFFFF',
+    flex: 1, height: 46, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: C.text,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   saveBtn: {
-    height: 44, paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    height: 46, paddingHorizontal: 18, backgroundColor: C.text,
+    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
   },
-  saveBtnDone: {
-    backgroundColor: 'rgba(22,163,74,0.15)',
-    borderColor: 'rgba(22,163,74,0.40)',
-  },
+  saveBtnDone: { backgroundColor: C.accentDim },
   saveBtnDisabled: { opacity: 0.35 },
-  saveBtnText: { fontSize: 14, fontWeight: '600', color: colors.textDim },
-  saveBtnTextDone: { color: '#16A34A' },
+  saveBtnText: { fontSize: 14.5, fontWeight: '700', color: C.bg },
+  saveBtnTextDone: { color: C.accent },
 
   radioRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingVertical: 12,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line,
   },
   radioTextGroup: { flex: 1, gap: 2, paddingRight: 12 },
-  radioTitle: { fontSize: 15, color: colors.textDim, fontWeight: '400' },
-  radioDesc: { fontSize: 12, color: '#555' },
+  radioTitle: { fontSize: 15, color: C.text, fontWeight: '500' },
+  radioDesc: { fontSize: 12, color: C.dim },
 
   tipChips: { flexDirection: 'row', gap: 8 },
 
   currencyBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   currencySheet: {
-    backgroundColor: colors.sheet,
-    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    backgroundColor: '#161619', borderTopLeftRadius: 26, borderTopRightRadius: 26,
     paddingHorizontal: 20, paddingTop: 10, maxHeight: '78%',
-    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
   },
-  currencyHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)', marginBottom: 14 },
-  currencySheetTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
-  currencySheetHint: { fontSize: 12.5, color: colors.textMuted, marginTop: 4, marginBottom: 8, lineHeight: 17 },
+  currencyHandle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.24)', marginBottom: 16 },
+  currencySheetTitle: { fontSize: 18, fontWeight: '800', color: C.text },
+  currencySheetHint: { fontSize: 12.5, color: C.dim, marginTop: 4, marginBottom: 8, lineHeight: 17 },
   currencyList: { marginTop: 2 },
   currencyOption: {
     flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13,
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)',
+    borderBottomWidth: 1, borderBottomColor: C.line,
   },
   currencyFlag: { fontSize: 24 },
-  currencyName: { fontSize: 15.5, color: colors.textDim, fontWeight: '500' },
-  currencyNameActive: { color: colors.text, fontWeight: '700' },
-  currencyMeta: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
+  currencyName: { fontSize: 15.5, color: C.text, fontWeight: '500' },
+  currencyNameActive: { color: C.text, fontWeight: '700' },
+  currencyMeta: { fontSize: 12.5, color: C.dim, marginTop: 1 },
 
   tipChip: {
-    flex: 1, paddingVertical: 8,
-    borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    flex: 1, paddingVertical: 9, borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.line,
     alignItems: 'center',
   },
-  tipChipActive: { backgroundColor: 'rgba(220,220,220,0.95)', borderColor: 'rgba(255,255,255,0.40)' },
-  tipChipText: { fontSize: 13, fontWeight: '600', color: '#888' },
-  tipChipTextActive: { color: '#000' },
+  tipChipActive: { backgroundColor: C.text, borderColor: C.text },
+  tipChipText: { fontSize: 13, fontWeight: '600', color: C.dim },
+  tipChipTextActive: { color: C.bg },
 
   proActiveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  proActiveValue: { fontSize: 15, color: '#22C55E', fontWeight: '600' },
-  subFootnote: {
-    fontSize: 12, color: '#555', marginTop: 8, marginLeft: 4,
-  },
+  proActiveValue: { fontSize: 15, color: C.accent, fontWeight: '700' },
+  subFootnote: { fontSize: 12, color: C.faint, marginTop: 8, marginLeft: 4 },
 
   proCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 14, padding: 18,
-    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)',
-    gap: 14,
+    backgroundColor: C.card, borderRadius: 18, padding: 18,
+    borderWidth: 1, borderColor: C.line, gap: 14,
   },
-  proCardTitle: { fontSize: 18, fontWeight: '800', color: colors.textDim },
+  proCardTitle: { fontSize: 18, fontWeight: '800', color: C.text },
   proFeatureList: { gap: 8 },
   proFeatureRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  proFeatureCheck: { fontSize: 14, fontWeight: '700', color: '#22C55E', width: 16 },
-  proFeatureText: { fontSize: 14, color: '#AAA', flex: 1 },
-  upgradeBtn: {
-    backgroundColor: colors.btnPrimary, borderRadius: 12,
-    paddingVertical: 13, alignItems: 'center',
-  },
-  upgradeBtnText: { fontSize: 16, fontWeight: '700', color: '#000' },
+  proFeatureCheck: { fontSize: 14, fontWeight: '700', color: C.accent, width: 16 },
+  proFeatureText: { fontSize: 14, color: C.dim, flex: 1 },
+  upgradeBtn: { backgroundColor: C.text, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  upgradeBtnText: { fontSize: 16, fontWeight: '700', color: C.bg },
 });
