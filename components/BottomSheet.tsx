@@ -27,6 +27,7 @@ export default function BottomSheet({
   const sheetH = useRef(FALLBACK_H);
 
   const animateIn = () => {
+    kb.setValue(0); // clear any stale keyboard offset from a prior open
     slide.setValue(sheetH.current);
     Animated.parallel([
       Animated.spring(slide, { toValue: 0, useNativeDriver: true, friction: 12, tension: 90 }),
