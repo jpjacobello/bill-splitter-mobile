@@ -3,7 +3,6 @@ import {
   StyleSheet, View, Text, TextInput,
   TouchableOpacity, ScrollView, Keyboard, Linking, Modal, Pressable,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -72,7 +71,6 @@ function GroupCard({ children }: { children: React.ReactNode }) {
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
-  const router = useRouter();
   const { setHostName } = useBillStore();
   const { isPro, loading: proLoading, activatePro, deactivatePro } = usePro();
   const [resetProOpen, setResetProOpen] = useState(false);
@@ -176,12 +174,6 @@ export default function SettingsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* TEMP — design preview entry (remove later) */}
-        <SectionHeader label="Preview" />
-        <GroupCard>
-          <SettingRow label="🎨 Home redesign (preview)" onPress={() => router.push('/home-preview')} last />
-        </GroupCard>
-
         {/* ── Profile ── */}
         <SectionHeader label="Profile" />
         <GroupCard>

@@ -3,17 +3,17 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View, RefreshControl } 
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { SymbolView, SFSymbol } from 'expo-symbols';
+import { MotiView } from 'moti';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Button from '../../components/Button';
-import { colors, moneyText } from '../../theme';
+import AnimatedMoney from '../../components/AnimatedMoney';
+import { moneyText } from '../../theme';
 import { BillSession, BillHistoryEntry } from '../../types';
 import { outstandingOwed, owersCount } from '../../utils/sessionOwed';
 import { subscribeToSession } from '../../services/billSession';
 import { getSessions, StoredSession } from '../../utils/sessionStorage';
 import { getBillHistory } from '../../utils/proStorage';
-import { getEmoji } from '../../utils/buildReceiptHtml';
 import { usePro } from '../../hooks/usePro';
 import { formatCurrency } from '../../utils/currency';
 import { startNewBill } from '../../utils/startBill';
@@ -21,28 +21,58 @@ import { startNewBill } from '../../utils/startBill';
 const SAVED_NAME_KEY = 'savedHostName';
 const FREE_RECENT_CAP = 10;
 
-function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
+const C = {
+  bg: '#0B0B0D',
+  card: '#151518',
+  line: 'rgba(255,255,255,0.07)',
+  text: '#F5F5F7',
+  dim: '#9A9AA2',
+  faint: '#65656E',
+  accent: '#37C97F',
+  accentDim: 'rgba(55,201,127,0.14)',
+  blue: '#5B9DF0',
+};
+
+function greeting(): string {
+  const h = new Date().getHours();
+  return h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening';
 }
 
-// One shared row for both Active and Recent items.
-function Row({ emoji, icon, accent, title, status, amount, onPress }: {
-  emoji?: string; icon?: keyof typeof Ionicons.glyphMap; accent?: boolean;
-  title: string; status: React.ReactNode; amount: number; onPress: () => void;
+// Receipt-style perforation — Divi's recurring signature motif.
+function Perforation() {
+  return (
+    <View style={styles.perf}>
+      {Array.from({ length: 34 }).map((_, i) => <View key={i} style={styles.perfDot} />)}
+    </View>
+  );
+}
+
+function Enter({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
+  return (
+    <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: 'timing', duration: 400, delay }}>
+      {children}
+    </MotiView>
+  );
+}
+
+function Row({ symbol, tint, title, sub, amount, live, onPress }: {
+  symbol: SFSymbol; tint: string; title: string; sub: string; amount: number; live?: boolean; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={onPress}>
-      <View style={[styles.rowTile, accent && styles.rowTileAccent]}>
-        {emoji ? <Text style={styles.rowEmoji}>{emoji}</Text> : <Ionicons name={icon ?? 'receipt-outline'} size={18} color={colors.textSecondary} />}
+    <TouchableOpacity style={styles.row} activeOpacity={0.6} onPress={onPress}>
+      <View style={[styles.rowIcon, { backgroundColor: tint + '22' }]}>
+        <SymbolView name={symbol} size={17} tintColor={tint} type="hierarchical" />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>{title}</Text>
-        <View style={styles.rowStatusLine}>{status}</View>
+        <View style={styles.rowSubLine}>
+          {live && <View style={styles.liveDot} />}
+          <Text style={styles.rowSub} numberOfLines={1}>{sub}</Text>
+        </View>
       </View>
-      <View style={styles.rowTrailing}>
-        <Text style={[styles.rowAmt, moneyText]}>{formatCurrency(amount)}</Text>
-        <Ionicons name="chevron-forward" size={16} color="#5a5a5c" />
-      </View>
+      <Text style={[styles.rowAmt, moneyText]}>{formatCurrency(amount)}</Text>
+      <SymbolView name="chevron.right" size={13} tintColor={C.faint} style={{ marginLeft: 6 }} />
     </TouchableOpacity>
   );
 }
@@ -85,189 +115,201 @@ export default function HomeScreen() {
   if (!ready) return <View style={styles.container} />;
 
   const owed = stored.reduce((sum, s) => sum + outstandingOwed(liveData.get(s.sessionId) ?? null), 0);
-  // How many people owe you across all live sessions.
   const peopleOwe = stored.reduce((n, s) => n + owersCount(liveData.get(s.sessionId) ?? null), 0);
   const recent = isPro ? history : history.slice(0, FREE_RECENT_CAP);
   const capped = !isPro && history.length > FREE_RECENT_CAP;
-  const dateLine = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-  const startScan = async () => { await startNewBill(); router.push('/receipt-upload'); };
+  const isEmpty = stored.length === 0 && recent.length === 0;
+
+  const startScan = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await startNewBill();
+    router.push('/receipt-upload');
+  };
+  const quickSplit = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/quick-split');
+  };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.dateLine}>{dateLine}</Text>
-            <Text style={styles.greeting}>Hi, {name}</Text>
-          </View>
-          <TouchableOpacity style={styles.avatar} activeOpacity={0.7} onPress={() => router.push('/settings')}>
-            <Text style={styles.avatarText}>{initials(name)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Owed hero */}
-        <View style={styles.owedCard}>
-          <LinearGradient
-            colors={['rgba(62,173,116,0.16)', 'rgba(62,173,116,0.06)']}
-            start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.cardHighlight} pointerEvents="none" />
-          <View style={styles.owedLabelRow}>
-            <View style={styles.owedDot} />
-            <Text style={styles.owedLabel}>OWED TO YOU</Text>
-          </View>
-          <Text style={[styles.owedValue, moneyText]}>{formatCurrency(owed)}</Text>
-          <View style={styles.statRow}>
-            <View style={styles.stat}>
-              <Text style={[styles.statNum, moneyText]}>{stored.length}</Text>
-              <Text style={styles.statLabel}>open {stored.length === 1 ? 'split' : 'splits'}</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={[styles.statNum, moneyText]}>{peopleOwe}</Text>
-              <Text style={styles.statLabel}>{peopleOwe === 1 ? 'person owes you' : 'people owe you'}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Active */}
-        {stored.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>ACTIVE · {stored.length}</Text>
-            </View>
-            {stored.map((s) => {
-              const live = liveData.get(s.sessionId);
-              const claims = Object.values(live?.claims ?? {});
-              const isEqual = live?.splitType === 'equal';
-              const totalItems = live?.receipt.items.filter((i) => i.price > 0 && !i.parentId).length ?? 0;
-              const claimedCount = new Set(claims.map((c) => c.itemId)).size;
-              const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
-              const status = (
-                <>
-                  <View style={styles.livePill}><Text style={styles.livePillText}>● live</Text></View>
-                  <Text style={styles.rowStatusText}>
-                    {isEqual ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid` : `${claimedCount} of ${totalItems} claimed`}
-                  </Text>
-                </>
-              );
-              return (
-                <Row key={s.sessionId} emoji={getEmoji(s.merchantName || '')} accent title={s.merchantName || 'Bill'}
-                  status={status} amount={outstandingOwed(live ?? null)} onPress={() => router.push('/activity?tab=live')} />
-              );
-            })}
-          </View>
-        )}
-
-        {/* Recent */}
-        {recent.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>RECENT · {recent.length}</Text>
-              <TouchableOpacity onPress={() => router.push('/activity?tab=past')}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
-            </View>
-            {recent.slice(0, 4).map((e) => (
-              <Row key={e.id} icon="receipt-outline" title={e.merchantName || 'Bill'}
-                status={<Text style={styles.rowStatusText}>{new Date(e.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · settled</Text>}
-                amount={e.receipt.total} onPress={() => router.push('/activity?tab=past')} />
-            ))}
-            {capped && (
-              <TouchableOpacity style={styles.nudge} onPress={() => router.push('/settings')}>
-                <Text style={styles.nudgeText}>See all your history with Divi Pro</Text>
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.dim} />}
+        >
+          {/* Top bar */}
+          <Enter>
+            <View style={styles.topbar}>
+              <View>
+                <Text style={styles.date}>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
+                <Text style={styles.hi}>{greeting()}, {name}</Text>
+              </View>
+              <TouchableOpacity style={styles.gear} activeOpacity={0.6} onPress={() => router.push('/settings')}>
+                <SymbolView name="gearshape.fill" size={18} tintColor={C.dim} />
               </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Empty state */}
-        {stored.length === 0 && recent.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}><Ionicons name="receipt-outline" size={34} color={colors.textSecondary} /></View>
-            <Text style={styles.emptyTitle}>Start your first split</Text>
-            <Text style={styles.emptySub}>Scan a receipt and split it by what each person ordered.</Text>
-            <View style={{ alignSelf: 'stretch', marginTop: 16 }}>
-              <Button label="Scan your first receipt" icon="scan-outline" onPress={startScan} />
             </View>
-          </View>
-        ) : (
-          <View style={styles.actions}>
-            <Button label="Scan a receipt" icon="scan-outline" variant="primary" onPress={startScan} />
-            <Button label="Quick Split" icon="calculator-outline" variant="ghost" onPress={() => router.push('/quick-split')} />
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          </Enter>
+
+          {/* Owed hero — signature: count-up amount + receipt perforation */}
+          <Enter delay={70}>
+            <View style={styles.hero}>
+              <View style={styles.heroLabelRow}>
+                <View style={styles.liveDot} />
+                <Text style={styles.heroLabel}>OWED TO YOU</Text>
+              </View>
+              <AnimatedMoney value={owed} style={styles.heroAmt} />
+              <Perforation />
+              <View style={styles.statRow}>
+                <View style={styles.stat}>
+                  <Text style={[styles.statNum, moneyText]}>{stored.length}</Text>
+                  <Text style={styles.statLabel}>open {stored.length === 1 ? 'split' : 'splits'}</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.stat}>
+                  <Text style={[styles.statNum, moneyText]}>{peopleOwe}</Text>
+                  <Text style={styles.statLabel}>{peopleOwe === 1 ? 'person owes you' : 'people owe you'}</Text>
+                </View>
+              </View>
+            </View>
+          </Enter>
+
+          {/* Primary actions */}
+          <Enter delay={130}>
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.primaryBtn} activeOpacity={0.85} onPress={startScan}>
+                <SymbolView name="viewfinder" size={18} tintColor={C.bg} />
+                <Text style={styles.primaryText}>Scan a receipt</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.85} onPress={quickSplit}>
+                <SymbolView name="divide" size={18} tintColor={C.text} />
+                <Text style={styles.secondaryText}>Quick split</Text>
+              </TouchableOpacity>
+            </View>
+          </Enter>
+
+          {/* Empty state */}
+          {isEmpty && (
+            <Enter delay={190}>
+              <View style={styles.empty}>
+                <View style={styles.emptyIcon}>
+                  <SymbolView name="doc.text.viewfinder" size={30} tintColor={C.dim} type="hierarchical" />
+                </View>
+                <Text style={styles.emptyTitle}>Start your first split</Text>
+                <Text style={styles.emptySub}>Scan a receipt and split it by what each person ordered.</Text>
+              </View>
+            </Enter>
+          )}
+
+          {/* Active */}
+          {stored.length > 0 && (
+            <Enter delay={190}>
+              <Text style={styles.section}>ACTIVE</Text>
+              <View style={styles.group}>
+                {stored.map((s, i) => {
+                  const live = liveData.get(s.sessionId);
+                  const claims = Object.values(live?.claims ?? {});
+                  const isEqual = live?.splitType === 'equal';
+                  const totalItems = live?.receipt.items.filter((it) => it.price > 0 && !it.parentId).length ?? 0;
+                  const claimedCount = new Set(claims.map((c) => c.itemId)).size;
+                  const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
+                  const sub = isEqual ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid` : `${claimedCount} of ${totalItems} claimed`;
+                  return (
+                    <View key={s.sessionId}>
+                      {i > 0 && <View style={styles.sep} />}
+                      <Row symbol="dot.radiowaves.left.and.right" tint={C.accent} live
+                        title={s.merchantName || 'Bill'} sub={sub}
+                        amount={outstandingOwed(live ?? null)}
+                        onPress={() => router.push('/activity?tab=live')} />
+                    </View>
+                  );
+                })}
+              </View>
+            </Enter>
+          )}
+
+          {/* Recent */}
+          {recent.length > 0 && (
+            <Enter delay={250}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.section}>RECENT</Text>
+                <TouchableOpacity onPress={() => router.push('/activity?tab=past')} activeOpacity={0.6}>
+                  <Text style={styles.seeAll}>See all</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.group}>
+                {recent.slice(0, 4).map((e, i) => (
+                  <View key={e.id}>
+                    {i > 0 && <View style={styles.sep} />}
+                    <Row symbol="checkmark.circle.fill" tint={C.blue}
+                      title={e.merchantName || 'Bill'}
+                      sub={`${new Date(e.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · settled`}
+                      amount={e.receipt.total}
+                      onPress={() => router.push('/activity?tab=past')} />
+                  </View>
+                ))}
+              </View>
+              {capped && (
+                <TouchableOpacity style={styles.nudge} activeOpacity={0.7} onPress={() => router.push('/settings')}>
+                  <Text style={styles.nudgeText}>See all your history with Divi Pro</Text>
+                </TouchableOpacity>
+              )}
+            </Enter>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: 20, paddingBottom: 120, gap: 20 },
+  container: { flex: 1, backgroundColor: C.bg },
+  scroll: { paddingHorizontal: 20, paddingBottom: 120 },
 
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 4 },
-  dateLine: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, color: colors.textMuted, marginBottom: 3 },
-  greeting: { fontSize: 27, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
-  avatar: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: colors.person[0] + '38', borderWidth: 1, borderColor: colors.person[0] + '80',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontSize: 14, fontWeight: '700', color: colors.person[0] },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, paddingBottom: 18 },
+  date: { fontSize: 13, color: C.faint, fontWeight: '500', letterSpacing: 0.2 },
+  hi: { fontSize: 24, color: C.text, fontWeight: '700', letterSpacing: -0.4, marginTop: 2 },
+  gear: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: C.card },
 
-  owedCard: {
-    borderRadius: 22, padding: 22, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(62,173,116,0.25)',
-  },
-  cardHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' },
-  owedLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  owedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#4FC08A' },
-  owedLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4FC08A' },
-  owedValue: { fontSize: 46, fontWeight: '800', color: colors.text, letterSpacing: -0.5, marginTop: 4 },
-  statRow: { flexDirection: 'row', gap: 28, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(62,173,116,0.20)' },
+  hero: { backgroundColor: C.card, borderRadius: 24, padding: 22, borderWidth: 1, borderColor: C.line, marginBottom: 16 },
+  heroLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  heroLabel: { fontSize: 12, fontWeight: '700', color: C.faint, letterSpacing: 1.4 },
+  heroAmt: { fontSize: 46, fontWeight: '800', color: C.text, letterSpacing: -1.6, marginTop: 6 },
+
+  perf: { flexDirection: 'row', justifyContent: 'space-between', overflow: 'hidden', marginVertical: 16 },
+  perfDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.13)' },
+
+  statRow: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   stat: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  statNum: { fontSize: 17, fontWeight: '700', color: colors.text },
-  statLabel: { fontSize: 11, color: colors.textMuted },
+  statNum: { fontSize: 17, fontWeight: '700', color: C.text },
+  statLabel: { fontSize: 12, color: C.dim },
+  statDivider: { width: 1, height: 22, backgroundColor: C.line },
 
-  section: { gap: 10 },
+  actions: { flexDirection: 'row', gap: 10, marginBottom: 30 },
+  primaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 15, backgroundColor: C.text },
+  primaryText: { fontSize: 15.5, fontWeight: '700', color: C.bg },
+  secondaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 15, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
+  secondaryText: { fontSize: 15.5, fontWeight: '700', color: C.text },
+
+  section: { fontSize: 12.5, fontWeight: '700', color: C.faint, letterSpacing: 1.2, marginBottom: 10, marginLeft: 2 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, color: colors.textMuted },
-  seeAll: { fontSize: 13, fontWeight: '600', color: '#8FB4E4' },
+  seeAll: { fontSize: 13.5, fontWeight: '600', color: C.blue, marginBottom: 10 },
 
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.045)', borderRadius: 16, padding: 15,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
-  },
-  rowTile: {
-    width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  rowTileAccent: { backgroundColor: 'rgba(62,173,116,0.15)', borderWidth: 1, borderColor: 'rgba(62,173,116,0.35)' },
-  rowEmoji: { fontSize: 18 },
-  rowTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
-  rowStatusLine: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
-  rowStatusText: { fontSize: 12, color: colors.textMuted },
-  livePill: { backgroundColor: 'rgba(62,173,116,0.14)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  livePillText: { fontSize: 11, fontWeight: '600', color: '#4FC08A' },
-  rowTrailing: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  rowAmt: { fontSize: 16, fontWeight: '800', color: colors.text },
+  group: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, marginBottom: 26, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 14 },
+  rowIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { fontSize: 15.5, fontWeight: '600', color: C.text, letterSpacing: -0.2 },
+  rowSubLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  rowSub: { fontSize: 12.5, color: C.dim },
+  rowAmt: { fontSize: 15.5, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.accent },
+  sep: { height: 1, backgroundColor: C.line, marginLeft: 65 },
 
-  nudge: { alignItems: 'center', paddingVertical: 10 },
-  nudgeText: { fontSize: 13, color: colors.green, fontWeight: '600' },
+  nudge: { alignItems: 'center', paddingVertical: 10, marginTop: -14, marginBottom: 12 },
+  nudgeText: { fontSize: 13, color: C.accent, fontWeight: '600' },
 
-  empty: { alignItems: 'center', gap: 8, paddingVertical: 30 },
-  emptyIcon: {
-    width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  emptySub: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
-
-  actions: { gap: 12, marginTop: 4 },
+  empty: { alignItems: 'center', gap: 8, paddingVertical: 20, marginBottom: 12 },
+  emptyIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', marginBottom: 6, borderWidth: 1, borderColor: C.line },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  emptySub: { fontSize: 14, color: C.dim, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
 });
