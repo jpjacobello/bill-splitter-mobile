@@ -1,22 +1,14 @@
 import { useState } from 'react';
-import {
-  StyleSheet, View, Text, TouchableOpacity,
-  FlatList,
-} from 'react-native';
+import { ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import Button from '../components/Button';
-import { colors } from '../theme';
+import { SymbolView } from 'expo-symbols';
+import { MotiView } from 'moti';
+import Perforation from '../components/Perforation';
 import ReceiptPreviewSheet from '../components/ReceiptPreviewSheet';
 import ActionSheet from '../components/ActionSheet';
 import { VenmoLogo } from '../components/BrandLogos';
-
-const PERSON_COLORS = colors.person;
-const getPersonColor = (index: number) => PERSON_COLORS[index % PERSON_COLORS.length];
+import { colors, ui as C, moneyText } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { calcSplit } from '../utils/calcSplit';
 import { openVenmo } from '../utils/venmo';
@@ -25,6 +17,7 @@ import { usePro } from '../hooks/usePro';
 import { saveBillToHistory } from '../utils/proStorage';
 import { formatCurrency } from '../utils/currency';
 
+const getPersonColor = (index: number) => colors.person[index % colors.person.length];
 
 export default function SummaryScreen() {
   const router = useRouter();
@@ -52,155 +45,109 @@ export default function SummaryScreen() {
     router.replace('/');
   };
 
-  const handlePersonShare = (b: PersonBreakdown, colorIndex: number) => {
-    setPreviewPerson({ breakdown: b, colorIndex });
-  };
+  return (
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }} transition={{ type: 'timing', duration: 420 }}>
 
+            <Text style={styles.eyebrow}>SUMMARY</Text>
+            <Text style={styles.merchant}>{receipt.merchantName || 'The Bill'}</Text>
 
-return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <FlatList
-        data={summary.people}
-        keyExtractor={(b) => b.person.id}
-        contentContainerStyle={styles.scroll}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            {receipt.merchantName && (
-              <Text style={styles.merchant}>{receipt.merchantName}</Text>
-            )}
-            <Text style={styles.title}>Summary</Text>
-            <View style={styles.receiptTotalRow}>
-              <Text style={styles.receiptTotalLabel}>Receipt total</Text>
-              <Text style={styles.receiptTotalValue}>{formatCurrency(receipt.total)}</Text>
-            </View>
-            <View style={[
-              styles.reconcileBadge,
-              summary.reconciles ? styles.reconcileOk : styles.reconcileOff,
-            ]}>
-              <Text style={styles.reconcileText}>
-                {summary.reconciles
-                  ? '✓ Split matches receipt total'
-                  : `⚠ Off by ${formatCurrency(Math.abs(summary.calculatedTotal - summary.receiptTotal))}`}
-              </Text>
-            </View>
-            {summary.unassignedItems.length > 0 && (
-              <View style={styles.unassignedBadge}>
-                <Text style={styles.unassignedBadgeText}>
-                  ⚠ {summary.unassignedItems.length} unassigned item{summary.unassignedItems.length !== 1 ? 's' : ''} not included
+            {/* Receipt-framed card */}
+            <View style={styles.receipt}>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Receipt total</Text>
+                <Text style={[styles.totalValue, moneyText]}>{formatCurrency(receipt.total)}</Text>
+              </View>
+              <View style={[styles.reconcile, summary.reconciles ? styles.recOk : styles.recOff]}>
+                <SymbolView name={summary.reconciles ? 'checkmark.circle.fill' : 'exclamationmark.triangle.fill'} size={13}
+                  tintColor={summary.reconciles ? C.accent : '#E8B04B'} />
+                <Text style={[styles.reconcileText, { color: summary.reconciles ? C.accent : '#E8B04B' }]}>
+                  {summary.reconciles ? 'Split matches receipt total' : `Off by ${formatCurrency(Math.abs(summary.calculatedTotal - summary.receiptTotal))}`}
                 </Text>
               </View>
-            )}
-          </View>
-        }
-        renderItem={({ item: b, index }) => {
-          const isHost = b.person.isHost;
-          const personColor = getPersonColor(index);
-          const hasPaid = b.person.id === paidById;
+              {summary.unassignedItems.length > 0 && (
+                <Text style={styles.unassigned}>
+                  {summary.unassignedItems.length} unassigned item{summary.unassignedItems.length !== 1 ? 's' : ''} not included
+                </Text>
+              )}
 
-          const handlePaidChipPress = () => setWhoPaidOpen(true);
+              <Perforation dots={32} />
 
-          return (
-            <View style={[styles.card, isHost && styles.hostCard]}>
-              <BlurView style={StyleSheet.absoluteFill} tint="dark" intensity={30} />
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.03)' }]} />
-              <View style={styles.cardTopHighlight} pointerEvents="none" />
-              <View style={[styles.cardAccent, { backgroundColor: personColor }]} />
-              <View style={styles.cardHeader}>
-                <View style={styles.cardLeft}>
-                  <View style={styles.nameRow}>
-                    <Text style={styles.personName}>{b.person.name}</Text>
-                    {hasPaid && (
-                      <TouchableOpacity style={styles.hostBadge} onPress={handlePaidChipPress}>
-                        <Text style={styles.hostBadgeText}>paid ✎</Text>
+              {summary.people.map((b, index) => {
+                const isHost = b.person.isHost;
+                const personColor = getPersonColor(index);
+                const hasPaid = b.person.id === paidById;
+                const requested = requestedIds.has(b.person.id);
+                return (
+                  <View key={b.person.id} style={styles.person}>
+                    <View style={styles.personTop}>
+                      <View style={styles.personLeft}>
+                        <View style={[styles.dot, { backgroundColor: personColor }]} />
+                        <View>
+                          <View style={styles.nameRow}>
+                            <Text style={styles.personName}>{b.person.name}</Text>
+                            {hasPaid && (
+                              <TouchableOpacity style={styles.paidChip} onPress={() => setWhoPaidOpen(true)} activeOpacity={0.7}>
+                                <Text style={styles.paidChipText}>paid</Text>
+                                <SymbolView name="pencil" size={9} tintColor={C.bg} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <Text style={styles.itemCount}>{b.assignedItems.length} item{b.assignedItems.length !== 1 ? 's' : ''}</Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.owed, moneyText, { color: isHost ? C.dim : C.text }]}>{formatCurrency(b.totalOwed)}</Text>
+                    </View>
+                    <View style={styles.personActions}>
+                      <TouchableOpacity style={styles.ghostBtn} onPress={() => setPreviewPerson({ breakdown: b, colorIndex: index })} activeOpacity={0.7}>
+                        <SymbolView name="doc.text" size={14} tintColor={C.dim} />
+                        <Text style={styles.ghostText}>Receipt</Text>
                       </TouchableOpacity>
-                    )}
-                  </View>
-                  <Text style={styles.itemCount}>
-                    {b.assignedItems.length} item{b.assignedItems.length !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-                <View style={styles.cardRight}>
-                  <Text style={[styles.totalOwed, { color: isHost ? colors.textMuted : personColor }]}>
-                    {formatCurrency(b.totalOwed)}
-                  </Text>
-                  <View style={styles.inlineActions}>
-                    <TouchableOpacity
-                      style={styles.pdfBtn}
-                      onPress={() => handlePersonShare(b, index)}
-                    >
-                      <Ionicons name="receipt-outline" size={18} color="#AEAEB2" />
-                    </TouchableOpacity>
-                    {!isHost && (
-                      <>
-                        <TouchableOpacity
-                          style={[styles.venmoBtn, requestedIds.has(b.person.id) && styles.venmoBtnRequested]}
-                          onPress={() => handleVenmo(b)}
-                        >
-                          <VenmoLogo size={18} />
-                          <Text style={[styles.venmoBtnText, requestedIds.has(b.person.id) && styles.venmoBtnTextRequested]}>
-                            {requestedIds.has(b.person.id) ? 'Sent ✓' : 'Request'}
-                          </Text>
+                      {!isHost && (
+                        <TouchableOpacity style={[styles.venmoBtn, requested && styles.venmoDone]} onPress={() => handleVenmo(b)} activeOpacity={0.85}>
+                          {requested
+                            ? <SymbolView name="checkmark" size={14} tintColor={C.accent} />
+                            : <VenmoLogo size={16} />}
+                          <Text style={[styles.venmoText, requested && { color: C.accent }]}>{requested ? 'Sent' : 'Request'}</Text>
                         </TouchableOpacity>
-                      </>
-                    )}
+                      )}
+                    </View>
                   </View>
-                </View>
+                );
+              })}
+
+              <Perforation dots={32} />
+
+              <View style={styles.totalRow}>
+                <Text style={styles.calcLabel}>Calculated total</Text>
+                <Text style={[styles.calcValue, moneyText]}>{formatCurrency(summary.calculatedTotal)}</Text>
               </View>
             </View>
-          );
-        }}
-        ListFooterComponent={
-          <View style={styles.footer}>
-            <View style={styles.calculatedRow}>
-              <Text style={styles.calculatedLabel}>Calculated total</Text>
-              <Text style={styles.calculatedValue}>{formatCurrency(summary.calculatedTotal)}</Text>
-            </View>
+
+            {/* Footer actions */}
             <View style={styles.footerRow}>
-              <TouchableOpacity
-                style={styles.footerBtn}
-                onPress={() => {
-                  setShowOriginalReceipt(true);
-                }}
-              >
-                <Ionicons name="receipt-outline" size={18} color="#D0D0D0" style={{ opacity: 0.8 }} />
-                <Text style={styles.footerBtnText}>Original Receipt</Text>
+              <TouchableOpacity style={styles.footerBtn} onPress={() => setShowOriginalReceipt(true)} activeOpacity={0.85}>
+                <SymbolView name="photo" size={16} tintColor={C.text} />
+                <Text style={styles.footerText}>Original</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.footerBtn}
-                onPress={() => setShowReceipt(true)}
-              >
-                <Ionicons name="share-outline" size={18} color="#D0D0D0" style={{ opacity: 0.8 }} />
-                <Text style={styles.footerBtnText}>Share Split</Text>
+              <TouchableOpacity style={styles.footerBtn} onPress={() => setShowReceipt(true)} activeOpacity={0.85}>
+                <SymbolView name="square.and.arrow.up" size={16} tintColor={C.text} />
+                <Text style={styles.footerText}>Share split</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.startOverBtn} onPress={() => setStartOverOpen(true)} activeOpacity={0.75}>
-              <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={20} />
-              <View style={[StyleSheet.absoluteFill, styles.startOverGlass]} />
-              <Text style={styles.startOverText}>Start Over</Text>
+            <TouchableOpacity style={styles.startOver} onPress={() => setStartOverOpen(true)} activeOpacity={0.7}>
+              <Text style={styles.startOverText}>Start over</Text>
             </TouchableOpacity>
-          </View>
-        }
-      />
-      <ReceiptPreviewSheet
-        visible={showReceipt}
-        receipt={receipt}
-        allPeople={summary.people}
-        onClose={() => setShowReceipt(false)}
-        showPeopleSummary
-        paidById={paidById}
-      />
-      <ReceiptPreviewSheet
-        visible={showOriginalReceipt}
-        receipt={receipt}
-        onClose={() => setShowOriginalReceipt(false)}
-      />
-      <ReceiptPreviewSheet
-        visible={previewPerson !== null}
-        receipt={receipt}
-        person={previewPerson ?? undefined}
-        onClose={() => setPreviewPerson(null)}
-        paidById={paidById}
-      />
+
+          </MotiView>
+        </ScrollView>
+      </SafeAreaView>
+
+      <ReceiptPreviewSheet visible={showReceipt} receipt={receipt} allPeople={summary.people} onClose={() => setShowReceipt(false)} showPeopleSummary paidById={paidById} />
+      <ReceiptPreviewSheet visible={showOriginalReceipt} receipt={receipt} onClose={() => setShowOriginalReceipt(false)} />
+      <ReceiptPreviewSheet visible={previewPerson !== null} receipt={receipt} person={previewPerson ?? undefined} onClose={() => setPreviewPerson(null)} paidById={paidById} />
 
       <ActionSheet
         visible={startOverOpen}
@@ -213,109 +160,54 @@ return (
         visible={whoPaidOpen}
         title="Who paid?"
         message="Select the person who paid the bill."
-        options={summary.people.map((p) => ({ label: p.person.name, icon: 'person-outline', onPress: () => setPaidById(p.person.id) }))}
+        options={summary.people.map((p) => ({ label: p.person.name, icon: 'person-outline' as const, onPress: () => setPaidById(p.person.id) }))}
         onClose={() => setWhoPaidOpen(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 48 },
+  container: { flex: 1, backgroundColor: C.bg },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 60 },
 
-  header: { marginBottom: 20, gap: 6 },
-  merchant: { fontSize: 13, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  title: { fontSize: 32, fontWeight: '800', color: colors.text, marginBottom: 4 },
-  receiptTotalRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-  },
-  receiptTotalLabel: { fontSize: 15, color: colors.textSecondary },
-  receiptTotalValue: { fontSize: 17, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
-  reconcileBadge: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
-  reconcileOk: { backgroundColor: 'rgba(62,173,116,0.18)' },
-  reconcileOff: { backgroundColor: 'rgba(210,60,60,0.18)' },
-  reconcileText: { fontSize: 13, fontWeight: '600', color: colors.text },
-  unassignedBadge: {
-    backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 7,
-  },
-  unassignedBadgeText: { fontSize: 13, fontWeight: '500', color: colors.amber },
+  eyebrow: { fontSize: 12, fontWeight: '700', color: C.faint, letterSpacing: 1.4, marginLeft: 2 },
+  merchant: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4, marginTop: 4, marginBottom: 18 },
 
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 18,
-    padding: 16, paddingLeft: 20, marginBottom: 12,
-    overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
-  },
-  hostCard: { borderColor: 'rgba(220,220,220,0.35)' },
-  cardTopHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
-  cardAccent: {
-    position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
-    borderTopLeftRadius: 18, borderBottomLeftRadius: 18,
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  cardLeft: { flex: 1, gap: 3 },
+  receipt: { backgroundColor: C.card, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.line },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  totalLabel: { fontSize: 15, color: C.dim, fontWeight: '500' },
+  totalValue: { fontSize: 22, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
+  reconcile: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, alignSelf: 'flex-start', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
+  recOk: { backgroundColor: C.accentDim },
+  recOff: { backgroundColor: 'rgba(232,176,75,0.12)' },
+  reconcileText: { fontSize: 12.5, fontWeight: '600' },
+  unassigned: { fontSize: 12.5, color: '#E8B04B', marginTop: 8 },
+
+  person: { paddingVertical: 12 },
+  personTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  personLeft: { flexDirection: 'row', gap: 11, alignItems: 'flex-start' },
+  dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  personName: { fontSize: 17, fontWeight: '700', color: colors.text },
-  hostBadge: {
-    backgroundColor: '#D8D8D8', borderRadius: 6,
-    paddingHorizontal: 7, paddingVertical: 2,
-  },
-  hostBadgeText: { fontSize: 11, fontWeight: '700', color: '#000' },
-  itemCount: { fontSize: 13, color: colors.textMuted },
-  cardRight: { alignItems: 'flex-end', gap: 6 },
-  totalOwed: { fontSize: 24, fontWeight: '800', color: '#D0D0D0', fontVariant: ['tabular-nums'] },
-  inlineActions: { flexDirection: 'row', gap: 6 },
-  venmoBtn: {
-    backgroundColor: 'rgba(61,149,206,0.20)', borderRadius: 10,
-    height: 36, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingHorizontal: 10,
-    borderWidth: 1, borderColor: 'rgba(61,149,206,0.40)',
-  },
-  pdfBtn: {
-    width: 36, height: 36, backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-  },
-  venmoBtnText: { color: '#3D95CE', fontSize: 13, fontWeight: '700' },
-  venmoBtnRequested: {
-    backgroundColor: 'rgba(62,173,116,0.15)',
-    borderColor: 'rgba(62,173,116,0.35)',
-  },
-  venmoBtnTextRequested: { color: colors.green },
+  personName: { fontSize: 16, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+  paidChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.accent, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  paidChipText: { fontSize: 10.5, fontWeight: '700', color: C.bg },
+  itemCount: { fontSize: 12.5, color: C.dim, marginTop: 2 },
+  owed: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
 
-  footer: { gap: 10, marginTop: 4 },
-  footerRow: { flexDirection: 'row', gap: 10 },
-  footerBtn: {
-    flex: 1, height: 52, backgroundColor: '#2C2C2E',
-    borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    flexDirection: 'row', gap: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
-  },
-  footerBtnSecondary: {},
-  footerBtnText: { fontSize: 15, fontWeight: '600', color: colors.text },
-  footerBtnTextSecondary: { color: colors.text },
-  calculatedRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingHorizontal: 4, paddingBottom: 4,
-  },
-  calculatedLabel: { fontSize: 14, color: colors.textMuted },
-  calculatedValue: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, fontVariant: ['tabular-nums'] },
-  startOverBtn: {
-    height: 36, borderRadius: 10, overflow: 'hidden',
-    alignSelf: 'center', paddingHorizontal: 20,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-  },
-  startOverGlass: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 10,
-  },
-  startOverText: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.30)', zIndex: 1 },
+  personActions: { flexDirection: 'row', gap: 8, marginTop: 12, paddingLeft: 20 },
+  ghostBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 13, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.line },
+  ghostText: { fontSize: 13, fontWeight: '600', color: C.dim },
+  venmoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 15, borderRadius: 11, backgroundColor: '#3D95CE' },
+  venmoDone: { backgroundColor: C.accentDim },
+  venmoText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
+  calcLabel: { fontSize: 13, color: C.dim, fontWeight: '500' },
+  calcValue: { fontSize: 15, fontWeight: '700', color: C.text },
 
+  footerRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  footerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, borderRadius: 14, backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
+  footerText: { fontSize: 14.5, fontWeight: '700', color: C.text },
+  startOver: { alignItems: 'center', paddingVertical: 16, marginTop: 6 },
+  startOverText: { fontSize: 14.5, fontWeight: '600', color: C.dim },
 });
