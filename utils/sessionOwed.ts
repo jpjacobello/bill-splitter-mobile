@@ -3,9 +3,7 @@ import { BillSession } from '../types';
 // What others still owe the host for a live session — shown on Home ("owed to
 // you") and the Activity live cards. Unlike raw claim totals, this reflects the
 // expected outstanding amount immediately, before anyone claims.
-// `paidNames` = claimers the host has manually confirmed paid (host-side only;
-// Divi can't detect the Venmo transfer). Their shares drop out of "owed".
-export function outstandingOwed(session: BillSession | null, paidNames: string[] = []): number {
+export function outstandingOwed(session: BillSession | null): number {
   if (!session) return 0;
 
   // Equal split: host is one of `peopleCount` seats, so the other seats owe the
@@ -17,13 +15,27 @@ export function outstandingOwed(session: BillSession | null, paidNames: string[]
     return remaining * share;
   }
 
-  // Itemized: sum claimed shares, excluding claimers the host marked paid.
-  const paid = new Set(paidNames);
+  // Itemized: we only know a share once it's claimed, so sum claimed shares.
   return Object.values(session.claims ?? {}).reduce((sum, c) => {
-    if (paid.has(c.claimerName)) return sum;
     const item = session.receipt.items.find((i) => i.id === c.itemId);
     return item ? sum + item.price * c.fraction : sum;
   }, 0);
+}
+
+export type Claimer = { name: string; amount: number };
+
+// Per-claimer breakdown for the read-only live ledger: group itemized claims by
+// name, sum shares. (No paid tracking — Divi isn't a ledger you manage.)
+export function claimerBreakdown(session: BillSession | null): Claimer[] {
+  if (!session) return [];
+  const byName: Record<string, number> = {};
+  for (const c of Object.values(session.claims ?? {})) {
+    if (c.itemId === 'equal-split') continue;
+    const item = session.receipt.items.find((i) => i.id === c.itemId);
+    if (!item) continue;
+    byName[c.claimerName] = (byName[c.claimerName] ?? 0) + item.price * c.fraction;
+  }
+  return Object.entries(byName).map(([name, amount]) => ({ name, amount }));
 }
 
 // How many people still owe the host for a session (for the "people owe you"

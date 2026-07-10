@@ -10,8 +10,7 @@ import AnimatedMoney from '../../components/AnimatedMoney';
 import Perforation from '../../components/Perforation';
 import { moneyText, ui as C } from '../../theme';
 import { BillSession, BillHistoryEntry } from '../../types';
-import { outstandingOwed, owersCount } from '../../utils/sessionOwed';
-import { getPaidMap, claimerBreakdown } from '../../utils/sessionPaid';
+import { outstandingOwed, owersCount, claimerBreakdown } from '../../utils/sessionOwed';
 import { subscribeToSession } from '../../services/billSession';
 import { getSessions, StoredSession } from '../../utils/sessionStorage';
 import { getBillHistory } from '../../utils/proStorage';
@@ -64,7 +63,6 @@ export default function HomeScreen() {
   const [stored, setStored] = useState<StoredSession[]>([]);
   const [liveData, setLiveData] = useState<Map<string, BillSession | null>>(new Map());
   const [history, setHistory] = useState<BillHistoryEntry[]>([]);
-  const [paidMap, setPaidMapState] = useState<Record<string, string[]>>({});
   const [refreshing, setRefreshing] = useState(false);
   const unsubsRef = useRef<Map<string, () => void>>(new Map());
 
@@ -80,7 +78,6 @@ export default function HomeScreen() {
     const [sessions, hist] = await Promise.all([getSessions(), getBillHistory()]);
     setStored(sessions);
     setHistory(hist);
-    setPaidMapState(await getPaidMap(sessions.map((s) => s.sessionId)));
     for (const s of sessions) {
       if (unsubsRef.current.has(s.sessionId)) continue;
       const unsub = subscribeToSession(s.sessionId, (live) => setLiveData((prev) => new Map(prev).set(s.sessionId, live)));
@@ -95,7 +92,7 @@ export default function HomeScreen() {
 
   if (!ready) return <View style={styles.container} />;
 
-  const owed = stored.reduce((sum, s) => sum + outstandingOwed(liveData.get(s.sessionId) ?? null, paidMap[s.sessionId] ?? []), 0);
+  const owed = stored.reduce((sum, s) => sum + outstandingOwed(liveData.get(s.sessionId) ?? null), 0);
   const peopleOwe = stored.reduce((n, s) => n + owersCount(liveData.get(s.sessionId) ?? null), 0);
   const recent = isPro ? history : history.slice(0, FREE_RECENT_CAP);
   const capped = !isPro && history.length > FREE_RECENT_CAP;
@@ -154,16 +151,11 @@ export default function HomeScreen() {
                   const claims = Object.values(live?.claims ?? {});
                   const isEqual = live?.splitType === 'equal';
                   const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
-                  const paidNames = paidMap[s.sessionId] ?? [];
-                  const owedAmt = outstandingOwed(live ?? null, paidNames);
-                  // equal: seats paid (owed known upfront). itemized: how many still owe you.
+                  const owedAmt = outstandingOwed(live ?? null);
                   const cl = claimerBreakdown(live ?? null);
-                  const unpaid = cl.filter((c) => !paidNames.includes(c.name)).length;
                   const sub = isEqual
                     ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid`
-                    : cl.length === 0 ? 'Waiting on claims'
-                    : unpaid === 0 ? 'All settled ✓'
-                    : `${unpaid} still owe${unpaid === 1 ? 's' : ''} you`;
+                    : cl.length === 0 ? 'Waiting on claims' : `${cl.length} claimed`;
                   return (
                     <View key={s.sessionId}>
                       {i > 0 && <View style={styles.sep} />}
