@@ -128,7 +128,7 @@ export default function ActivityScreen() {
                     </View>
                     <View style={styles.cardOwedRow}>
                       <Text style={[styles.cardOwed, moneyText]}>{formatCurrency(owed)}</Text>
-                      <Text style={styles.cardOwedLabel}>owed to you</Text>
+                      <Text style={styles.cardOwedLabel}>claimed so far</Text>
                     </View>
                     {isEqual ? (
                       <Text style={styles.progress}>{seatsTaken} of {live?.peopleCount ?? 0} paid</Text>

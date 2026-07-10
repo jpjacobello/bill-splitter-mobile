@@ -38,13 +38,12 @@ export function claimerBreakdown(session: BillSession | null): Claimer[] {
   return Object.entries(byName).map(([name, amount]) => ({ name, amount }));
 }
 
-// How many people still owe the host for a session (for the "people owe you"
-// stat). Equal splits have a known headcount; itemized counts distinct claimers.
-export function owersCount(session: BillSession | null): number {
+// How many people have CLAIMED on a session (for the "N claimed" stat).
+// Equal: seats taken. Itemized: distinct claimer names.
+export function claimersCount(session: BillSession | null): number {
   if (!session) return 0;
-  if (session.splitType === 'equal' && session.peopleCount && session.peopleCount > 0) {
-    const paidSeats = Object.values(session.claims ?? {}).filter((c) => c.itemId === 'equal-split').length;
-    return Math.max(0, session.peopleCount - 1 - paidSeats);
+  if (session.splitType === 'equal') {
+    return Object.values(session.claims ?? {}).filter((c) => c.itemId === 'equal-split').length;
   }
   return new Set(Object.values(session.claims ?? {}).map((c) => c.claimerName)).size;
 }

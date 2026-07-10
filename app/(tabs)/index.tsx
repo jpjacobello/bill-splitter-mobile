@@ -10,7 +10,7 @@ import AnimatedMoney from '../../components/AnimatedMoney';
 import Perforation from '../../components/Perforation';
 import { moneyText, ui as C } from '../../theme';
 import { BillSession, BillHistoryEntry } from '../../types';
-import { outstandingOwed, owersCount, claimerBreakdown } from '../../utils/sessionOwed';
+import { outstandingOwed, claimersCount, claimerBreakdown } from '../../utils/sessionOwed';
 import { subscribeToSession } from '../../services/billSession';
 import { getSessions, StoredSession } from '../../utils/sessionStorage';
 import { getBillHistory } from '../../utils/proStorage';
@@ -93,7 +93,7 @@ export default function HomeScreen() {
   if (!ready) return <View style={styles.container} />;
 
   const owed = stored.reduce((sum, s) => sum + outstandingOwed(liveData.get(s.sessionId) ?? null), 0);
-  const peopleOwe = stored.reduce((n, s) => n + owersCount(liveData.get(s.sessionId) ?? null), 0);
+  const peopleOwe = stored.reduce((n, s) => n + claimersCount(liveData.get(s.sessionId) ?? null), 0);
   const recent = isPro ? history : history.slice(0, FREE_RECENT_CAP);
   const capped = !isPro && history.length > FREE_RECENT_CAP;
 
@@ -123,7 +123,7 @@ export default function HomeScreen() {
             <View style={styles.hero}>
               <View style={styles.heroLabelRow}>
                 <View style={styles.liveDot} />
-                <Text style={styles.heroLabel}>OWED TO YOU</Text>
+                <Text style={styles.heroLabel}>CLAIMED SO FAR</Text>
               </View>
               <AnimatedMoney value={owed} style={styles.heroAmt} />
               <Perforation />
@@ -135,7 +135,7 @@ export default function HomeScreen() {
                 <View style={styles.statDivider} />
                 <View style={styles.stat}>
                   <Text style={[styles.statNum, moneyText]}>{peopleOwe}</Text>
-                  <Text style={styles.statLabel}>{peopleOwe === 1 ? 'person owes you' : 'people owe you'}</Text>
+                  <Text style={styles.statLabel}>{peopleOwe === 1 ? 'person claimed' : 'people claimed'}</Text>
                 </View>
               </View>
             </View>
