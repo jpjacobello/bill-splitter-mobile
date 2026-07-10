@@ -69,7 +69,7 @@ export default function HomeScreen() {
   useEffect(() => {
     AsyncStorage.getItem(SAVED_NAME_KEY).then((n) => {
       if (!n?.trim()) { router.replace('/onboarding'); return; }
-      setName(n.trim());
+      setName(n.trim().split(/\s+/)[0]); // first name only on home
       setReady(true);
     });
   }, []);

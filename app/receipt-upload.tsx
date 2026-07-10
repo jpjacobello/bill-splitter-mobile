@@ -10,7 +10,7 @@ import DigitizedReceipt from '../components/DigitizedReceipt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBillStore } from '../store/useBillStore';
 import { activeParser } from '../services/receiptParser';
-import { flattenDocument } from '../modules/document-flattener';
+import { flattenDocument, enhanceDocument } from '../modules/document-flattener';
 import { mockReceipt } from '../data/mockData';
 import { DEFAULT_TIP_KEY } from '../utils/tipPrefs';
 import { colors, ui as C } from '../theme';
@@ -102,26 +102,33 @@ export default function ReceiptUploadScreen() {
   // Returns true once the user actually picks an image; false if they cancel
   // (or deny permission) before selecting — the caller uses this to back out.
   const pickImage = async (useCamera: boolean): Promise<boolean> => {
-    let uri: string;
+    let rawUri: string;
 
     if (useCamera) {
       const { scannedImages } = await DocumentScanner.scanDocument();
       if (!scannedImages || scannedImages.length === 0) return false;
-      uri = scannedImages[0];
+      rawUri = scannedImages[0];
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') return false;
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
       if (result.canceled || !result.assets[0]) return false;
-      uri = await flattenDocument(result.assets[0].uri).catch(() => result.assets[0].uri);
+      rawUri = result.assets[0].uri;
     }
 
     setIsRetakeMode(false);
     setNotReceiptMode(false);
-    setImageUri(uri);
+    // Show the raw capture immediately (scan line starts).
+    setImageUri(rawUri);
     setParsing(true);
+    // Camera: VisionKit already cropped → whiten only (no re-detect; avoids QR zoom).
+    // Library: full flatten (detect receipt + perspective + whiten).
+    const cleanUri = useCamera
+      ? await enhanceDocument(rawUri).catch(() => rawUri)
+      : await flattenDocument(rawUri).catch(() => rawUri);
+    if (cleanUri !== rawUri) setImageUri(cleanUri);
     try {
-      const parsed = await activeParser(uri);
+      const parsed = await activeParser(cleanUri);
       if (parsed.items.length === 0 && parsed.total === 0) {
         setParsing(false);
         setImageUri(null);
@@ -138,7 +145,7 @@ export default function ReceiptUploadScreen() {
         ),
       };
       setReceipt(receipt);
-      setReceiptImageUri(uri);
+      setReceiptImageUri(cleanUri);
       setParsing(false);
       await routeAfterParse(receipt);
     } catch (err) {
@@ -249,6 +256,7 @@ export default function ReceiptUploadScreen() {
               <DigitizedReceipt
                 parsing={parsing}
                 receipt={receipt}
+                imageUri={imageUri}
                 maxHeight={SCREEN_H - insets.top - insets.bottom - 90 - 80 - 56 - 16}
               />
               {!parsing && !isDemoMode && (

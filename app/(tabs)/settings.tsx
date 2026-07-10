@@ -4,6 +4,7 @@ import {
   TouchableOpacity, ScrollView, Keyboard, Linking, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ActionSheet from '../../components/ActionSheet';
@@ -14,6 +15,7 @@ import { getVenmoHandle, setVenmoHandle, getCashAppHandle, setCashAppHandle, get
 import { CURRENCIES, currencyInfo, setActiveCurrency } from '../../utils/currency';
 
 const SAVED_NAME_KEY = 'savedHostName';
+const HAS_LAUNCHED_KEY = 'hasLaunched';
 import { DEFAULT_TIP_KEY, TIP_REMINDER_KEY, TipReminderMode } from '../../utils/tipPrefs';
 const TIP_PRESETS = [0.15, 0.18, 0.20, 0.25];
 const APP_VERSION = '1.0.0';
@@ -71,6 +73,7 @@ function GroupCard({ children }: { children: React.ReactNode }) {
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { setHostName } = useBillStore();
   const { isPro, loading: proLoading, activatePro, deactivatePro } = usePro();
   const [resetProOpen, setResetProOpen] = useState(false);
@@ -461,6 +464,21 @@ export default function SettingsScreen() {
             label="Terms of Service"
             last
             onPress={() => setComingSoon('Terms of service coming soon!')}
+          />
+        </GroupCard>
+
+        {/* ── Developer (temp) ── */}
+        <SectionHeader label="Developer" />
+        <GroupCard>
+          <SettingRow
+            label="Reset onboarding"
+            icon="refresh-outline"
+            labelColor={colors.amber}
+            last
+            onPress={async () => {
+              await AsyncStorage.multiRemove([SAVED_NAME_KEY, HAS_LAUNCHED_KEY]);
+              router.replace('/onboarding');
+            }}
           />
         </GroupCard>
 

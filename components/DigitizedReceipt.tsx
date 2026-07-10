@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Receipt } from '../types';
 import { getEmoji } from '../utils/buildReceiptHtml';
 import RainbowScanOverlay from './RainbowScanOverlay';
@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils/currency';
 type Props = {
   parsing: boolean;
   receipt: Receipt | null;
+  imageUri?: string | null;
   maxHeight?: number;
 };
 
@@ -54,7 +55,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   );
 }
 
-export default function DigitizedReceipt({ parsing, receipt, maxHeight }: Props) {
+export default function DigitizedReceipt({ parsing, receipt, imageUri, maxHeight }: Props) {
   const pulse = useRef(new Animated.Value(0.4)).current;
   const [contentH, setContentH] = useState<number | undefined>(undefined);
   const [wrapperH, setWrapperH] = useState(320);
@@ -70,6 +71,20 @@ export default function DigitizedReceipt({ parsing, receipt, maxHeight }: Props)
     anim.start();
     return () => anim.stop();
   }, [parsing]);
+
+  // While scanning, show the real captured photo (raw → whitened by flattenDocument)
+  // with the scan line sweeping over it. Skeleton is the fallback (demo has no photo).
+  if (parsing && imageUri) {
+    const photoH = maxHeight ? Math.min(maxHeight, 460) : 380;
+    return (
+      <View style={{ flexShrink: 1 }} onLayout={(e) => setWrapperH(e.nativeEvent.layout.height)}>
+        <View style={[styles.photoWrap, { height: photoH }]}>
+          <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="contain" />
+        </View>
+        <RainbowScanOverlay height={wrapperH} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flexShrink: 1, backgroundColor: 'transparent' }} onLayout={(e) => setWrapperH(e.nativeEvent.layout.height)}>
@@ -129,6 +144,16 @@ const styles = StyleSheet.create({
   scroll: {
     backgroundColor: '#F5F0E8',
     borderRadius: 20,
+  },
+  photoWrap: {
+    width: '100%',
+    backgroundColor: '#F5F0E8',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
   },
   receipt: {
     padding: 20,
