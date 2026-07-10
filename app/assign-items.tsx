@@ -13,12 +13,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, ui as C } from '../theme';
 import ItemActionSheet from '../components/ItemActionSheet';
 import ActionSheet, { SheetOption } from '../components/ActionSheet';
+import CompletionSheet from '../components/CompletionSheet';
 import { useBillStore } from '../store/useBillStore';
-import { getUnassignedTotal } from '../utils/calcSplit';
+import { getUnassignedTotal, calcSplit } from '../utils/calcSplit';
 import { getEmoji } from '../utils/buildReceiptHtml';
 import { ReceiptItem, Person } from '../types';
 import { usePro } from '../hooks/usePro';
-import { getGroupsWithMembers, deleteSavedGroup, saveGroup, updateGroup, GroupWithMembers } from '../utils/proStorage';
+import { getGroupsWithMembers, deleteSavedGroup, saveGroup, updateGroup, GroupWithMembers, saveBillToHistory } from '../utils/proStorage';
 import { getPeople, addPerson as addTrackedPerson, findOrCreatePerson, TrackedPerson } from '../utils/peopleStorage';
 import GroupEditor, { GroupDraft } from '../components/GroupEditor';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -170,6 +171,69 @@ function ItemRow({ item, people, isAddon, onLongPress, onRowPress }: ItemRowProp
   );
 }
 
+// ─── Item cell (2-column grid) ───────────────────────────────────────────────
+
+function initials(name: string) {
+  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+}
+
+type ItemCellProps = {
+  item: ReceiptItem;
+  people: Person[];
+  onPress: () => void;
+  onLongPress: () => void;
+};
+
+function ItemCell({ item, people, onPress, onLongPress }: ItemCellProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const isUnassigned = item.assignedTo.length === 0;
+  const assignedPeople = people.filter((p) => item.assignedTo.includes(p.id));
+
+  const handlePress = () => {
+    scale.setValue(0.96);
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 10 }).start();
+    onPress();
+  };
+
+  return (
+    <Animated.View style={[styles.cellWrap, { transform: [{ scale }] }]}>
+      <TouchableOpacity
+        style={[styles.cell, isUnassigned ? styles.cellUnassigned : styles.cellAssigned]}
+        onPress={handlePress}
+        onLongPress={onLongPress}
+        delayLongPress={400}
+        activeOpacity={0.85}
+      >
+        <View style={styles.cellTop}>
+          <Text style={styles.cellEmoji}>{getEmoji(item.name)}</Text>
+          {item.quantity > 1 && (
+            <View style={styles.qtyBadge}><Text style={styles.qtyBadgeText}>×{item.quantity}</Text></View>
+          )}
+        </View>
+        <Text style={styles.cellName} numberOfLines={2}>{item.name}</Text>
+        <View style={styles.cellBottom}>
+          <Text style={styles.cellPrice}>{formatCurrency(item.price)}</Text>
+          {assignedPeople.length > 0 && (
+            <View style={styles.cellAvatars}>
+              {assignedPeople.slice(0, 3).map((p) => {
+                const color = getPersonColor(people.indexOf(p));
+                return (
+                  <View key={p.id} style={[styles.cellAvatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
+                    <Text style={[styles.cellAvatarText, { color }]}>{initials(p.name)}</Text>
+                  </View>
+                );
+              })}
+              {assignedPeople.length > 3 && (
+                <Text style={styles.cellMore}>+{assignedPeople.length - 3}</Text>
+              )}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 type UndoEntry = {
@@ -180,7 +244,7 @@ type UndoEntry = {
 export default function AssignItemsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { receipt, people, assignItem, splitItemEvenly, splitIntoIndividualUnits, consolidateLikeItems, updateItem, addPerson, removePerson, updateTip, updateReceiptField } = useBillStore();
+  const { receipt, people, assignItem, splitItemEvenly, splitIntoIndividualUnits, consolidateLikeItems, updateItem, addPerson, removePerson, updateTip, updateReceiptField, paidById, reset, receiptImageUri } = useBillStore();
   const { isPro } = usePro();
   const [selectedPersonId, setSelectedPersonId] = useState<string>(people[0]?.id ?? '');
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
@@ -197,6 +261,7 @@ export default function AssignItemsScreen() {
   const [tipReminderMode, setTipReminderMode] = useState<TipReminderMode>('always');
   const [tipSheetOpen, setTipSheetOpen] = useState(false);
   const [tipInput, setTipInput] = useState('');
+  const [completeOpen, setCompleteOpen] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(TIP_REMINDER_KEY).then((val) => {
@@ -216,40 +281,37 @@ export default function AssignItemsScreen() {
   );
   const prevAllAssigned = useRef(false);
 
-  const handleSeeSummary = () => {
-    if (hasReceiptIssue && receipt) {
-      // Missing tip → let the user enter one inline instead of bouncing to Edit.
-      if (receipt.tip === 0) {
+  const tipReminderFired = useRef(false);
+
+  // Nudge for a missing tip shortly after landing on the screen — not at the end.
+  // Gives the receipt a beat to settle, then slides the tip sheet up once. Reads
+  // the live tip at fire time so mid-assignment re-renders don't reset the timer.
+  useEffect(() => {
+    if (tipReminderFired.current || tipReminderMode !== 'always') return;
+    const t = setTimeout(() => {
+      const live = useBillStore.getState().receipt;
+      if (live && live.tip === 0) {
+        tipReminderFired.current = true;
         setTipInput('');
         setTipSheetOpen(true);
-        return;
       }
-      // Totals mismatch → still punt to Edit Receipt.
-      setSheet({
-        title: "Receipt doesn't add up",
-        message: "The item total doesn't match the receipt total. Fix it with Edit Receipt, or continue anyway.",
-        options: [
-          { label: 'Edit Receipt', icon: 'create-outline', onPress: () => router.push('/receipt-review?from=assign-items') },
-          { label: 'Continue Anyway', icon: 'arrow-forward-outline', destructive: true, onPress: () => router.push('/summary') },
-        ],
-      });
-      return;
-    }
-    router.push('/summary');
-  };
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [tipReminderMode]);
 
-  const applyTipAndContinue = (tip: number) => {
+  const applyTip = (tip: number) => {
     if (receipt) {
       updateTip(tip);
       updateReceiptField('total', receipt.subtotal + receipt.tax + (receipt.fees ?? 0) + tip);
     }
     setTipSheetOpen(false);
-    router.push('/summary');
   };
 
+  // On the false→true completion edge, auto-present the split. The success
+  // haptic fires inside CompletionSheet on open, so it isn't duplicated here.
   useEffect(() => {
     if (allAssigned && !prevAllAssigned.current) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCompleteOpen(true);
     }
     prevAllAssigned.current = allAssigned;
   }, [allAssigned]);
@@ -462,98 +524,104 @@ export default function AssignItemsScreen() {
 
   const progressBarWidth = `${progress * 100}%` as any;
 
+  // Live per-person totals (incl. proportional tax/tip) for the buckets.
+  const splitBreakdowns = calcSplit(people, receipt).people;
+  const totalById = new Map(splitBreakdowns.map((b) => [b.person.id, b.totalOwed]));
+
+  // Header subtitle: parsed date + item count. Merchant name is the title.
+  const metaParts: string[] = [];
+  if (receipt.date) {
+    const norm = receipt.date.replace(/\//g, '-');
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(norm) ? norm + 'T00:00' : norm);
+    if (!isNaN(d.getTime())) metaParts.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  }
+  metaParts.push(`${totalItems} item${totalItems !== 1 ? 's' : ''}`);
+  const metaLine = metaParts.join(' · ');
+
+  const openOverflow = () => setSheet({ options: [
+    { label: 'Split evenly', icon: 'people-outline', onPress: handleSplitAll },
+    { label: 'Clear all', icon: 'close-circle-outline', destructive: true, onPress: handleClearAll },
+    { label: hasReceiptIssue ? 'Fix receipt' : 'Edit receipt', icon: 'create-outline', onPress: () => router.push('/receipt-review?from=assign-items') },
+  ] });
+
+  const openAddPeople = () => setSheet({ title: 'Add people', options: [
+    { label: 'Add by name', icon: 'person-add-outline', onPress: () => { setShowAddPerson(true); setTimeout(() => { peopleScrollRef.current?.scrollToEnd({ animated: true }); personInputRef.current?.focus(); }, 80); } },
+    { label: 'From contacts', icon: 'people-circle-outline', onPress: handlePickContact },
+    { label: 'Load a group', icon: 'bookmark-outline', onPress: handleOpenGroups },
+  ] });
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Header */}
+      {/* Header: merchant identity + overflow */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Text style={styles.title}>Assign Items</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={[styles.receiptEditBtn, hasReceiptIssue && styles.receiptEditBtnWarning]}
-              onPress={() => router.push('/receipt-review?from=assign-items')}
-              activeOpacity={0.75}
-            >
-              {hasReceiptIssue && <Ionicons name="warning-outline" size={14} color="#F59E0B" />}
-              <Text style={[styles.receiptEditText, hasReceiptIssue && styles.receiptEditTextWarning]}>
-                Edit Receipt
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.groupsBtn} onPress={handleOpenGroups} activeOpacity={0.75}>
-              <Ionicons name="people-outline" size={20} color={C.dim} />
-            </TouchableOpacity>
+          <View style={styles.identity}>
+            <Text style={styles.merchant} numberOfLines={1}>{receipt.merchantName || 'Assign Items'}</Text>
+            <Text style={styles.meta} numberOfLines={1}>{metaLine}</Text>
           </View>
-        </View>
-
-        {/* Progress label */}
-        <View style={styles.progressRow}>
-          <Text style={[styles.progressLabel, allAssigned && styles.progressLabelDone]}>
-            {allAssigned ? 'All items assigned ✓' : `${assignedCount} / ${totalItems} assigned`}
-          </Text>
-        </View>
-
-        {/* Action buttons */}
-        <View style={styles.topActionsRow}>
-          <TouchableOpacity style={styles.splitEvenlyBtn} onPress={handleSplitAll} activeOpacity={0.75}>
-            <Text style={styles.splitEvenlyBtnText}>Split evenly</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.clearAllBtn} onPress={handleClearAll} activeOpacity={0.75}>
-            <Text style={styles.clearAllBtnText}>Clear all</Text>
+          <TouchableOpacity style={styles.kebab} onPress={openOverflow} activeOpacity={0.75}>
+            {hasReceiptIssue && <View style={styles.kebabWarn} />}
+            <Ionicons name="ellipsis-horizontal" size={20} color={C.dim} />
           </TouchableOpacity>
         </View>
 
-        {/* Progress bar */}
-        <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressFillWrapper, { width: progressBarWidth }]}>
-            {allAssigned ? (
-              <LinearGradient colors={['#16A34A', '#22C55E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.progressFill} />
-            ) : (
-              <View style={[styles.progressFill, styles.progressFillActive]} />
-            )}
-          </Animated.View>
-        </View>
-
-        {/* Person chips */}
+        {/* People buckets — the pen + each person's running total */}
         <ScrollView
           ref={peopleScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.peopleScroll}
-          contentContainerStyle={styles.peopleRow}
+          style={styles.bucketsScroll}
+          contentContainerStyle={styles.bucketsRow}
         >
           {people.map((person, personIndex) => {
             const isSelected = person.id === selectedPersonId;
-            const count = receipt.items.filter((i) => i.assignedTo.includes(person.id)).length;
+            const color = getPersonColor(personIndex);
             return (
-              <PersonChip
+              <TouchableOpacity
                 key={person.id}
-                person={person}
-                personIndex={personIndex}
-                isSelected={isSelected}
-                count={count}
-                totalItems={totalItems}
+                style={[styles.bucket, isSelected && { borderColor: color, backgroundColor: color + '22' }]}
                 onPress={() => handleSelectPerson(person.id)}
                 onLongPress={() => handlePersonLongPress(person)}
-              />
+                delayLongPress={400}
+                activeOpacity={0.85}
+              >
+                <View style={styles.bucketTop}>
+                  <View style={[styles.bucketAvatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
+                    <Text style={[styles.bucketAvatarText, { color }]}>{initials(person.name)}</Text>
+                  </View>
+                  <Text style={[styles.bucketName, isSelected && { color: C.text }]} numberOfLines={1}>
+                    {person.name.split(' ')[0]}
+                  </Text>
+                </View>
+                <Text style={styles.bucketAmt}>{formatCurrency(totalById.get(person.id) ?? 0)}</Text>
+              </TouchableOpacity>
             );
           })}
-          <TouchableOpacity
-            style={styles.addPersonChip}
-            onPress={() => {
-              const opening = !showAddPerson;
-              setShowAddPerson(opening);
-              if (opening) {
-                setTimeout(() => {
-                  peopleScrollRef.current?.scrollToEnd({ animated: true });
-                  personInputRef.current?.focus();
-                }, 50);
-              }
-            }}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.addPersonChipText}>{showAddPerson ? '✕' : '+'}</Text>
+          <TouchableOpacity style={styles.addBucket} onPress={openAddPeople} activeOpacity={0.75}>
+            <Ionicons name="add" size={24} color={C.dim} />
           </TouchableOpacity>
         </ScrollView>
+
+        {/* Progress */}
+        <View style={styles.progressWrap}>
+          <View style={styles.progressLabelRow}>
+            <Text style={[styles.progressCount, allAssigned && styles.progressCountDone]}>
+              {allAssigned ? 'All items assigned ✓' : `${assignedCount} of ${totalItems} assigned`}
+            </Text>
+            {!allAssigned && unassignedTotal > 0 && (
+              <Text style={styles.progressLeft}>{formatCurrency(unassignedTotal)} left</Text>
+            )}
+          </View>
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFillWrapper, { width: progressBarWidth }]}>
+              {allAssigned ? (
+                <LinearGradient colors={['#2AA96B', C.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.progressFill} />
+              ) : (
+                <View style={[styles.progressFill, styles.progressFillActive]} />
+              )}
+            </Animated.View>
+          </View>
+        </View>
 
         {showAddPerson && (
           <View style={styles.addPersonRow}>
@@ -586,19 +654,20 @@ export default function AssignItemsScreen() {
         )}
       </View>
 
-      {/* Items list */}
+      {/* Items grid (2 columns) */}
       <FlatList
         data={allRows}
         keyExtractor={(row) => row.item.id}
-        contentContainerStyle={styles.list}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
+        contentContainerStyle={styles.grid}
         renderItem={({ item: row }) => (
-          <ItemRow
+          <ItemCell
             item={row.item}
             people={people}
-            selectedPersonId={selectedPersonId}
-            isAddon={row.isAddon}
             onLongPress={() => handleLongPressItem(row.item)}
-            onRowPress={() => {
+            onPress={() => {
+              if (!selectedPersonId) return;
               const item = row.item;
               pushUndo(item);
               const assigned = item.assignedTo.includes(selectedPersonId);
@@ -614,10 +683,8 @@ export default function AssignItemsScreen() {
               }
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }}
-            onAvatarPress={() => {}}
           />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
         ListFooterComponent={
           unassignedItems.length > 0 ? (
             <View style={styles.footer}>
@@ -634,13 +701,17 @@ export default function AssignItemsScreen() {
         }
       />
 
-      {/* Fixed bottom button */}
-      <View style={[styles.stickyFooter, allAssigned && styles.stickyFooterDone]}>
-        <TouchableOpacity style={styles.summaryBtn} onPress={handleSeeSummary} activeOpacity={0.85}>
-          <Text style={styles.summaryBtnText}>See Summary</Text>
-          {allAssigned && <Ionicons name="arrow-forward" size={18} color={C.bg} />}
-        </TouchableOpacity>
-      </View>
+      {/* Bill-ready pill — only once everything is assigned. Reopens the split
+          sheet after it's been dismissed; the sheet auto-presents on completion. */}
+      {allAssigned && (
+        <View style={[styles.stickyFooter, styles.stickyFooterDone]}>
+          <TouchableOpacity style={styles.readyPill} onPress={() => setCompleteOpen(true)} activeOpacity={0.85}>
+            <Ionicons name="sparkles" size={17} color={C.bg} />
+            <Text style={styles.readyPillText}>Bill ready · request &amp; share</Text>
+            <Ionicons name="chevron-forward" size={16} color={C.bg} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ItemActionSheet
         item={liveActiveItem}
@@ -652,6 +723,22 @@ export default function AssignItemsScreen() {
         onConsolidateLikeItems={handleSheetConsolidate}
         onToggleDrink={handleToggleDrink}
         onSplitDrinksEvenly={handleSplitDrinksEvenly}
+      />
+
+      <CompletionSheet
+        visible={completeOpen}
+        receipt={receipt}
+        people={people}
+        isPro={isPro}
+        paidById={paidById}
+        onClose={() => setCompleteOpen(false)}
+        onFixReceipt={() => { setCompleteOpen(false); setTimeout(() => router.push('/receipt-review?from=assign-items'), 280); }}
+        onDone={async () => {
+          await saveBillToHistory({ merchantName: receipt.merchantName, people, receipt, receiptImageUri: receiptImageUri ?? undefined });
+          setCompleteOpen(false);
+          reset();
+          router.replace('/');
+        }}
       />
 
       <Modal
@@ -792,12 +879,12 @@ export default function AssignItemsScreen() {
 
               <TouchableOpacity
                 style={styles.tipAddBtn}
-                onPress={() => applyTipAndContinue(parseFloat(tipInput) || 0)}
+                onPress={() => applyTip(parseFloat(tipInput) || 0)}
                 activeOpacity={0.85}
               >
                 <Text style={styles.tipAddText}>Add Tip</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.tipSkipBtn} onPress={() => { setTipSheetOpen(false); router.push('/summary'); }} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.tipSkipBtn} onPress={() => setTipSheetOpen(false)} activeOpacity={0.7}>
                 <Text style={styles.tipSkipText}>Skip, no tip</Text>
               </TouchableOpacity>
             </Pressable>
@@ -810,6 +897,61 @@ export default function AssignItemsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
+
+  // ── Redesigned header ──
+  identity: { flex: 1, marginRight: 12 },
+  merchant: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
+  meta: { fontSize: 13, color: C.faint, marginTop: 2 },
+  kebab: {
+    width: 40, height: 40, borderRadius: 20, marginTop: 2,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+  },
+  kebabWarn: {
+    position: 'absolute', top: 7, right: 7, width: 8, height: 8, borderRadius: 4,
+    backgroundColor: colors.amber, borderWidth: 2, borderColor: C.bg,
+  },
+
+  // ── People buckets ──
+  bucketsScroll: { marginHorizontal: -24, marginTop: 6 },
+  bucketsRow: { paddingHorizontal: 24, gap: 9, paddingVertical: 2, alignItems: 'stretch' },
+  bucket: {
+    minWidth: 104, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 15,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.16)', backgroundColor: C.card,
+  },
+  bucketTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  bucketAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  bucketAvatarText: { fontSize: 10, fontWeight: '800' },
+  bucketName: { fontSize: 13.5, fontWeight: '700', color: C.dim },
+  bucketAmt: { fontSize: 16, fontWeight: '800', color: C.text, marginTop: 7, letterSpacing: -0.3, fontVariant: ['tabular-nums'] },
+  addBucket: {
+    width: 50, borderRadius: 15, borderWidth: 1.5, borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.24)', alignItems: 'center', justifyContent: 'center',
+  },
+
+  // ── Progress ──
+  progressWrap: { marginTop: 14 },
+  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
+  progressCount: { fontSize: 13, fontWeight: '600', color: C.dim },
+  progressCountDone: { color: C.accent },
+  progressLeft: { fontSize: 12, color: C.faint, fontVariant: ['tabular-nums'] },
+
+  // ── Items grid ──
+  grid: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, rowGap: 8 },
+  gridRow: { gap: 8 },
+  cellWrap: { flex: 1 },
+  cell: { flex: 1, borderRadius: 13, borderWidth: 1.5, padding: 11, minHeight: 84, justifyContent: 'space-between' },
+  cellUnassigned: { borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.05)' },
+  cellAssigned: { borderColor: 'rgba(62,216,138,0.5)', backgroundColor: 'rgba(62,216,138,0.09)' },
+  cellTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cellEmoji: { fontSize: 20 },
+  cellName: { fontSize: 14, fontWeight: '600', color: C.text, marginTop: 6, lineHeight: 18 },
+  cellBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
+  cellPrice: { fontSize: 13, color: C.dim, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  cellAvatars: { flexDirection: 'row', alignItems: 'center' },
+  cellAvatar: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginLeft: -5 },
+  cellAvatarText: { fontSize: 8, fontWeight: '800' },
+  cellMore: { fontSize: 10, color: C.faint, fontWeight: '700', marginLeft: 3 },
 
   // Inline tip sheet
   tipFlex: { flex: 1 },
@@ -942,8 +1084,11 @@ const styles = StyleSheet.create({
     shadowColor: '#FFFFFF', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.06, shadowRadius: 12,
   },
-  summaryBtn: { height: 56, borderRadius: 15, backgroundColor: C.text, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  summaryBtnText: { fontSize: 16.5, fontWeight: '700', color: C.bg },
+  readyPill: {
+    height: 54, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: C.text,
+  },
+  readyPillText: { fontSize: 15.5, fontWeight: '700', color: C.bg },
   itemChip: {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14,

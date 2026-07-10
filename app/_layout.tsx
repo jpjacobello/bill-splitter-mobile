@@ -6,8 +6,11 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { getCurrency } from '../utils/proStorage';
 import { setActiveCurrency } from '../utils/currency';
 import { configurePurchases } from '../services/purchases';
+import { useHostLiveActivity } from '../hooks/useHostLiveActivity';
 
 export default function RootLayout() {
+  useHostLiveActivity();
+
   useEffect(() => {
     configurePurchases();
     getCurrency().then(setActiveCurrency);

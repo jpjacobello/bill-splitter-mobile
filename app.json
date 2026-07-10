@@ -17,6 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.jpjacobello.divi",
       "infoPlist": {
+        "NSSupportsLiveActivities": true,
         "LSApplicationQueriesSchemes": [
           "venmo"
         ],
@@ -41,7 +42,11 @@
     },
     "plugins": [
       "expo-router",
-      "react-native-document-scanner-plugin"
+      "react-native-document-scanner-plugin",
+      [
+        "@bacons/apple-targets",
+        { "appleTeamId": "569MN7R95U" }
+      ]
     ],
     "extra": {
       "router": {},

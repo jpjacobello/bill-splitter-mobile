@@ -59,6 +59,16 @@ export default function DigitizedReceipt({ parsing, receipt, imageUri, maxHeight
   const pulse = useRef(new Animated.Value(0.4)).current;
   const [contentH, setContentH] = useState<number | undefined>(undefined);
   const [wrapperH, setWrapperH] = useState(320);
+  const [photoAspect, setPhotoAspect] = useState<number | null>(null);
+
+  // Measure the real image ratio so the preview box hugs the receipt instead of
+  // letterboxing it with cream side bands.
+  useEffect(() => {
+    if (!imageUri) { setPhotoAspect(null); return; }
+    let cancelled = false;
+    Image.getSize(imageUri, (w, h) => { if (!cancelled && h > 0) setPhotoAspect(w / h); }, () => {});
+    return () => { cancelled = true; };
+  }, [imageUri]);
 
   useEffect(() => {
     if (!parsing) return;
@@ -76,10 +86,13 @@ export default function DigitizedReceipt({ parsing, receipt, imageUri, maxHeight
   // with the scan line sweeping over it. Skeleton is the fallback (demo has no photo).
   if (parsing && imageUri) {
     const photoH = maxHeight ? Math.min(maxHeight, 460) : 380;
+    // Hug the receipt: width = height * aspect so there are no cream side bands.
+    // Fall back to full width until the ratio is measured.
+    const wrapW = photoAspect ? photoH * photoAspect : undefined;
     return (
-      <View style={{ flexShrink: 1 }} onLayout={(e) => setWrapperH(e.nativeEvent.layout.height)}>
-        <View style={[styles.photoWrap, { height: photoH }]}>
-          <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="contain" />
+      <View style={{ flexShrink: 1, alignItems: 'center' }} onLayout={(e) => setWrapperH(e.nativeEvent.layout.height)}>
+        <View style={[styles.photoWrap, { height: photoH, width: wrapW ?? '100%' }]}>
+          <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" />
         </View>
         <RainbowScanOverlay height={wrapperH} />
       </View>

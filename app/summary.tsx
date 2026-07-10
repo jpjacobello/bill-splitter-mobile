@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,8 @@ import { SymbolView } from 'expo-symbols';
 import { MotiView } from 'moti';
 import Perforation from '../components/Perforation';
 import ReceiptPreviewSheet from '../components/ReceiptPreviewSheet';
+import ShareableReceiptCard, { calcCardScale } from '../components/ShareableReceiptCard';
+import { shareReceiptImage } from '../utils/shareCard';
 import ActionSheet from '../components/ActionSheet';
 import { VenmoLogo } from '../components/BrandLogos';
 import { colors, ui as C, moneyText } from '../theme';
@@ -25,10 +27,21 @@ export default function SummaryScreen() {
   const { isPro } = usePro();
   const [showReceipt, setShowReceipt] = useState(false);
   const [showOriginalReceipt, setShowOriginalReceipt] = useState(false);
-  const [previewPerson, setPreviewPerson] = useState<{ breakdown: PersonBreakdown; colorIndex: number } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ breakdown: PersonBreakdown; colorIndex: number } | null>(null);
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [whoPaidOpen, setWhoPaidOpen] = useState(false);
+  const shareCardRef = useRef<View>(null);
+
+  // Capture + share once the off-screen card for shareTarget has painted.
+  useEffect(() => {
+    if (!shareTarget || !receipt) return;
+    const t = setTimeout(async () => {
+      await shareReceiptImage(shareCardRef, receipt.merchantName, shareTarget.breakdown.person.name);
+      setShareTarget(null);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [shareTarget]);
 
   if (!receipt) return null;
 
@@ -101,7 +114,7 @@ export default function SummaryScreen() {
                       <Text style={[styles.owed, moneyText, { color: isHost ? C.dim : C.text }]}>{formatCurrency(b.totalOwed)}</Text>
                     </View>
                     <View style={styles.personActions}>
-                      <TouchableOpacity style={styles.ghostBtn} onPress={() => setPreviewPerson({ breakdown: b, colorIndex: index })} activeOpacity={0.7}>
+                      <TouchableOpacity style={styles.ghostBtn} onPress={() => setShareTarget({ breakdown: b, colorIndex: index })} activeOpacity={0.7}>
                         <SymbolView name="doc.text" size={14} tintColor={C.dim} />
                         <Text style={styles.ghostText}>Receipt</Text>
                       </TouchableOpacity>
@@ -147,7 +160,19 @@ export default function SummaryScreen() {
 
       <ReceiptPreviewSheet visible={showReceipt} receipt={receipt} allPeople={summary.people} onClose={() => setShowReceipt(false)} showPeopleSummary paidById={paidById} />
       <ReceiptPreviewSheet visible={showOriginalReceipt} receipt={receipt} onClose={() => setShowOriginalReceipt(false)} />
-      <ReceiptPreviewSheet visible={previewPerson !== null} receipt={receipt} person={previewPerson ?? undefined} onClose={() => setPreviewPerson(null)} paidById={paidById} />
+
+      {/* Off-screen card captured for the native share sheet */}
+      {shareTarget && (
+        <View style={styles.offScreen} pointerEvents="none">
+          <ShareableReceiptCard
+            ref={shareCardRef}
+            receipt={receipt}
+            person={shareTarget.breakdown}
+            scale={calcCardScale(shareTarget.breakdown.assignedItems.length)}
+            paidById={paidById ?? undefined}
+          />
+        </View>
+      )}
 
       <ActionSheet
         visible={startOverOpen}
@@ -210,4 +235,5 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 14.5, fontWeight: '700', color: C.text },
   startOver: { alignItems: 'center', paddingVertical: 16, marginTop: 6 },
   startOverText: { fontSize: 14.5, fontWeight: '600', color: C.dim },
+  offScreen: { position: 'absolute', top: -9999, left: -9999 },
 });

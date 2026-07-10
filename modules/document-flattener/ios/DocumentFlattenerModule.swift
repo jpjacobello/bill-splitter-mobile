@@ -36,30 +36,52 @@ public class DocumentFlattenerModule: Module {
         let ciImage = CIImage(cgImage: cgImage)
         let context = CIContext()
 
-        // Attempt perspective correction — skip silently if no good rectangle found.
-        // Detect several candidates and pick the LARGEST by area, not the highest
-        // confidence: a QR code is a strong high-confidence square but a small area,
-        // so area-selection rejects it and keeps the receipt outline.
+        // Find the receipt quad, then perspective-correct. Skip silently if none.
+        //
+        // Primary: VNDetectDocumentSegmentation (iOS 15+) — purpose-built for
+        // documents, robust on angled / partially-occluded / edge-cropped receipts
+        // where generic rectangle detection just gives up and returns nothing.
+        //
+        // Fallback: VNDetectRectangles, picking the LARGEST candidate by area (not
+        // highest confidence) — a QR code is a strong high-confidence square but a
+        // small area, so area-selection rejects it and keeps the receipt outline.
         var baseImage: CIImage = ciImage
-        let request = VNDetectRectanglesRequest()
-        request.minimumConfidence = 0.4
-        request.minimumAspectRatio = 0.15   // allow tall/narrow receipts
-        request.minimumSize = 0.2           // ignore small rects (QR, logos)
-        request.maximumObservations = 12
-        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-        if (try? handler.perform([request])) != nil,
-           let observation = request.results?
-             .max(by: { $0.boundingBox.width * $0.boundingBox.height
-                      < $1.boundingBox.width * $1.boundingBox.height }),
-           observation.boundingBox.width * observation.boundingBox.height > 0.2 {
+        var quad: (tl: CGPoint, tr: CGPoint, bl: CGPoint, br: CGPoint)? = nil
+
+        if #available(iOS 15.0, *) {
+          let docRequest = VNDetectDocumentSegmentationRequest()
+          let docHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+          if (try? docHandler.perform([docRequest])) != nil,
+             let doc = docRequest.results?.first {
+            quad = (doc.topLeft, doc.topRight, doc.bottomLeft, doc.bottomRight)
+          }
+        }
+
+        if quad == nil {
+          let request = VNDetectRectanglesRequest()
+          request.minimumConfidence = 0.5
+          request.minimumAspectRatio = 0.15   // allow tall/narrow receipts
+          request.minimumSize = 0.2           // ignore small rects (QR, logos)
+          request.maximumObservations = 12
+          let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+          if (try? handler.perform([request])) != nil,
+             let observation = request.results?
+               .max(by: { $0.boundingBox.width * $0.boundingBox.height
+                        < $1.boundingBox.width * $1.boundingBox.height }),
+             observation.boundingBox.width * observation.boundingBox.height > 0.2 {
+            quad = (observation.topLeft, observation.topRight, observation.bottomLeft, observation.bottomRight)
+          }
+        }
+
+        if let q = quad {
           let w = CGFloat(cgImage.width)
           let h = CGFloat(cgImage.height)
           func pt(_ p: CGPoint) -> CIVector { CIVector(x: p.x * w, y: p.y * h) }
           baseImage = ciImage.applyingFilter("CIPerspectiveCorrection", parameters: [
-            "inputTopLeft":     pt(observation.topLeft),
-            "inputTopRight":    pt(observation.topRight),
-            "inputBottomLeft":  pt(observation.bottomLeft),
-            "inputBottomRight": pt(observation.bottomRight),
+            "inputTopLeft":     pt(q.tl),
+            "inputTopRight":    pt(q.tr),
+            "inputBottomLeft":  pt(q.bl),
+            "inputBottomRight": pt(q.br),
           ])
         }
 
@@ -70,9 +92,16 @@ public class DocumentFlattenerModule: Module {
           .applyingFilter("CIDocumentEnhancer", parameters: ["inputAmount": 1.0])
           .applyingFilter("CIColorControls", parameters: [
             kCIInputSaturationKey: 0.0,
-            kCIInputContrastKey:   1.35,
-            kCIInputBrightnessKey: 0.08,
+            kCIInputContrastKey:   1.6,
+            kCIInputBrightnessKey: 0.1,
           ])
+          // Force near-white paper to pure white without crushing text: lift only
+          // the top of the tone range (highlights) and clamp to [0,1].
+          .applyingFilter("CIHighlightShadowAdjust", parameters: [
+            "inputHighlightAmount": 1.0,
+            "inputShadowAmount":    0.0,
+          ])
+          .applyingFilter("CIColorClamp")
 
         guard let outCG = context.createCGImage(enhanced, from: enhanced.extent),
               let data = UIImage(cgImage: outCG).jpegData(compressionQuality: 0.9) else {
@@ -106,9 +135,14 @@ public class DocumentFlattenerModule: Module {
           .applyingFilter("CIDocumentEnhancer", parameters: ["inputAmount": 1.0])
           .applyingFilter("CIColorControls", parameters: [
             kCIInputSaturationKey: 0.0,
-            kCIInputContrastKey:   1.35,
-            kCIInputBrightnessKey: 0.08,
+            kCIInputContrastKey:   1.6,
+            kCIInputBrightnessKey: 0.1,
           ])
+          .applyingFilter("CIHighlightShadowAdjust", parameters: [
+            "inputHighlightAmount": 1.0,
+            "inputShadowAmount":    0.0,
+          ])
+          .applyingFilter("CIColorClamp")
         guard let outCG = context.createCGImage(enhanced, from: enhanced.extent),
               let data = UIImage(cgImage: outCG).jpegData(compressionQuality: 0.9) else {
           promise.resolve(imageUri)
