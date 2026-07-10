@@ -4,6 +4,7 @@ import {
   StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -42,16 +43,20 @@ function initials(name: string): string {
 function ScanArt() {
   return (
     <View style={s.scanner}>
+      <Ionicons name="flash-off-outline" size={15} color="rgba(255,255,255,0.45)" style={s.flash} />
+      {/* 4 blue L-brackets framing the receipt */}
       <View style={[s.corner, s.c1]} /><View style={[s.corner, s.c2]} />
       <View style={[s.corner, s.c3]} /><View style={[s.corner, s.c4]} />
       <View style={s.rcpt}>
         <Text style={[s.rcptM, s.mono]}>CERVO'S</Text>
-        {[['Branzino', '34.00'], ['Rigatoni', '26.00'], ['Spritz', '30.00']].map(([a, b]) => (
+        {[['Branzino', '34'], ['Rigatoni', '26'], ['Spritz', '30'], ['Tiramisu', '14']].map(([a, b]) => (
           <View key={a} style={s.rcptR}><Text style={s.mono}>{a}</Text><Text style={s.mono}>{b}</Text></View>
         ))}
-        <View style={s.rcptT}><Text style={[s.mono, s.bold]}>TOTAL</Text><Text style={[s.mono, s.bold]}>98.00</Text></View>
+        <View style={s.rcptT}><Text style={[s.mono, s.bold]}>TOTAL</Text><Text style={[s.mono, s.bold]}>104</Text></View>
       </View>
+      {/* camera controls */}
       <View style={s.shutter} />
+      <View style={s.libBtn}><Ionicons name="images" size={15} color="#fff" /></View>
     </View>
   );
 }
@@ -244,18 +249,21 @@ const s = StyleSheet.create({
   skip: { alignItems: 'center', paddingVertical: 14 },
   skipTxt: { color: C.blue, fontSize: 14.5, fontWeight: '600' },
 
-  // scan
-  scanner: { width: 176, height: 210, backgroundColor: '#0E0E10', borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line },
-  rcpt: { width: 116, backgroundColor: PAPER, borderRadius: 6, padding: 11 },
-  rcptM: { textAlign: 'center', fontWeight: '700', fontSize: 11, borderBottomWidth: 1, borderColor: RULE, paddingBottom: 4, marginBottom: 5 },
-  rcptR: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 },
-  rcptT: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderColor: RULE, marginTop: 5, paddingTop: 4 },
-  corner: { position: 'absolute', width: 24, height: 24, borderColor: C.blue, borderWidth: 3 },
-  c1: { top: 40, left: 40, borderRightWidth: 0, borderBottomWidth: 0 },
-  c2: { top: 40, right: 40, borderLeftWidth: 0, borderBottomWidth: 0 },
-  c3: { bottom: 62, left: 40, borderRightWidth: 0, borderTopWidth: 0 },
-  c4: { bottom: 62, right: 40, borderLeftWidth: 0, borderTopWidth: 0 },
-  shutter: { position: 'absolute', bottom: 16, width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff' },
+  // scan — dark camera box; blue L-brackets frame a mini receipt; shutter + library
+  scanner: { width: 188, height: 240, backgroundColor: '#0E0E10', borderRadius: 24, borderWidth: 1, borderColor: C.line },
+  flash: { position: 'absolute', top: 12, right: 14 },
+  rcpt: { position: 'absolute', top: 50, left: 46, width: 96, backgroundColor: PAPER, borderRadius: 5, paddingHorizontal: 10, paddingVertical: 9 },
+  rcptM: { textAlign: 'center', fontWeight: '700', fontSize: 9.5, borderBottomWidth: 1, borderColor: RULE, paddingBottom: 3, marginBottom: 4 },
+  rcptR: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1.5 },
+  rcptT: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderColor: RULE, marginTop: 4, paddingTop: 3 },
+  // bracket region x24–164 (140w) × y32–172 (140h) — wider/taller than the 96px receipt so it sits inside
+  corner: { position: 'absolute', width: 20, height: 20, borderColor: C.blue, borderWidth: 3, borderRadius: 2 },
+  c1: { top: 32, left: 24, borderRightWidth: 0, borderBottomWidth: 0 },
+  c2: { top: 32, right: 24, borderLeftWidth: 0, borderBottomWidth: 0 },
+  c3: { top: 152, left: 24, borderRightWidth: 0, borderTopWidth: 0 },
+  c4: { top: 152, right: 24, borderLeftWidth: 0, borderTopWidth: 0 },
+  shutter: { position: 'absolute', bottom: 16, alignSelf: 'center', width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)' },
+  libBtn: { position: 'absolute', bottom: 18, right: 22, width: 26, height: 26, borderRadius: 7, backgroundColor: '#2A2A30', alignItems: 'center', justifyContent: 'center' },
 
   // assign
   items: { width: '100%', gap: 10, paddingHorizontal: 4 },
