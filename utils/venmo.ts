@@ -48,7 +48,7 @@ export async function openVenmo(b: PersonBreakdown, merchantName?: string, isPro
   try {
     await Linking.openURL(url);
   } catch {
-    const text = buildFallbackText(b, merchantName);
+    const text = buildFallbackText(b, merchantName, isPro);
     await Clipboard.setStringAsync(text);
     Alert.alert(
       'Venmo not found',
@@ -58,14 +58,13 @@ export async function openVenmo(b: PersonBreakdown, merchantName?: string, isPro
   }
 }
 
-function buildFallbackText(b: PersonBreakdown, merchantName?: string): string {
+function buildFallbackText(b: PersonBreakdown, merchantName?: string, isPro?: boolean): string {
   const lines = [
     merchantName ? `${merchantName} — Bill Split (via Divi)` : 'Bill Split (via Divi)',
     `${b.person.name} owes ${formatCurrency(b.totalOwed)}`,
     '',
     ...b.assignedItems.map((a) => `• ${a.item.name.replace(/\s*\(\d+\)\s*$/, '').trim()}  ${formatCurrency(a.share)}`),
-    '',
-    APP_TAG,
+    ...(isPro ? [] : ['', APP_TAG]),
   ];
   return lines.join('\n');
 }

@@ -19,7 +19,7 @@ import { usePro } from '../../hooks/usePro';
 import { formatCurrency } from '../../utils/currency';
 
 import { WEB_BASE_URL } from '../../utils/config';
-const FREE_CAP = 10;
+const FREE_CAP = 3;
 
 function Enter({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
   return (
@@ -187,7 +187,7 @@ export default function ActivityScreen() {
                   ))}
                 </View>
                 {capped && (
-                  <TouchableOpacity style={styles.nudge} activeOpacity={0.7}><Text style={styles.nudgeText}>See all your history with Divi Pro</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.nudge} activeOpacity={0.7} onPress={() => router.push('/paywall')}><Text style={styles.nudgeText}>See all your history with Divi Pro</Text></TouchableOpacity>
                 )}
               </Enter>
             )

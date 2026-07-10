@@ -18,7 +18,7 @@ import { usePro } from '../../hooks/usePro';
 import { formatCurrency } from '../../utils/currency';
 
 const SAVED_NAME_KEY = 'savedHostName';
-const FREE_RECENT_CAP = 10;
+const FREE_RECENT_CAP = 3;
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -199,7 +199,7 @@ export default function HomeScreen() {
                 ))}
               </View>
               {capped && (
-                <TouchableOpacity style={styles.nudge} activeOpacity={0.7} onPress={() => router.push('/settings')}>
+                <TouchableOpacity style={styles.nudge} activeOpacity={0.7} onPress={() => router.push('/paywall')}>
                   <Text style={styles.nudgeText}>See all your history with Divi Pro</Text>
                 </TouchableOpacity>
               )}

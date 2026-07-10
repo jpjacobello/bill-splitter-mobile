@@ -416,11 +416,7 @@ export default function AssignItemsScreen() {
 
   const handleOpenGroups = async () => {
     if (!isPro) {
-      setSheet({
-        title: 'Divi Pro',
-        message: 'Saved groups are a Pro feature. Upgrade in Settings to save and reuse your regular crews.',
-        options: [{ label: 'Got it', icon: 'sparkles-outline', onPress: () => {} }],
-      });
+      router.push('/paywall');
       return;
     }
     const [groups, ppl] = await Promise.all([getGroupsWithMembers(), getPeople()]);

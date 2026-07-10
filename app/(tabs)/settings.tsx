@@ -75,9 +75,10 @@ function GroupCard({ children }: { children: React.ReactNode }) {
 export default function SettingsScreen() {
   const router = useRouter();
   const { setHostName } = useBillStore();
-  const { isPro, loading: proLoading, activatePro, deactivatePro } = usePro();
+  const { isPro, loading: proLoading, restore, devSetPro } = usePro();
   const [resetProOpen, setResetProOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState('Checking for purchases…');
   const [comingSoon, setComingSoon] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [nameSaved, setNameSaved] = useState(false);
@@ -401,7 +402,12 @@ export default function SettingsScreen() {
                   chevron={false}
                   labelColor={C.blue}
                   last
-                  onPress={() => setRestoreOpen(true)}
+                  onPress={async () => {
+                    setRestoreMsg('Checking for purchases…');
+                    setRestoreOpen(true);
+                    const ok = await restore();
+                    setRestoreMsg(ok ? 'Divi Pro restored.' : 'No purchases found to restore.');
+                  }}
                 />
               </GroupCard>
               <Text style={styles.subFootnote}>You can manage your subscription in the App Store.</Text>
@@ -424,7 +430,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 style={styles.upgradeBtn}
                 activeOpacity={0.8}
-                onPress={activatePro}
+                onPress={() => router.push('/paywall')}
               >
                 <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
               </TouchableOpacity>
@@ -524,13 +530,13 @@ export default function SettingsScreen() {
         visible={resetProOpen}
         title="Reset to Free?"
         message="For testing only — removes Pro status."
-        options={[{ label: 'Reset', destructive: true, onPress: deactivatePro }]}
+        options={[{ label: 'Reset', destructive: true, onPress: () => devSetPro(false) }]}
         onClose={() => setResetProOpen(false)}
       />
       <ActionSheet
         visible={restoreOpen}
         title="Restore Purchases"
-        message="No purchases found to restore."
+        message={restoreMsg}
         onClose={() => setRestoreOpen(false)}
       />
       <ActionSheet
