@@ -11,7 +11,7 @@ import Perforation from '../../components/Perforation';
 import { moneyText, ui as C } from '../../theme';
 import { BillSession, BillHistoryEntry } from '../../types';
 import { outstandingOwed, owersCount } from '../../utils/sessionOwed';
-import { getPaidMap } from '../../utils/sessionPaid';
+import { getPaidMap, claimerBreakdown } from '../../utils/sessionPaid';
 import { subscribeToSession } from '../../services/billSession';
 import { getSessions, StoredSession } from '../../utils/sessionStorage';
 import { getBillHistory } from '../../utils/proStorage';
@@ -156,12 +156,14 @@ export default function HomeScreen() {
                   const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
                   const paidNames = paidMap[s.sessionId] ?? [];
                   const owedAmt = outstandingOwed(live ?? null, paidNames);
-                  const claimedAmt = outstandingOwed(live ?? null);
-                  const total = live?.receipt.total ?? 0;
-                  // equal: seats paid (owed known upfront). itemized: $ claimed of the total, live.
+                  // equal: seats paid (owed known upfront). itemized: how many still owe you.
+                  const cl = claimerBreakdown(live ?? null);
+                  const unpaid = cl.filter((c) => !paidNames.includes(c.name)).length;
                   const sub = isEqual
                     ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid`
-                    : `${formatCurrency(claimedAmt)} of ${formatCurrency(total)} claimed`;
+                    : cl.length === 0 ? 'Waiting on claims'
+                    : unpaid === 0 ? 'All settled ✓'
+                    : `${unpaid} still owe${unpaid === 1 ? 's' : ''} you`;
                   return (
                     <View key={s.sessionId}>
                       {i > 0 && <View style={styles.sep} />}
