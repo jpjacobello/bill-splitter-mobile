@@ -116,8 +116,6 @@ export default function ActivityScreen() {
               const live = liveData.get(s.sessionId);
               const isEqual = live?.splitType === 'equal';
               const claims = Object.values(live?.claims ?? {});
-              const totalItems = live?.receipt.items.filter((i) => i.price > 0 && !i.parentId).length ?? 0;
-              const claimedCount = new Set(claims.map((c) => c.itemId)).size;
               const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
               return (
                 <Enter key={s.sessionId} delay={idx * 60}>
@@ -131,7 +129,9 @@ export default function ActivityScreen() {
                       <Text style={styles.cardOwedLabel}>owed to you</Text>
                     </View>
                     <Text style={styles.progress}>
-                      {isEqual ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid` : `${claimedCount} of ${totalItems} item${totalItems !== 1 ? 's' : ''} claimed`}
+                      {isEqual
+                        ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid`
+                        : `${formatCurrency(outstandingOwed(live ?? null))} of ${formatCurrency(live?.receipt.total ?? 0)} claimed`}
                     </Text>
                     <Perforation dots={30} />
                     <View style={styles.cardActions}>

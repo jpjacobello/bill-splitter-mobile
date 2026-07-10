@@ -150,10 +150,13 @@ export default function HomeScreen() {
                   const live = liveData.get(s.sessionId);
                   const claims = Object.values(live?.claims ?? {});
                   const isEqual = live?.splitType === 'equal';
-                  const totalItems = live?.receipt.items.filter((it) => it.price > 0 && !it.parentId).length ?? 0;
-                  const claimedCount = new Set(claims.map((c) => c.itemId)).size;
                   const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
-                  const sub = isEqual ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid` : `${claimedCount} of ${totalItems} claimed`;
+                  const claimedAmt = outstandingOwed(live ?? null);
+                  const total = live?.receipt.total ?? 0;
+                  // equal: seats paid (owed known upfront). itemized: $ claimed of the total, live.
+                  const sub = isEqual
+                    ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid`
+                    : `${formatCurrency(claimedAmt)} of ${formatCurrency(total)} claimed`;
                   return (
                     <View key={s.sessionId}>
                       {i > 0 && <View style={styles.sep} />}
