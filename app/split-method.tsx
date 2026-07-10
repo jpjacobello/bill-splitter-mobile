@@ -16,7 +16,7 @@ import { WEB_BASE_URL } from '../utils/config';
 
 export default function SplitMethodScreen() {
   const router = useRouter();
-  const { receipt, people, setActiveSessionId } = useBillStore();
+  const { receipt, people, receiptImageUri, setActiveSessionId } = useBillStore();
   const [sharing, setSharing] = useState(false);
   const [venmoOpen, setVenmoOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
@@ -33,6 +33,7 @@ export default function SplitMethodScreen() {
         merchantName: receipt.merchantName ?? '',
         createdAt: new Date().toISOString(),
         creatorVenmoHandle: handle,
+        receiptImageUri: receiptImageUri ?? undefined,
       });
       const url = `${WEB_BASE_URL}/split/${sessionId}`;
       await Share.share({

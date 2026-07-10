@@ -58,7 +58,9 @@ export default function ActivityScreen() {
   const archiveSession = useCallback(async (session: BillSession) => {
     if (archivedRef.current.has(session.id)) return;
     archivedRef.current.add(session.id);
-    await saveBillToHistory(sessionToHistory(session));
+    // carry the host's local receipt photo (saved at share time) into history
+    const meta = (await getSessions()).find((x) => x.sessionId === session.id);
+    await saveBillToHistory({ ...sessionToHistory(session), receiptImageUri: meta?.receiptImageUri });
     await removeSession(session.id);
     unsubsRef.current.get(session.id)?.();
     unsubsRef.current.delete(session.id);

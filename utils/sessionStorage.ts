@@ -7,6 +7,7 @@ export type StoredSession = {
   merchantName: string;
   createdAt: string;
   creatorVenmoHandle: string;
+  receiptImageUri?: string; // local photo, kept so archived shared bills keep the receipt
 };
 
 export async function getSessions(): Promise<StoredSession[]> {
