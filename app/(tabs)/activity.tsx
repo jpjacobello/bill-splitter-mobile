@@ -9,6 +9,7 @@ import ActionSheet from '../../components/ActionSheet';
 import Perforation from '../../components/Perforation';
 import { moneyText, ui as C } from '../../theme';
 import { outstandingOwed } from '../../utils/sessionOwed';
+import { getPaidMap, togglePaid, claimerBreakdown } from '../../utils/sessionPaid';
 import { BillSession, BillHistoryEntry } from '../../types';
 import { subscribeToSession, closeSession } from '../../services/billSession';
 import { getSessions, removeSession, StoredSession } from '../../utils/sessionStorage';
@@ -49,6 +50,7 @@ export default function ActivityScreen() {
   const [deleteEntry, setDeleteEntry] = useState<BillHistoryEntry | null>(null);
   const [stored, setStored] = useState<StoredSession[]>([]);
   const [liveData, setLiveData] = useState<Map<string, BillSession | null>>(new Map());
+  const [paid, setPaidState] = useState<Record<string, string[]>>({});
   const [history, setHistory] = useState<BillHistoryEntry[]>([]);
   const unsubsRef = useRef<Map<string, () => void>>(new Map());
   const archivedRef = useRef<Set<string>>(new Set());
@@ -70,6 +72,7 @@ export default function ActivityScreen() {
     const [sessions, hist] = await Promise.all([getSessions(), getBillHistory()]);
     setStored(sessions);
     setHistory(hist);
+    setPaidState(await getPaidMap(sessions.map((s) => s.sessionId)));
     for (const s of sessions) {
       if (unsubsRef.current.has(s.sessionId)) continue;
       const unsub = subscribeToSession(s.sessionId, (live) => {
@@ -82,6 +85,11 @@ export default function ActivityScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useEffect(() => () => { for (const u of unsubsRef.current.values()) u(); unsubsRef.current.clear(); }, []);
+
+  const markPaid = async (sessionId: string, name: string) => {
+    const next = await togglePaid(sessionId, name);
+    setPaidState((prev) => ({ ...prev, [sessionId]: next }));
+  };
 
   const shareAgain = async (s: StoredSession) => {
     await Share.share({ message: `${s.merchantName ? s.merchantName + ' — ' : ''}Pay your share`, url: `${WEB_BASE_URL}/split/${s.sessionId}` });
@@ -117,6 +125,9 @@ export default function ActivityScreen() {
               const isEqual = live?.splitType === 'equal';
               const claims = Object.values(live?.claims ?? {});
               const seatsTaken = claims.filter((c) => c.itemId === 'equal-split').length;
+              const paidNames = paid[s.sessionId] ?? [];
+              const owed = outstandingOwed(live ?? null, paidNames);
+              const claimers = claimerBreakdown(live ?? null);
               return (
                 <Enter key={s.sessionId} delay={idx * 60}>
                   <View style={styles.card}>
@@ -125,7 +136,7 @@ export default function ActivityScreen() {
                       <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveBadgeText}>LIVE</Text></View>
                     </View>
                     <View style={styles.cardOwedRow}>
-                      <Text style={[styles.cardOwed, moneyText]}>{formatCurrency(outstandingOwed(live ?? null))}</Text>
+                      <Text style={[styles.cardOwed, moneyText]}>{formatCurrency(owed)}</Text>
                       <Text style={styles.cardOwedLabel}>owed to you</Text>
                     </View>
                     <Text style={styles.progress}>
@@ -133,6 +144,25 @@ export default function ActivityScreen() {
                         ? `${seatsTaken} of ${live?.peopleCount ?? 0} paid`
                         : `${formatCurrency(outstandingOwed(live ?? null))} of ${formatCurrency(live?.receipt.total ?? 0)} claimed`}
                     </Text>
+
+                    {!isEqual && claimers.length > 0 && (
+                      <View style={styles.claimers}>
+                        {claimers.map((cl) => {
+                          const isPaid = paidNames.includes(cl.name);
+                          return (
+                            <TouchableOpacity key={cl.name} style={styles.claimerRow} activeOpacity={0.7} onPress={() => markPaid(s.sessionId, cl.name)}>
+                              <View style={[styles.check, isPaid && styles.checkOn]}>
+                                {isPaid && <SymbolView name="checkmark" size={11} tintColor={C.bg} />}
+                              </View>
+                              <Text style={[styles.claimerName, isPaid && styles.claimerPaid]} numberOfLines={1}>{cl.name}</Text>
+                              <Text style={[styles.claimerAmt, moneyText, isPaid && styles.claimerPaid]}>{formatCurrency(cl.amount)}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        <Text style={styles.claimerHint}>Tap a name once they've paid you.</Text>
+                      </View>
+                    )}
+
                     <Perforation dots={30} />
                     <View style={styles.cardActions}>
                       <TouchableOpacity style={styles.actionBtn} onPress={() => shareAgain(s)} activeOpacity={0.75}>
@@ -250,7 +280,18 @@ const styles = StyleSheet.create({
   cardOwed: { fontSize: 30, fontWeight: '800', color: C.text, letterSpacing: -0.6 },
   cardOwedLabel: { fontSize: 12.5, color: C.dim },
   progress: { fontSize: 13, color: C.dim, marginTop: 4 },
-  cardActions: { flexDirection: 'row', gap: 10 },
+  claimers: { marginTop: 14, gap: 2 },
+  claimerRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 8 },
+  check: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: C.faint,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkOn: { backgroundColor: C.accent, borderColor: C.accent },
+  claimerName: { flex: 1, fontSize: 14.5, color: C.text, fontWeight: '600' },
+  claimerAmt: { fontSize: 14.5, color: C.text, fontWeight: '700' },
+  claimerPaid: { color: C.faint, textDecorationLine: 'line-through' },
+  claimerHint: { fontSize: 12, color: C.faint, marginTop: 6 },
+  cardActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 11, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12,
