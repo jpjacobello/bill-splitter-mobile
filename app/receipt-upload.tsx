@@ -121,14 +121,15 @@ export default function ReceiptUploadScreen() {
     // Show the raw capture immediately (scan line starts).
     setImageUri(rawUri);
     setParsing(true);
-    // Camera: VisionKit already cropped → whiten only (no re-detect; avoids QR zoom).
-    // Library: full flatten (detect receipt + perspective + whiten).
+    // The cropped/flattened image is COSMETIC — for the preview + saved photo only.
+    // OCR always runs on the raw capture so cropping/zoom/tone can never corrupt
+    // what the parser reads. Library path crops; camera path is already cropped.
     const cleanUri = useCamera
       ? await enhanceDocument(rawUri).catch(() => rawUri)
       : await flattenDocument(rawUri).catch(() => rawUri);
     if (cleanUri !== rawUri) setImageUri(cleanUri);
     try {
-      const parsed = await activeParser(cleanUri);
+      const parsed = await activeParser(rawUri);
       if (parsed.items.length === 0 && parsed.total === 0) {
         setParsing(false);
         setImageUri(null);

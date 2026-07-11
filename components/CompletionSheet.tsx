@@ -84,9 +84,10 @@ type Props = {
   onClose: () => void;
   onFixReceipt: () => void;
   onDone: () => void;
+  celebrate: boolean;
 };
 
-export default function CompletionSheet({ visible, receipt, people, isPro, paidById, onClose, onFixReceipt, onDone }: Props) {
+export default function CompletionSheet({ visible, receipt, people, isPro, paidById, onClose, onFixReceipt, onDone, celebrate }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const anim = useRef(new Animated.Value(0)).current;
@@ -113,10 +114,15 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
       Animated.timing(anim, {
         toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true,
       }).start();
-      setRunConfetti(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const t = setTimeout(() => setRunConfetti(false), 2400);
-      return () => clearTimeout(t);
+      // Confetti only when the screen says to celebrate (first auto-pop per receipt).
+      if (celebrate) {
+        setRunConfetti(true);
+        const t = setTimeout(() => setRunConfetti(false), 2400);
+        return () => clearTimeout(t);
+      }
+      setRunConfetti(false);
+      return;
     }
     Animated.timing(anim, {
       toValue: 0, duration: 240, easing: Easing.in(Easing.cubic), useNativeDriver: true,

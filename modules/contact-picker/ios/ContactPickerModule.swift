@@ -33,7 +33,11 @@ public class ContactPickerModule: Module {
       .compactMap { $0 as? UIWindowScene }
       .flatMap { $0.windows }
       .first { $0.isKeyWindow }?.rootViewController
-    while let presented = top?.presentedViewController { top = presented }
+    // Skip a modal that's animating away (e.g. a just-dismissed ActionSheet):
+    // presenting the picker on it would tear the picker down with it.
+    while let presented = top?.presentedViewController, !presented.isBeingDismissed {
+      top = presented
+    }
     return top
   }
 }

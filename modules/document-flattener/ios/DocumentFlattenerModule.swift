@@ -85,25 +85,10 @@ public class DocumentFlattenerModule: Module {
           ])
         }
 
-        // Whiten: paper -> white, text -> black. CIDocumentEnhancer for the base
-        // scan look, then desaturate + push contrast/brightness so the cream paper
-        // and desk tint blow out to white and text darkens.
-        let enhanced = baseImage
-          .applyingFilter("CIDocumentEnhancer", parameters: ["inputAmount": 1.0])
-          .applyingFilter("CIColorControls", parameters: [
-            kCIInputSaturationKey: 0.0,
-            kCIInputContrastKey:   1.6,
-            kCIInputBrightnessKey: 0.1,
-          ])
-          // Force near-white paper to pure white without crushing text: lift only
-          // the top of the tone range (highlights) and clamp to [0,1].
-          .applyingFilter("CIHighlightShadowAdjust", parameters: [
-            "inputHighlightAmount": 1.0,
-            "inputShadowAmount":    0.0,
-          ])
-          .applyingFilter("CIColorClamp")
-
-        guard let outCG = context.createCGImage(enhanced, from: enhanced.extent),
+        // Crop only — perspective-correct to the receipt quad and output the
+        // ORIGINAL pixels untouched. No tonal filters: altering the image risks
+        // crushing dim/low-light photos to black and breaking the parser.
+        guard let outCG = context.createCGImage(baseImage, from: baseImage.extent),
               let data = UIImage(cgImage: outCG).jpegData(compressionQuality: 0.9) else {
           promise.resolve(imageUri)
           return
@@ -122,41 +107,10 @@ public class DocumentFlattenerModule: Module {
 
     // Whiten ONLY — no rectangle detection / perspective. For images already
     // cropped by VisionKit (camera path); re-detecting there latches onto the QR.
+    // Camera path: VisionKit's document scanner already crops + cleans the image,
+    // so there's nothing to do — return it untouched (no tonal filtering).
     AsyncFunction("enhanceDocument") { (imageUri: String, promise: Promise) in
-      DispatchQueue.global(qos: .userInitiated).async {
-        let path = imageUri.hasPrefix("file://") ? String(imageUri.dropFirst(7)) : imageUri
-        guard let raw = UIImage(contentsOfFile: path),
-              let cgImage = raw.orientationNormalized().cgImage else {
-          promise.resolve(imageUri)
-          return
-        }
-        let context = CIContext()
-        let enhanced = CIImage(cgImage: cgImage)
-          .applyingFilter("CIDocumentEnhancer", parameters: ["inputAmount": 1.0])
-          .applyingFilter("CIColorControls", parameters: [
-            kCIInputSaturationKey: 0.0,
-            kCIInputContrastKey:   1.6,
-            kCIInputBrightnessKey: 0.1,
-          ])
-          .applyingFilter("CIHighlightShadowAdjust", parameters: [
-            "inputHighlightAmount": 1.0,
-            "inputShadowAmount":    0.0,
-          ])
-          .applyingFilter("CIColorClamp")
-        guard let outCG = context.createCGImage(enhanced, from: enhanced.extent),
-              let data = UIImage(cgImage: outCG).jpegData(compressionQuality: 0.9) else {
-          promise.resolve(imageUri)
-          return
-        }
-        let fileURL = FileManager.default.temporaryDirectory
-          .appendingPathComponent("enhanced_\(UUID().uuidString).jpg")
-        do {
-          try data.write(to: fileURL)
-          promise.resolve(fileURL.absoluteString)
-        } catch {
-          promise.resolve(imageUri)
-        }
-      }
+      promise.resolve(imageUri)
     }
   }
 }

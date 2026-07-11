@@ -32,144 +32,6 @@ function getPersonColor(index: number) {
   return PERSON_COLORS[index % PERSON_COLORS.length];
 }
 
-// ─── Person chip ─────────────────────────────────────────────────────────────
-
-type PersonChipProps = {
-  person: Person;
-  personIndex: number;
-  isSelected: boolean;
-  count: number;
-  totalItems: number;
-  onPress: () => void;
-  onLongPress: () => void;
-};
-
-function PersonChip({ person, personIndex, isSelected, count, totalItems, onPress, onLongPress }: PersonChipProps) {
-  const color = getPersonColor(personIndex);
-  const fillAnim = useRef(new Animated.Value(isSelected ? 1 : 0)).current;
-  const initials = person.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-
-  useEffect(() => {
-    Animated.timing(fillAnim, {
-      toValue: isSelected ? 1 : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [isSelected]);
-
-  return (
-    <TouchableOpacity
-      style={[styles.personChip, { borderColor: isSelected ? color : 'rgba(255,255,255,0.18)' }]}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={400}
-      activeOpacity={0.85}
-    >
-      <Animated.View
-        style={[StyleSheet.absoluteFill, { borderRadius: 14, backgroundColor: color + '22', opacity: fillAnim }]}
-        pointerEvents="none"
-      />
-      <View style={[styles.avatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
-        <Text style={[styles.avatarText, { color }]}>{initials}</Text>
-      </View>
-      <View>
-        <Text style={[styles.personChipText, isSelected && { color: C.text }]}>{person.name}</Text>
-        <Animated.Text style={[styles.personChipCount, { color, opacity: fillAnim }]}>
-          {count}/{totalItems} items
-        </Animated.Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Item row ────────────────────────────────────────────────────────────────
-
-type ItemRowProps = {
-  item: ReceiptItem;
-  people: Person[];
-  selectedPersonId: string;
-  isAddon?: boolean;
-  onLongPress: () => void;
-  onRowPress: () => void;
-  onAvatarPress: (personId: string, currentlyAssigned: boolean) => void;
-};
-
-function ItemRow({ item, people, isAddon, onLongPress, onRowPress }: ItemRowProps) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const isUnassigned = item.assignedTo.length === 0;
-  const assignedPeople = people.filter((p) => item.assignedTo.includes(p.id));
-
-  const handlePress = () => {
-    scale.setValue(0.96);
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 10 }).start();
-    onRowPress();
-  };
-
-  const avatars = assignedPeople.length > 0 ? (
-    <View style={styles.itemAvatarRow}>
-      {assignedPeople.slice(0, 5).map((p) => {
-        const index = people.indexOf(p);
-        const color = getPersonColor(index);
-        const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-        return (
-          <View key={p.id} style={[styles.itemAvatar, { backgroundColor: color + '33', borderColor: color + '88' }]}>
-            <Text style={[styles.itemAvatarText, { color }]}>{initials}</Text>
-          </View>
-        );
-      })}
-      {assignedPeople.length > 5 && (
-        <View style={styles.itemAvatarOverflow}>
-          <Text style={styles.itemAvatarOverflowText}>+{assignedPeople.length - 5}</Text>
-        </View>
-      )}
-    </View>
-  ) : null;
-
-  if (isAddon) {
-    return (
-      <Animated.View style={[styles.addonWrapper, { transform: [{ scale }] }]}>
-        <View style={styles.addonConnector} />
-        <TouchableOpacity
-          style={[styles.addonChip, isUnassigned ? styles.itemChipUnassigned : styles.itemChipAssigned]}
-          onPress={handlePress}
-          onLongPress={onLongPress}
-          delayLongPress={400}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.addonEmoji}>{getEmoji(item.name)}</Text>
-          <Text style={styles.addonName} numberOfLines={1}>{item.name}</Text>
-          {item.quantity > 1 && (
-            <View style={styles.qtyBadge}>
-              <Text style={styles.qtyBadgeText}>×{item.quantity}</Text>
-            </View>
-          )}
-          {avatars}
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  }
-
-  return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        style={[styles.itemChip, isUnassigned ? styles.itemChipUnassigned : styles.itemChipAssigned]}
-        onPress={handlePress}
-        onLongPress={onLongPress}
-        delayLongPress={400}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.itemEmoji}>{getEmoji(item.name)}</Text>
-        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-        {item.quantity > 1 && (
-          <View style={styles.qtyBadge}>
-            <Text style={styles.qtyBadgeText}>×{item.quantity}</Text>
-          </View>
-        )}
-        {avatars}
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
 
 // ─── Item cell (2-column grid) ───────────────────────────────────────────────
 
@@ -262,6 +124,8 @@ export default function AssignItemsScreen() {
   const [tipSheetOpen, setTipSheetOpen] = useState(false);
   const [tipInput, setTipInput] = useState('');
   const [completeOpen, setCompleteOpen] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
+  const hasCelebratedRef = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem(TIP_REMINDER_KEY).then((val) => {
@@ -311,6 +175,9 @@ export default function AssignItemsScreen() {
   // haptic fires inside CompletionSheet on open, so it isn't duplicated here.
   useEffect(() => {
     if (allAssigned && !prevAllAssigned.current) {
+      // Confetti only the first time the sheet auto-pops for this receipt.
+      setCelebrate(!hasCelebratedRef.current);
+      hasCelebratedRef.current = true;
       setCompleteOpen(true);
     }
     prevAllAssigned.current = allAssigned;
@@ -353,12 +220,6 @@ export default function AssignItemsScreen() {
     setUndoStack((prev) => [...prev.slice(-9), { itemId: item.id, previousAssignedTo: item.assignedTo }]);
   };
 
-  const handleUndo = () => {
-    if (undoStack.length === 0) return;
-    const last = undoStack[undoStack.length - 1];
-    assignItem(last.itemId, last.previousAssignedTo);
-    setUndoStack((prev) => prev.slice(0, -1));
-  };
 
   const handleLongPressItem = (item: ReceiptItem) => {
     setActiveItem(item);
@@ -438,9 +299,13 @@ export default function AssignItemsScreen() {
     }, 50);
   };
 
-  const handlePickContact = async () => {
-    const picked = await presentMultiContactPickerAsync();
-    picked.forEach((c) => addPerson(c.name));
+  const handlePickContact = () => {
+    // Defer so a dismissing ActionSheet fully closes first — iOS can't present the
+    // native contact picker over a still-open modal, and it silently no-ops.
+    setTimeout(async () => {
+      const picked = await presentMultiContactPickerAsync();
+      picked.forEach((c) => addPerson(c.name));
+    }, 300);
   };
 
   const handleSheetSplitAmong = (itemId: string, personIds: string[]) => {
@@ -559,10 +424,15 @@ export default function AssignItemsScreen() {
             <Text style={styles.merchant} numberOfLines={1}>{receipt.merchantName || 'Assign Items'}</Text>
             <Text style={styles.meta} numberOfLines={1}>{metaLine}</Text>
           </View>
-          <TouchableOpacity style={styles.kebab} onPress={openOverflow} activeOpacity={0.75}>
-            {hasReceiptIssue && <View style={styles.kebabWarn} />}
-            <Ionicons name="ellipsis-horizontal" size={20} color={C.dim} />
-          </TouchableOpacity>
+          <View style={styles.headerBtns}>
+            <TouchableOpacity style={styles.kebab} onPress={openAddPeople} activeOpacity={0.75}>
+              <Ionicons name="person-add-outline" size={19} color={C.dim} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.kebab} onPress={openOverflow} activeOpacity={0.75}>
+              {hasReceiptIssue && <View style={styles.kebabWarn} />}
+              <Ionicons name="ellipsis-horizontal" size={20} color={C.dim} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* People buckets — the pen + each person's running total */}
@@ -597,9 +467,6 @@ export default function AssignItemsScreen() {
               </TouchableOpacity>
             );
           })}
-          <TouchableOpacity style={styles.addBucket} onPress={openAddPeople} activeOpacity={0.75}>
-            <Ionicons name="add" size={24} color={C.dim} />
-          </TouchableOpacity>
         </ScrollView>
 
         {/* Progress */}
@@ -633,7 +500,7 @@ export default function AssignItemsScreen() {
               value={personInput}
               onChangeText={setPersonInput}
               returnKeyType="done"
-              blurOnSubmit={false}
+              submitBehavior="submit"
               onSubmitEditing={() => {
                 if (personInput.trim()) {
                   handleAddPerson();
@@ -705,7 +572,7 @@ export default function AssignItemsScreen() {
           sheet after it's been dismissed; the sheet auto-presents on completion. */}
       {allAssigned && (
         <View style={[styles.stickyFooter, styles.stickyFooterDone]}>
-          <TouchableOpacity style={styles.readyPill} onPress={() => setCompleteOpen(true)} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.readyPill} onPress={() => { setCelebrate(false); setCompleteOpen(true); }} activeOpacity={0.85}>
             <Ionicons name="sparkles" size={17} color={C.bg} />
             <Text style={styles.readyPillText}>Bill ready · request &amp; share</Text>
             <Ionicons name="chevron-forward" size={16} color={C.bg} />
@@ -731,6 +598,7 @@ export default function AssignItemsScreen() {
         people={people}
         isPro={isPro}
         paidById={paidById}
+        celebrate={celebrate}
         onClose={() => setCompleteOpen(false)}
         onFixReceipt={() => { setCompleteOpen(false); setTimeout(() => router.push('/receipt-review?from=assign-items'), 280); }}
         onDone={async () => {
@@ -902,8 +770,9 @@ const styles = StyleSheet.create({
   identity: { flex: 1, marginRight: 12 },
   merchant: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
   meta: { fontSize: 13, color: C.faint, marginTop: 2 },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   kebab: {
-    width: 40, height: 40, borderRadius: 20, marginTop: 2,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
@@ -924,10 +793,6 @@ const styles = StyleSheet.create({
   bucketAvatarText: { fontSize: 10, fontWeight: '800' },
   bucketName: { fontSize: 13.5, fontWeight: '700', color: C.dim },
   bucketAmt: { fontSize: 16, fontWeight: '800', color: C.text, marginTop: 7, letterSpacing: -0.3, fontVariant: ['tabular-nums'] },
-  addBucket: {
-    width: 50, borderRadius: 15, borderWidth: 1.5, borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.24)', alignItems: 'center', justifyContent: 'center',
-  },
 
   // ── Progress ──
   progressWrap: { marginTop: 14 },
@@ -937,16 +802,16 @@ const styles = StyleSheet.create({
   progressLeft: { fontSize: 12, color: C.faint, fontVariant: ['tabular-nums'] },
 
   // ── Items grid ──
-  grid: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, rowGap: 8 },
-  gridRow: { gap: 8 },
+  grid: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, rowGap: 7 },
+  gridRow: { gap: 7 },
   cellWrap: { flex: 1 },
-  cell: { flex: 1, borderRadius: 13, borderWidth: 1.5, padding: 11, minHeight: 84, justifyContent: 'space-between' },
+  cell: { flex: 1, borderRadius: 13, borderWidth: 1.5, padding: 10, minHeight: 68, justifyContent: 'space-between' },
   cellUnassigned: { borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.05)' },
   cellAssigned: { borderColor: 'rgba(62,216,138,0.5)', backgroundColor: 'rgba(62,216,138,0.09)' },
   cellTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cellEmoji: { fontSize: 20 },
-  cellName: { fontSize: 14, fontWeight: '600', color: C.text, marginTop: 6, lineHeight: 18 },
-  cellBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
+  cellEmoji: { fontSize: 18 },
+  cellName: { fontSize: 13.5, fontWeight: '600', color: C.text, marginTop: 5, lineHeight: 17 },
+  cellBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 6 },
   cellPrice: { fontSize: 13, color: C.dim, fontWeight: '600', fontVariant: ['tabular-nums'] },
   cellAvatars: { flexDirection: 'row', alignItems: 'center' },
   cellAvatar: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginLeft: -5 },
