@@ -59,6 +59,7 @@ export default function DigitizedReceipt({ parsing, receipt, imageUri, maxHeight
   const pulse = useRef(new Animated.Value(0.4)).current;
   const [contentH, setContentH] = useState<number | undefined>(undefined);
   const [wrapperH, setWrapperH] = useState(320);
+  const [wrapperW, setWrapperW] = useState(0);
   const [photoAspect, setPhotoAspect] = useState<number | null>(null);
 
   // Measure the real image ratio so the preview box hugs the receipt instead of
@@ -85,13 +86,23 @@ export default function DigitizedReceipt({ parsing, receipt, imageUri, maxHeight
   // While scanning, show the real captured photo (raw → whitened by flattenDocument)
   // with the scan line sweeping over it. Skeleton is the fallback (demo has no photo).
   if (parsing && imageUri) {
-    const photoH = maxHeight ? Math.min(maxHeight, 460) : 380;
-    // Hug the receipt: width = height * aspect so there are no cream side bands.
-    // Fall back to full width until the ratio is measured.
-    const wrapW = photoAspect ? photoH * photoAspect : undefined;
+    const boxH = maxHeight ? Math.min(maxHeight, 460) : 380;
+    // Contain the whole receipt inside the available width AND height — no
+    // overflow (over-zoom), no crop. The box hugs the image so there are no
+    // cream side bands either. Falls back to full width until measured.
+    let dims: { width: number | `${number}%`; height: number } = { width: '100%', height: boxH };
+    if (photoAspect && wrapperW > 0) {
+      let w = wrapperW;
+      let h = wrapperW / photoAspect;
+      if (h > boxH) { h = boxH; w = boxH * photoAspect; }
+      dims = { width: w, height: h };
+    }
     return (
-      <View style={{ flexShrink: 1, alignItems: 'center' }} onLayout={(e) => setWrapperH(e.nativeEvent.layout.height)}>
-        <View style={[styles.photoWrap, { height: photoH, width: wrapW ?? '100%' }]}>
+      <View
+        style={{ flexShrink: 1, alignItems: 'center' }}
+        onLayout={(e) => { setWrapperH(e.nativeEvent.layout.height); setWrapperW(e.nativeEvent.layout.width); }}
+      >
+        <View style={[styles.photoWrap, dims]}>
           <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" />
         </View>
         <RainbowScanOverlay height={wrapperH} />

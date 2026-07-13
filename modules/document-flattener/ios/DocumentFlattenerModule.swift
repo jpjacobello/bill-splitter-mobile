@@ -85,10 +85,25 @@ public class DocumentFlattenerModule: Module {
           ])
         }
 
-        // Crop only — perspective-correct to the receipt quad and output the
-        // ORIGINAL pixels untouched. No tonal filters: altering the image risks
-        // crushing dim/low-light photos to black and breaking the parser.
-        guard let outCG = context.createCGImage(baseImage, from: baseImage.extent),
+        // Whiten for DISPLAY ONLY (OCR reads the raw capture, so this can never
+        // break parsing). "Divide-by-blur": blur a grayscale copy to estimate the
+        // page's uneven lighting, then divide the original by it — paper flattens
+        // to white and text stays dark, robust across shadows/dim light where a
+        // global contrast bump would crush the image to black.
+        let gray = baseImage.applyingFilter("CIPhotoEffectMono")
+        let radius = max(12, min(60, CGFloat(cgImage.width) / 24.0))
+        let blurred = gray.clampedToExtent()
+          .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
+          .cropped(to: gray.extent)
+        let whitened = blurred
+          .applyingFilter("CIDivideBlendMode", parameters: ["inputBackgroundImage": gray])
+          .applyingFilter("CIColorControls", parameters: [
+            kCIInputSaturationKey: 0.0,
+            kCIInputContrastKey:   1.2,
+            kCIInputBrightnessKey: 0.02,
+          ])
+
+        guard let outCG = context.createCGImage(whitened, from: baseImage.extent),
               let data = UIImage(cgImage: outCG).jpegData(compressionQuality: 0.9) else {
           promise.resolve(imageUri)
           return
