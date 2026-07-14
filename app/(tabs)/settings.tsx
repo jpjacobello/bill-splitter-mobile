@@ -15,7 +15,6 @@ import { getVenmoHandle, setVenmoHandle, getCashAppHandle, setCashAppHandle, get
 import { CURRENCIES, currencyInfo, setActiveCurrency } from '../../utils/currency';
 
 const SAVED_NAME_KEY = 'savedHostName';
-const HAS_LAUNCHED_KEY = 'hasLaunched';
 import { DEFAULT_TIP_KEY, TIP_REMINDER_KEY, TipReminderMode } from '../../utils/tipPrefs';
 const TIP_PRESETS = [0.15, 0.18, 0.20, 0.25];
 const APP_VERSION = '1.0.0';
@@ -470,21 +469,6 @@ export default function SettingsScreen() {
             label="Terms of Service"
             last
             onPress={() => setComingSoon('Terms of service coming soon!')}
-          />
-        </GroupCard>
-
-        {/* ── Developer (temp) ── */}
-        <SectionHeader label="Developer" />
-        <GroupCard>
-          <SettingRow
-            label="Reset onboarding"
-            icon="refresh-outline"
-            labelColor={colors.amber}
-            last
-            onPress={async () => {
-              await AsyncStorage.multiRemove([SAVED_NAME_KEY, HAS_LAUNCHED_KEY]);
-              router.replace('/onboarding');
-            }}
           />
         </GroupCard>
 
