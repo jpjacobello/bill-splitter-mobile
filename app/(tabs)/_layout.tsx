@@ -12,6 +12,10 @@ import { startNewBill } from '../../utils/startBill';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
+// Inactive tab tint — bright enough to stay legible over light OR dark content
+// behind the glass (Flighty keeps inactive icons near-white, not dim grey).
+const TAB_INACTIVE = 'rgba(236,238,244,0.72)';
+
 const TAB_META: Record<string, { label: string; icon: IconName; activeIcon: IconName }> = {
   index: { label: 'Home', icon: 'home-outline', activeIcon: 'home' },
   activity: { label: 'Activity', icon: 'pulse-outline', activeIcon: 'pulse' },
@@ -24,8 +28,9 @@ function TabButton({ name, focused, onPress }: { name: string; focused: boolean;
   if (!meta) return <View style={styles.slot} />;
   return (
     <Pressable style={({ pressed }) => [styles.slot, pressed && { opacity: 0.5 }]} onPress={onPress} hitSlop={6}>
-      <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? C.text : C.faint} />
-      <Text style={[styles.label, focused && styles.labelActive]}>{meta.label}</Text>
+      {/* Shadow gives the glyph separation so it pops over light OR dark content behind the glass. */}
+      <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? C.text : TAB_INACTIVE} style={styles.icoShadow} />
+      <Text style={[styles.label, styles.icoShadow, focused && styles.labelActive]}>{meta.label}</Text>
     </Pressable>
   );
 }
@@ -249,7 +254,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   // Only the BlurView backend needs a tint fill; GlassView provides its own material.
-  barBlurBg: { backgroundColor: 'rgba(30,32,38,0.60)' },
+  // Kept fairly opaque so the bar stays a dark pill even over light content (icons pop).
+  barBlurBg: { backgroundColor: 'rgba(26,28,34,0.72)' },
   // Real-glass backend: bar-fill glass + the sliding pill glass (no gradients).
   glassBg: { ...StyleSheet.absoluteFillObject, borderRadius: 30 },
   bubbleGlass: { position: 'absolute', top: 9, height: 44, borderRadius: 22 },
@@ -257,8 +263,10 @@ const styles = StyleSheet.create({
   barBorder: { ...StyleSheet.absoluteFillObject, borderRadius: 30, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   gloss: { position: 'absolute', top: 0, left: 0, right: 0, height: '58%', borderTopLeftRadius: 30, borderTopRightRadius: 30 },
   slot: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: BAR_H },
-  label: { fontSize: 10, fontWeight: '600', color: C.faint },
+  label: { fontSize: 10, fontWeight: '600', color: TAB_INACTIVE },
   labelActive: { color: C.text },
+  // vibrancy shadow so icons + labels pop on any background behind the glass
+  icoShadow: { textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
 
   // active-tab lens
   bubble: {
