@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { GlassView, GlassContainer, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, ui as C } from '../../theme';
@@ -40,22 +40,8 @@ const BAR_PAD = 24; // must match styles.bar paddingHorizontal — bubble geomet
 let GLASS = false;
 try { GLASS = isLiquidGlassAvailable(); } catch { GLASS = false; }
 
-// One surface, two backends. GlassView renders true refraction so it needs NO
-// background fill or fake sheen; BlurView needs a translucent tint to read.
-function BarSurface({ children, style, onLayout }: { children: ReactNode; style?: ViewStyle; onLayout?: (e: LayoutChangeEvent) => void }) {
-  if (GLASS) {
-    return (
-      <GlassView glassEffectStyle="regular" colorScheme="dark" style={style} onLayout={onLayout}>
-        {children}
-      </GlassView>
-    );
-  }
-  return (
-    <BlurView intensity={60} tint="dark" style={[style, styles.barBlurBg]} onLayout={onLayout}>
-      {children}
-    </BlurView>
-  );
-}
+// Animatable GlassView so the active-tab pill can slide as a real glass element.
+const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
 
 function FloatingTabBar({ state, navigation, open, onToggle }: BottomTabBarProps & { open: boolean; onToggle: () => void }) {
   const insets = useSafeAreaInsets();
@@ -85,7 +71,8 @@ function FloatingTabBar({ state, navigation, open, onToggle }: BottomTabBarProps
 
   const slide = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.spring(slide, { toValue: activeIndex, useNativeDriver: true, damping: 16, stiffness: 190, mass: 0.8 }).start();
+    // JS driver: works uniformly for Animated.View AND the custom AnimatedGlassView.
+    Animated.spring(slide, { toValue: activeIndex, useNativeDriver: false, damping: 16, stiffness: 190, mass: 0.8 }).start();
   }, [activeIndex]);
   const bubbleX = slide.interpolate({ inputRange: [0, 1], outputRange: [homeLeft, activityLeft] });
 
@@ -97,39 +84,51 @@ function FloatingTabBar({ state, navigation, open, onToggle }: BottomTabBarProps
   return (
     <View style={[styles.wrap, { bottom: insets.bottom + 10 }]} pointerEvents="box-none">
       <View style={styles.barShadow}>
-        <BarSurface style={styles.bar} onLayout={(e) => setBarW(e.nativeEvent.layout.width)}>
-          {/* Fake-glass layers only when Apple's real glass isn't available */}
-          {!GLASS && (
-            <>
-              {/* glossy specular sheen across the top — the "liquid" highlight */}
-              <LinearGradient
-                colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0)']}
-                locations={[0, 0.5, 1]}
-                start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-                style={styles.gloss} pointerEvents="none"
+        {GLASS ? (
+          // Real Apple Liquid Glass. Bar background + active pill are sibling
+          // GlassViews inside a GlassContainer, so the pill melds into the bar
+          // (Apple's fluid "merge") as it slides between tabs.
+          <GlassContainer spacing={40} style={styles.bar} onLayout={(e) => setBarW(e.nativeEvent.layout.width)}>
+            <GlassView glassEffectStyle="regular" colorScheme="dark" style={styles.glassBg} pointerEvents="none" />
+            {showBubble && barW > 0 && (
+              <AnimatedGlassView
+                glassEffectStyle="clear"
+                colorScheme="dark"
+                tintColor="rgba(255,255,255,0.12)"
+                style={[styles.bubbleGlass, { width: bubbleW, transform: [{ translateX: bubbleX }] }]}
+                pointerEvents="none"
               />
-              <View style={styles.barBorder} pointerEvents="none" />
-            </>
-          )}
-
-          {/* active-tab lens bubble (behind the icons) */}
-          {showBubble && barW > 0 && (
-            <Animated.View style={[styles.bubble, { width: bubbleW, transform: [{ translateX: bubbleX }] }]} pointerEvents="none">
-              <LinearGradient
-                colors={['rgba(255,255,255,0.30)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.14)']}
-                locations={[0, 0.6, 1]}
-                start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.bubbleGloss} pointerEvents="none" />
-            </Animated.View>
-          )}
-
-          {/* Home · [+] · Activity — 2 tabs flank the dead-centered FAB. Settings → home gear. */}
-          <TabButton name={home.name} focused={onHome} onPress={() => go(home)} />
-          <View style={styles.slot} />
-          <TabButton name={activity.name} focused={onActivity} onPress={() => go(activity)} />
-        </BarSurface>
+            )}
+            <TabButton name={home.name} focused={onHome} onPress={() => go(home)} />
+            <View style={styles.slot} />
+            <TabButton name={activity.name} focused={onActivity} onPress={() => go(activity)} />
+          </GlassContainer>
+        ) : (
+          // Fallback: BlurView + hand-rolled gloss/rim + gradient pill.
+          <BlurView intensity={60} tint="dark" style={[styles.bar, styles.barBlurBg]} onLayout={(e) => setBarW(e.nativeEvent.layout.width)}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0)']}
+              locations={[0, 0.5, 1]}
+              start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+              style={styles.gloss} pointerEvents="none"
+            />
+            <View style={styles.barBorder} pointerEvents="none" />
+            {showBubble && barW > 0 && (
+              <Animated.View style={[styles.bubble, { width: bubbleW, transform: [{ translateX: bubbleX }] }]} pointerEvents="none">
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.30)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.14)']}
+                  locations={[0, 0.6, 1]}
+                  start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.bubbleGloss} pointerEvents="none" />
+              </Animated.View>
+            )}
+            <TabButton name={home.name} focused={onHome} onPress={() => go(home)} />
+            <View style={styles.slot} />
+            <TabButton name={activity.name} focused={onActivity} onPress={() => go(activity)} />
+          </BlurView>
+        )}
       </View>
 
       <Pressable
@@ -251,6 +250,9 @@ const styles = StyleSheet.create({
   },
   // Only the BlurView backend needs a tint fill; GlassView provides its own material.
   barBlurBg: { backgroundColor: 'rgba(30,32,38,0.60)' },
+  // Real-glass backend: bar-fill glass + the sliding pill glass (no gradients).
+  glassBg: { ...StyleSheet.absoluteFillObject, borderRadius: 30 },
+  bubbleGlass: { position: 'absolute', top: 9, height: 44, borderRadius: 22 },
   // brighter top-left rim = glass edge light
   barBorder: { ...StyleSheet.absoluteFillObject, borderRadius: 30, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   gloss: { position: 'absolute', top: 0, left: 0, right: 0, height: '58%', borderTopLeftRadius: 30, borderTopRightRadius: 30 },
