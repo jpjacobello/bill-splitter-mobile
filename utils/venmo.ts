@@ -22,10 +22,16 @@ export function buildVenmoNote(b: PersonBreakdown, merchantName?: string, isPro?
     return `- ${getEmoji(a.item.name)} ${displayName} (${formatCurrency(a.share)})`;
   });
 
+  // Their share of tax + fees + tip = what's charged minus the itemized shares.
+  // One line so items + this reconcile to the amount Venmo actually charges.
+  const addOn = b.totalOwed - b.assignedItems.reduce((s, a) => s + a.share, 0);
+  const addOnLine = addOn > 0.005 ? [`+ Tax, fees & tip (${formatCurrency(addOn)})`] : [];
+
   const footer = isPro ? [] : ['', APP_TAG];
   const parts = [
     ...(merchant ? [merchant] : []),
     ...itemLines,
+    ...addOnLine,
     ...footer,
   ];
   const note = parts.join('\n');
@@ -59,11 +65,13 @@ export async function openVenmo(b: PersonBreakdown, merchantName?: string, isPro
 }
 
 function buildFallbackText(b: PersonBreakdown, merchantName?: string, isPro?: boolean): string {
+  const addOn = b.totalOwed - b.assignedItems.reduce((s, a) => s + a.share, 0);
   const lines = [
     merchantName ? `${merchantName} — Bill Split (via Divi)` : 'Bill Split (via Divi)',
     `${b.person.name} owes ${formatCurrency(b.totalOwed)}`,
     '',
     ...b.assignedItems.map((a) => `• ${a.item.name.replace(/\s*\(\d+\)\s*$/, '').trim()}  ${formatCurrency(a.share)}`),
+    ...(addOn > 0.005 ? [`• Tax, fees & tip  ${formatCurrency(addOn)}`] : []),
     ...(isPro ? [] : ['', APP_TAG]),
   ];
   return lines.join('\n');
