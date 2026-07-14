@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text,
+  Alert, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text,
   TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -154,6 +154,18 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
     shareReceiptImage(cardRef, receipt.merchantName, selected.person.name);
   };
 
+  // Guard against an accidental tap — starting over clears everything.
+  const confirmStartOver = () => {
+    Alert.alert(
+      'Start over?',
+      'This clears the current receipt and all assignments. Your split is saved to history first.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Start Over', style: 'destructive', onPress: onDone },
+      ],
+    );
+  };
+
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Animated.View style={[styles.backdrop, { opacity: anim }]}>
@@ -283,7 +295,7 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
           </View>
         )}
 
-        <TouchableOpacity style={styles.startOver} onPress={onDone} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.startOver} onPress={confirmStartOver} activeOpacity={0.7}>
           <Text style={styles.startOverText}>Start over</Text>
         </TouchableOpacity>
       </Animated.View>
