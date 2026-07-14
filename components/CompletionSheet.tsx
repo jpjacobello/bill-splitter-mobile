@@ -181,7 +181,9 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
           },
         ]}
       >
-        <Confetti run={runConfetti} width={width} />
+        {/* Only mount when celebrating — otherwise resting pieces show as stray
+            confetti bits pinned to the top of the modal on every reopen. */}
+        {runConfetti && <Confetti run={runConfetti} width={width} />}
 
         <View style={styles.grab} />
 
