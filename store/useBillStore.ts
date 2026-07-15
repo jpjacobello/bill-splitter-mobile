@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Person, Receipt, ReceiptItem } from '../types';
 
 export type { Person, Receipt, ReceiptItem };
@@ -43,7 +45,7 @@ type BillStore = {
   reset: () => void;
 };
 
-export const useBillStore = create<BillStore>((set, get) => ({
+export const useBillStore = create<BillStore>()(persist((set, get) => ({
   hostName: '',
   paidById: 'host',
   people: [],
@@ -239,4 +241,11 @@ export const useBillStore = create<BillStore>((set, get) => ({
   setActiveSessionId: (id) => set({ activeSessionId: id }),
 
   reset: () => set({ hostName: '', paidById: 'host', people: [], receipt: null, pendingImageUri: null, receiptImageUri: null, activeSessionId: null }),
+}), {
+  name: 'divi-bill-store',
+  storage: createJSONStorage(() => AsyncStorage),
+  // Only the active session survives a cold launch — so the host's Live Activity
+  // keeps updating and ends cleanly after the app is swiped away. Everything else
+  // (receipt, people, in-progress edits) must NOT resurrect stale state.
+  partialize: (s) => ({ activeSessionId: s.activeSessionId }),
 }));

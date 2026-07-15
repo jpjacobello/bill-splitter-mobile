@@ -29,6 +29,8 @@ export function useHostLiveActivity() {
       if (!session || session.status === 'closed' || isSessionFullyClaimed(session)) {
         ended = true;
         stopSessionActivity();
+        // Clear the persisted id so a cold launch doesn't re-subscribe to a dead session.
+        useBillStore.getState().setActiveSessionId(null);
         return;
       }
       if (!started) {
