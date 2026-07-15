@@ -142,7 +142,6 @@ export default function SettingsScreen() {
             </Section>
           ) : (
             <Section title="Divi Pro">
-              <UIText>Bill history, saved groups, and no “Split with Divi” in Venmo notes.</UIText>
               <Button onPress={() => router.push('/paywall')}>Upgrade to Pro</Button>
             </Section>
           ))}
