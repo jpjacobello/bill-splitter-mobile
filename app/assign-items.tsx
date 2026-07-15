@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { presentMultiContactPickerAsync } from '../modules/contact-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Host, ContextMenu, Button as UIButton, Image as UIImage } from '@expo/ui/swift-ui';
 import { colors, ui as C } from '../theme';
 import ItemActionSheet from '../components/ItemActionSheet';
 import ActionSheet, { SheetOption } from '../components/ActionSheet';
@@ -322,6 +323,12 @@ export default function AssignItemsScreen() {
     );
   };
 
+  const addByName = () => {
+    if (Platform.OS === 'ios') { promptAddName(); return; }
+    setShowAddPerson(true);
+    setTimeout(() => { peopleScrollRef.current?.scrollToEnd({ animated: true }); personInputRef.current?.focus(); }, 80);
+  };
+
   const handlePickContact = () => {
     // Defer so a dismissing ActionSheet fully closes first — iOS can't present the
     // native contact picker over a still-open modal, and it silently no-ops.
@@ -464,7 +471,7 @@ export default function AssignItemsScreen() {
   const openAddPeople = () => presentNative({
     title: 'Add people',
     actions: [
-      { label: 'Add by name', onPress: () => { if (Platform.OS === 'ios') { promptAddName(); } else { setShowAddPerson(true); setTimeout(() => { peopleScrollRef.current?.scrollToEnd({ animated: true }); personInputRef.current?.focus(); }, 80); } } },
+      { label: 'Add by name', onPress: addByName },
       { label: 'From contacts', onPress: handlePickContact },
       { label: 'Load a group', onPress: handleOpenGroups },
     ],
@@ -479,15 +486,50 @@ export default function AssignItemsScreen() {
             <Text style={styles.merchant} numberOfLines={1}>{receipt.merchantName || 'Assign Items'}</Text>
             <Text style={styles.meta} numberOfLines={1}>{metaLine}</Text>
           </View>
-          <View style={styles.headerBtns}>
-            <TouchableOpacity style={styles.kebab} onPress={openAddPeople} activeOpacity={0.75}>
-              <Ionicons name="person-add-outline" size={19} color={C.dim} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.kebab} onPress={openOverflow} activeOpacity={0.75}>
-              {hasReceiptIssue && <View style={styles.kebabWarn} />}
-              <Ionicons name="ellipsis-horizontal" size={20} color={C.dim} />
-            </TouchableOpacity>
-          </View>
+          {Platform.OS === 'ios' ? (
+            // Native UIMenus that drop anchored to each button (Billy-style).
+            <View style={styles.headerBtns}>
+              <Host matchContents style={styles.menuHost}>
+                <ContextMenu activationMethod="singlePress">
+                  <ContextMenu.Items>
+                    <UIButton systemImage="person.badge.plus" onPress={addByName}>Add by name</UIButton>
+                    <UIButton systemImage="person.2.fill" onPress={handlePickContact}>From contacts</UIButton>
+                    <UIButton systemImage="bookmark.fill" onPress={handleOpenGroups}>Load a group</UIButton>
+                  </ContextMenu.Items>
+                  <ContextMenu.Trigger>
+                    <UIImage systemName="person.badge.plus" size={20} color={C.dim} />
+                  </ContextMenu.Trigger>
+                </ContextMenu>
+              </Host>
+              <Host matchContents style={styles.menuHost}>
+                <ContextMenu activationMethod="singlePress">
+                  <ContextMenu.Items>
+                    {hasReceiptIssue && (
+                      <UIButton systemImage="exclamationmark.triangle.fill" onPress={fixReceipt}>{`Fix receipt · ${issueReason}`}</UIButton>
+                    )}
+                    <UIButton systemImage="person.2.fill" onPress={handleSplitAll}>Split evenly</UIButton>
+                    {!hasReceiptIssue && (
+                      <UIButton systemImage="pencil" onPress={fixReceipt}>Edit receipt</UIButton>
+                    )}
+                    <UIButton systemImage="trash" role="destructive" onPress={handleClearAll}>Clear all</UIButton>
+                  </ContextMenu.Items>
+                  <ContextMenu.Trigger>
+                    <UIImage systemName="ellipsis" size={20} color={hasReceiptIssue ? colors.amber : C.dim} />
+                  </ContextMenu.Trigger>
+                </ContextMenu>
+              </Host>
+            </View>
+          ) : (
+            <View style={styles.headerBtns}>
+              <TouchableOpacity style={styles.kebab} onPress={openAddPeople} activeOpacity={0.75}>
+                <Ionicons name="person-add-outline" size={19} color={C.dim} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.kebab} onPress={openOverflow} activeOpacity={0.75}>
+                {hasReceiptIssue && <View style={styles.kebabWarn} />}
+                <Ionicons name="ellipsis-horizontal" size={20} color={C.dim} />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Explains the amber dot: a tappable banner that routes to Fix receipt. */}
@@ -834,6 +876,7 @@ const styles = StyleSheet.create({
   merchant: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
   meta: { fontSize: 13, color: C.faint, marginTop: 2 },
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  menuHost: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   fixBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginTop: 12, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12,
