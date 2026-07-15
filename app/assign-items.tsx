@@ -489,7 +489,7 @@ export default function AssignItemsScreen() {
           {Platform.OS === 'ios' ? (
             // Native UIMenus that drop anchored to each button (Billy-style).
             <View style={styles.headerBtns}>
-              <Host matchContents style={styles.menuHost}>
+              <Host style={styles.menuHost}>
                 <ContextMenu activationMethod="singlePress">
                   <ContextMenu.Items>
                     <UIButton systemImage="person.badge.plus" onPress={addByName}>Add by name</UIButton>
@@ -501,7 +501,7 @@ export default function AssignItemsScreen() {
                   </ContextMenu.Trigger>
                 </ContextMenu>
               </Host>
-              <Host matchContents style={styles.menuHost}>
+              <Host style={styles.menuHost}>
                 <ContextMenu activationMethod="singlePress">
                   <ContextMenu.Items>
                     {hasReceiptIssue && (
