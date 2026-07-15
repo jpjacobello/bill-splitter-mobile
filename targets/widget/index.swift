@@ -10,6 +10,10 @@ enum DiviTheme {
   static let accent = Color(red: 0.243, green: 0.847, blue: 0.541) // #3ED88A
   static let dim = Color(red: 0.671, green: 0.671, blue: 0.706)    // #ABABB4
   static let newSplitURL = URL(string: "billsplitter://receipt-upload?source=camera")
+  // Live Activity tap → the live split's page in the app.
+  static func sessionURL(_ id: String) -> URL? {
+    URL(string: "billsplitter://split/\(id)")
+  }
 
   static func money(_ amount: Double, _ code: String) -> String {
     let f = NumberFormatter()
@@ -160,6 +164,7 @@ struct DiviSessionLiveActivity: Widget {
         .padding(.vertical, 11)
         .activityBackgroundTint(DiviTheme.bg)
         .activitySystemActionForegroundColor(.white)
+        .widgetURL(DiviTheme.sessionURL(context.attributes.sessionId))
     } dynamicIsland: { context in
       let s = context.state
       let pct = Int(progressFraction(s) * 100)
@@ -190,7 +195,7 @@ struct DiviSessionLiveActivity: Widget {
       } minimal: {
         Text("\(pct)%").foregroundColor(DiviTheme.accent)
       }
-      .widgetURL(DiviTheme.newSplitURL)
+      .widgetURL(DiviTheme.sessionURL(context.attributes.sessionId))
     }
   }
 }
