@@ -10,9 +10,10 @@ enum DiviTheme {
   static let accent = Color(red: 0.243, green: 0.847, blue: 0.541) // #3ED88A
   static let dim = Color(red: 0.671, green: 0.671, blue: 0.706)    // #ABABB4
   static let newSplitURL = URL(string: "billsplitter://receipt-upload?source=camera")
-  // Live Activity tap → the live split's page in the app.
+  // Live Activity tap → the HOST's live-session page (Activity tab), NOT the
+  // claimant join link (split/{id} is "enter your name as another person").
   static func sessionURL(_ id: String) -> URL? {
-    URL(string: "billsplitter://split/\(id)")
+    URL(string: "billsplitter://activity?tab=live")
   }
 
   static func money(_ amount: Double, _ code: String) -> String {
