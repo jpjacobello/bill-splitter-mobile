@@ -170,19 +170,27 @@ struct DiviSessionLiveActivity: Widget {
       let s = context.state
       let pct = Int(progressFraction(s) * 100)
       return DynamicIsland {
+        // Everything lives in .bottom — content in the narrow leading/trailing
+        // slots beside the sensor gets clipped ("0 claimed" ran off-screen), and
+        // a separate .center row wasted a tall band of empty island.
         DynamicIslandExpandedRegion(.leading) {
           Image(systemName: "fork.knife").foregroundColor(DiviTheme.accent)
         }
-        DynamicIslandExpandedRegion(.trailing) {
-          Text("\(s.claimantCount) claimed").font(.system(size: 13, weight: .semibold)).foregroundColor(DiviTheme.dim)
-        }
-        DynamicIslandExpandedRegion(.center) {
-          Text(context.attributes.merchantName).font(.system(size: 14, weight: .bold)).foregroundColor(.white).lineLimit(1)
-        }
         DynamicIslandExpandedRegion(.bottom) {
           VStack(spacing: 6) {
-            ProgressView(value: progressFraction(s)).tint(DiviTheme.accent)
             HStack {
+              Text(context.attributes.merchantName)
+                .font(.system(size: 14, weight: .bold)).foregroundColor(.white)
+                .lineLimit(1)
+              Spacer()
+              Text("\(s.claimantCount) claimed")
+                .font(.system(size: 12, weight: .semibold)).foregroundColor(DiviTheme.dim)
+                .lineLimit(1)
+            }
+            ProgressView(value: progressFraction(s))
+              .tint(DiviTheme.accent)
+              .scaleEffect(x: 1, y: 0.7, anchor: .center)
+            HStack(spacing: 5) {
               Text(DiviTheme.money(s.claimedAmount, s.currencyCode)).font(.system(size: 15, weight: .heavy)).foregroundColor(DiviTheme.accent)
               Text("of \(DiviTheme.money(s.totalAmount, s.currencyCode))").font(.system(size: 12)).foregroundColor(DiviTheme.dim)
               Spacer()
