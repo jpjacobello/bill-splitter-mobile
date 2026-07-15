@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GlassView, GlassContainer, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, ui as C } from '../../theme';
@@ -16,20 +17,34 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // behind the glass (Flighty keeps inactive icons near-white, not dim grey).
 const TAB_INACTIVE = 'rgba(236,238,244,0.72)';
 
-const TAB_META: Record<string, { label: string; icon: IconName; activeIcon: IconName }> = {
-  index: { label: 'Home', icon: 'home-outline', activeIcon: 'home' },
-  activity: { label: 'Activity', icon: 'pulse-outline', activeIcon: 'pulse' },
-  settings: { label: 'Settings', icon: 'settings-outline', activeIcon: 'settings' },
+// SF Symbols on iOS (system-native look), Ionicons fallback elsewhere.
+type TabMeta = { label: string; icon: IconName; activeIcon: IconName; sf: SFSymbol; sfActive: SFSymbol };
+const TAB_META: Record<string, TabMeta> = {
+  index: { label: 'Home', icon: 'home-outline', activeIcon: 'home', sf: 'house', sfActive: 'house.fill' },
+  activity: { label: 'Activity', icon: 'pulse-outline', activeIcon: 'pulse', sf: 'waveform.path.ecg', sfActive: 'waveform.path.ecg' },
+  settings: { label: 'Settings', icon: 'settings-outline', activeIcon: 'settings', sf: 'gearshape', sfActive: 'gearshape.fill' },
 };
 
 // Subtle: active icon + label highlight white; press dims briefly. No bounce.
 function TabButton({ name, focused, onPress }: { name: string; focused: boolean; onPress: () => void }) {
   const meta = TAB_META[name];
   if (!meta) return <View style={styles.slot} />;
+  const tint = focused ? C.text : TAB_INACTIVE;
   return (
     <Pressable style={({ pressed }) => [styles.slot, pressed && { opacity: 0.5 }]} onPress={onPress} hitSlop={6}>
       {/* Shadow gives the glyph separation so it pops over light OR dark content behind the glass. */}
-      <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={focused ? C.text : TAB_INACTIVE} style={styles.icoShadow} />
+      {Platform.OS === 'ios' ? (
+        <SymbolView
+          name={focused ? meta.sfActive : meta.sf}
+          size={25}
+          tintColor={tint}
+          weight={focused ? 'semibold' : 'regular'}
+          resizeMode="scaleAspectFit"
+          style={[styles.symbol, styles.symShadow]}
+        />
+      ) : (
+        <Ionicons name={focused ? meta.activeIcon : meta.icon} size={23} color={tint} style={styles.icoShadow} />
+      )}
       <Text style={[styles.label, styles.icoShadow, focused && styles.labelActive]}>{meta.label}</Text>
     </Pressable>
   );
@@ -142,7 +157,9 @@ function FloatingTabBar({ state, navigation, open, onToggle }: BottomTabBarProps
       >
         <View style={styles.fabGloss} pointerEvents="none" />
         <Animated.View style={{ transform: [{ rotate }] }}>
-          <Ionicons name="add" size={30} color="#000" />
+          {Platform.OS === 'ios'
+            ? <SymbolView name="plus" size={25} tintColor="#000" weight="semibold" resizeMode="scaleAspectFit" style={styles.fabSymbol} />
+            : <Ionicons name="add" size={30} color="#000" />}
         </Animated.View>
       </Pressable>
     </View>
@@ -267,6 +284,10 @@ const styles = StyleSheet.create({
   labelActive: { color: C.text },
   // vibrancy shadow so icons + labels pop on any background behind the glass
   icoShadow: { textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  // SF Symbol is an image view: needs an explicit box, and a layer shadow (not textShadow) for the same pop.
+  symbol: { width: 26, height: 26 },
+  symShadow: { shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
+  fabSymbol: { width: 26, height: 26 },
 
   // active-tab lens
   bubble: {
