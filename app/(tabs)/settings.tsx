@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Linking, Modal, Pressable, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Linking, Modal, Pressable, TouchableOpacity, Animated } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSwipeDismiss } from '../../hooks/useSwipeDismiss';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -46,6 +48,8 @@ export default function SettingsScreen() {
   const [currency, setCurrencyState] = useState('USD');
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
   const [tipSheetOpen, setTipSheetOpen] = useState(false);
+  const currencySwipe = useSwipeDismiss(() => setCurrencyModalOpen(false));
+  useEffect(() => { if (currencyModalOpen) currencySwipe.reset(); }, [currencyModalOpen]);
 
   useEffect(() => {
     (async () => {
@@ -99,8 +103,9 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
       </View>
 
+      {/* marginBottom clears the floating tab bar so the last rows scroll into view */}
       {loaded && (
-      <Host style={styles.host} colorScheme="dark" useViewportSizeMeasurement>
+      <Host style={[styles.host, { marginBottom: insets.bottom + 76 }]} colorScheme="dark" useViewportSizeMeasurement>
         <Form>
           <Section title="Profile">
             <TextField defaultValue={seedName} placeholder="Your name" autocorrection={false} multiline={false} allowNewlines={false} onChangeText={persistName} />
@@ -169,10 +174,18 @@ export default function SettingsScreen() {
         statusBarTranslucent
       >
         <Pressable style={styles.currencyBackdrop} onPress={() => setCurrencyModalOpen(false)}>
-          <Pressable style={[styles.currencySheet, { paddingBottom: insets.bottom + 8 }]}>
-            <View style={styles.currencyHandle} />
-            <Text style={styles.currencySheetTitle}>Currency</Text>
-            <Text style={styles.currencySheetHint}>Used to display amounts everywhere, including shared bill links.</Text>
+          <Animated.View
+            style={[styles.currencySheet, { paddingBottom: insets.bottom + 8, transform: [{ translateY: currencySwipe.dragTranslate }] }]}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Drag the header (not the list) to dismiss — keeps list scroll intact */}
+            <PanGestureHandler {...currencySwipe.pan}>
+              <View>
+                <View style={styles.currencyHandle} />
+                <Text style={styles.currencySheetTitle}>Currency</Text>
+                <Text style={styles.currencySheetHint}>Used to display amounts everywhere, including shared bill links.</Text>
+              </View>
+            </PanGestureHandler>
             <ScrollView style={styles.currencyList} showsVerticalScrollIndicator={false}>
               {CURRENCIES.map((c) => {
                 const active = currency === c.code;
@@ -188,7 +201,7 @@ export default function SettingsScreen() {
                 );
               })}
             </ScrollView>
-          </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
 

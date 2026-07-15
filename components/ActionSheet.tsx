@@ -4,8 +4,9 @@ import {
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSwipeDismiss } from '../hooks/useSwipeDismiss';
 import { colors, motion, ui as C } from '../theme';
 
 export type SheetOption = {
@@ -39,23 +40,13 @@ export default function ActionSheet({ visible, title, message, options = [], inp
   const insets = useSafeAreaInsets();
   const slide = useRef(new Animated.Value(0)).current;
   const [value, setValue] = useState(input?.initialValue ?? '');
-  // Finger-follows-sheet drag. Only downward travel counts (clamped); release
-  // past a threshold (or a fast flick) dismisses, otherwise it springs back.
-  const dragY = useRef(new Animated.Value(0)).current;
+  const { pan, dragTranslate, reset } = useSwipeDismiss(onClose);
 
   useEffect(() => {
-    if (visible) { setValue(input?.initialValue ?? ''); dragY.setValue(0); }
+    if (visible) { setValue(input?.initialValue ?? ''); reset(); }
     Animated.spring(slide, { toValue: visible ? 1 : 0, useNativeDriver: true, ...motion.sheet }).start();
   }, [visible]);
 
-  const onGestureEvent = Animated.event([{ nativeEvent: { translationY: dragY } }], { useNativeDriver: true });
-  const onHandlerStateChange = (e: PanGestureHandlerStateChangeEvent) => {
-    if (e.nativeEvent.state !== State.END) return;
-    const { translationY, velocityY } = e.nativeEvent;
-    if (translationY > 120 || velocityY > 900) onClose();
-    else Animated.spring(dragY, { toValue: 0, useNativeDriver: true, ...motion.sheet }).start();
-  };
-  const dragTranslate = dragY.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: 'clamp' });
   const slideTranslate = slide.interpolate({ inputRange: [0, 1], outputRange: [360, 0] });
 
   const submit = () => {
@@ -68,7 +59,7 @@ export default function ActionSheet({ visible, title, message, options = [], inp
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.backdrop} onPress={onClose}>
-          <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
+          <PanGestureHandler {...pan}>
           <Animated.View
             style={[
               styles.sheet,

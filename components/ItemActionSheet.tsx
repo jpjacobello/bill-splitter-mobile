@@ -1,7 +1,9 @@
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
 import { useEffect, useRef } from 'react';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { BlurView } from 'expo-blur';
 import { ReceiptItem, Person } from '../types';
+import { useSwipeDismiss } from '../hooks/useSwipeDismiss';
 import { colors } from '../theme';
 import { formatCurrency } from '../utils/currency';
 
@@ -22,9 +24,11 @@ export default function ItemActionSheet({
   onSplitAmong, onSplitIntoUnits, onConsolidateLikeItems, onToggleDrink, onSplitDrinksEvenly,
 }: Props) {
   const slideAnim = useRef(new Animated.Value(300)).current;
+  const { pan, dragTranslate, reset } = useSwipeDismiss(onClose);
 
   useEffect(() => {
     if (item) {
+      reset();
       Animated.spring(slideAnim, {
         toValue: 0, useNativeDriver: true, tension: 65, friction: 11,
       }).start();
@@ -74,19 +78,21 @@ export default function ItemActionSheet({
   return (
     <Modal transparent animationType="none" visible={!!item} onRequestClose={onClose}>
       <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: Animated.add(slideAnim, dragTranslate) }] }]}>
         {/* Glass background */}
         <BlurView style={StyleSheet.absoluteFill} tint="dark" intensity={85} />
         <View style={[StyleSheet.absoluteFill, styles.glassSheen]} />
 
-        {/* Handle */}
-        <View style={styles.handle} />
-
-        {/* Item header */}
-        <View style={styles.itemHeader}>
-          <Text style={styles.itemName}>{item.name}</Text>
-          <Text style={styles.itemPrice}>{formatCurrency(item.price)}</Text>
-        </View>
+        {/* Drag the handle + header to dismiss; the list below scrolls normally */}
+        <PanGestureHandler {...pan}>
+          <View>
+            <View style={styles.handle} />
+            <View style={styles.itemHeader}>
+              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemPrice}>{formatCurrency(item.price)}</Text>
+            </View>
+          </View>
+        </PanGestureHandler>
 
         <ScrollView showsVerticalScrollIndicator={false}>
 

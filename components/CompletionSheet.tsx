@@ -4,8 +4,10 @@ import {
   TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useSwipeDismiss } from '../hooks/useSwipeDismiss';
 import { VenmoLogo } from './BrandLogos';
 import ReceiptPreviewSheet from './ReceiptPreviewSheet';
 import ShareableReceiptCard, { calcCardScale } from './ShareableReceiptCard';
@@ -91,6 +93,7 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const anim = useRef(new Animated.Value(0)).current;
+  const swipe = useSwipeDismiss(onClose);
   const [mounted, setMounted] = useState(false);
   const [runConfetti, setRunConfetti] = useState(false);
   const [selectedId, setSelectedId] = useState<string>('');
@@ -111,6 +114,7 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
     if (visible) {
       setMounted(true);
       anim.setValue(0);
+      swipe.reset();
       Animated.timing(anim, {
         toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true,
       }).start();
@@ -177,7 +181,7 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
           styles.sheet,
           {
             paddingBottom: insets.bottom + 20,
-            transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [520, 0] }) }],
+            transform: [{ translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [520, 0] }), swipe.dragTranslate) }],
           },
         ]}
       >
@@ -185,15 +189,19 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
             confetti bits pinned to the top of the modal on every reopen. */}
         {runConfetti && <Confetti run={runConfetti} width={width} />}
 
-        <View style={styles.grab} />
-
-        <View style={styles.top}>
-          <Text style={styles.eyebrow}>SPLIT COMPLETE</Text>
-          <Text style={[styles.total, moneyText]}>
-            {formatCurrency(receipt.total)} · {people.length} way{people.length !== 1 ? 's' : ''}
-          </Text>
-          <Text style={styles.sub}>Tap a person to see their share</Text>
-        </View>
+        {/* Drag the grabber + header to dismiss; content below scrolls normally */}
+        <PanGestureHandler {...swipe.pan}>
+          <View>
+            <View style={styles.grab} />
+            <View style={styles.top}>
+              <Text style={styles.eyebrow}>SPLIT COMPLETE</Text>
+              <Text style={[styles.total, moneyText]}>
+                {formatCurrency(receipt.total)} · {people.length} way{people.length !== 1 ? 's' : ''}
+              </Text>
+              <Text style={styles.sub}>Tap a person to see their share</Text>
+            </View>
+          </View>
+        </PanGestureHandler>
 
         {gate && (
           <TouchableOpacity
