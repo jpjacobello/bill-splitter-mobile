@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  Host, Form, Section, TextField, Switch, LabeledContent, Button, Label,
+  Host, Form, Section, TextField, Switch, LabeledContent, Button,
   Text as UIText,
 } from '@expo/ui/swift-ui';
 import { onTapGesture } from '@expo/ui/swift-ui/modifiers';
@@ -13,7 +13,7 @@ import ActionSheet from '../../components/ActionSheet';
 import { useBillStore } from '../../store/useBillStore';
 import { usePro } from '../../hooks/usePro';
 import { colors, ui as C } from '../../theme';
-import { getVenmoHandle, setVenmoHandle, getCashAppHandle, setCashAppHandle, getCurrency, setCurrency } from '../../utils/proStorage';
+import { getVenmoHandle, setVenmoHandle, getCurrency, setCurrency } from '../../utils/proStorage';
 import { CURRENCIES, currencyInfo, setActiveCurrency } from '../../utils/currency';
 
 const SAVED_NAME_KEY = 'savedHostName';
@@ -39,7 +39,6 @@ export default function SettingsScreen() {
   // beta.9 has no blur/submit event, so we persist on each change.
   const [seedName, setSeedName] = useState('');
   const [seedVenmo, setSeedVenmo] = useState('');
-  const [seedCash, setSeedCash] = useState('');
   const [loaded, setLoaded] = useState(false);
 
   const [defaultTip, setDefaultTip] = useState<number | null>(null);
@@ -52,11 +51,9 @@ export default function SettingsScreen() {
     (async () => {
       const [savedName, savedTip, savedReminder] = await AsyncStorage.multiGet([SAVED_NAME_KEY, DEFAULT_TIP_KEY, TIP_REMINDER_KEY]);
       const v = await getVenmoHandle();
-      const c = await getCashAppHandle();
       const cur = await getCurrency();
       setSeedName(savedName[1] ?? '');
       setSeedVenmo(v ?? '');
-      setSeedCash(c ?? '');
       setDefaultTip(savedTip[1] !== null ? parseFloat(savedTip[1]) : null);
       setTipReminder((savedReminder[1] as TipReminderMode) ?? 'always');
       setCurrencyState(cur);
@@ -75,11 +72,6 @@ export default function SettingsScreen() {
     const trimmed = raw.trim().replace(/^@/, '');
     setSeedVenmo(trimmed);
     if (trimmed) await setVenmoHandle(trimmed);
-  };
-  const persistCash = async (raw: string) => {
-    const trimmed = raw.trim().replace(/^\$/, '');
-    setSeedCash(trimmed);
-    if (trimmed) await setCashAppHandle(trimmed);
   };
 
   const handleSetCurrency = async (code: string) => {
@@ -111,12 +103,11 @@ export default function SettingsScreen() {
       <Host style={styles.host} colorScheme="dark" useViewportSizeMeasurement>
         <Form>
           <Section title="Profile">
-            <TextField defaultValue={seedName} placeholder="Your name" autocorrection={false} onChangeText={persistName} />
+            <TextField defaultValue={seedName} placeholder="Your name" autocorrection={false} multiline={false} allowNewlines={false} onChangeText={persistName} />
           </Section>
 
           <Section title="Payment">
-            <TextField defaultValue={seedVenmo} placeholder="Venmo @handle" autocorrection={false} onChangeText={persistVenmo} />
-            <TextField defaultValue={seedCash} placeholder="Cash App $cashtag" autocorrection={false} onChangeText={persistCash} />
+            <TextField defaultValue={seedVenmo} placeholder="Venmo @handle" autocorrection={false} multiline={false} allowNewlines={false} onChangeText={persistVenmo} />
           </Section>
 
           <Section title="Bill Preferences">
@@ -151,9 +142,7 @@ export default function SettingsScreen() {
             </Section>
           ) : (
             <Section title="Divi Pro">
-              <Label title="Bill history — revisit every past split" systemImage="checkmark" />
-              <Label title="Saved groups — reload your usual crew" systemImage="checkmark" />
-              <Label title="No “Split with Divi” in Venmo notes" systemImage="checkmark" />
+              <UIText>Bill history, saved groups, and no “Split with Divi” in Venmo notes.</UIText>
               <Button onPress={() => router.push('/paywall')}>Upgrade to Pro</Button>
             </Section>
           ))}
