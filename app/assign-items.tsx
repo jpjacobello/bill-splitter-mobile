@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, Animated,
   ScrollView, FlatList, TextInput, Keyboard, Modal, Pressable,
-  KeyboardAvoidingView, Platform, ActionSheetIOS,
+  KeyboardAvoidingView, Platform, ActionSheetIOS, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -299,6 +299,29 @@ export default function AssignItemsScreen() {
     }, 50);
   };
 
+  // Native iOS text-entry dialog for adding a person by name (replaces the
+  // inline field). Loops so several names can be added back-to-back.
+  const promptAddName = () => {
+    Alert.prompt(
+      'Add person',
+      undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Add',
+          onPress: (name?: string) => {
+            const trimmed = name?.trim();
+            if (!trimmed) return;
+            addPerson(trimmed);
+            setTimeout(() => peopleScrollRef.current?.scrollToEnd({ animated: true }), 60);
+          },
+        },
+      ],
+      'plain-text',
+      '',
+    );
+  };
+
   const handlePickContact = () => {
     // Defer so a dismissing ActionSheet fully closes first — iOS can't present the
     // native contact picker over a still-open modal, and it silently no-ops.
@@ -441,7 +464,7 @@ export default function AssignItemsScreen() {
   const openAddPeople = () => presentNative({
     title: 'Add people',
     actions: [
-      { label: 'Add by name', onPress: () => { setShowAddPerson(true); setTimeout(() => { peopleScrollRef.current?.scrollToEnd({ animated: true }); personInputRef.current?.focus(); }, 80); } },
+      { label: 'Add by name', onPress: () => { if (Platform.OS === 'ios') { promptAddName(); } else { setShowAddPerson(true); setTimeout(() => { peopleScrollRef.current?.scrollToEnd({ animated: true }); personInputRef.current?.focus(); }, 80); } } },
       { label: 'From contacts', onPress: handlePickContact },
       { label: 'Load a group', onPress: handleOpenGroups },
     ],
@@ -556,9 +579,6 @@ export default function AssignItemsScreen() {
             />
             <TouchableOpacity style={styles.addPersonConfirmBtn} onPress={handleAddPerson}>
               <Text style={styles.addPersonConfirmText}>Add</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.contactBtn} onPress={handlePickContact}>
-              <Ionicons name="person-circle-outline" size={26} color={C.dim} />
             </TouchableOpacity>
           </View>
         )}
