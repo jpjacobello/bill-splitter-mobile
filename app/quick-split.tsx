@@ -210,26 +210,26 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingTop: 4 },
 
   merchantInput: {
-    height: 50, borderWidth: 1, borderColor: C.line, borderRadius: 14, paddingHorizontal: 16,
-    fontSize: 15, color: C.text, backgroundColor: C.card, marginBottom: 24,
+    height: 50, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', borderRadius: 14, paddingHorizontal: 16,
+    fontSize: 15, color: C.text, backgroundColor: 'rgba(255,255,255,0.07)', marginBottom: 24,
   },
   sectionLabel: { fontSize: 12.5, fontWeight: '700', color: C.faint, letterSpacing: 1.2, marginBottom: 10, marginLeft: 2 },
   totalCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 18,
-    borderWidth: 1, borderColor: C.line, paddingHorizontal: 18, marginBottom: 24, height: 76,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 18,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 18, marginBottom: 24, height: 76,
   },
   dollarSign: { fontSize: 28, fontWeight: '400', color: C.dim, marginRight: 4 },
   totalInput: { flex: 1, fontSize: 38, fontWeight: '700', color: C.text, paddingVertical: 0, letterSpacing: -1 },
 
   tipRow: { flexDirection: 'row', gap: 8, marginBottom: 24 },
-  tipPill: { flex: 1, height: 42, borderRadius: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+  tipPill: { flex: 1, height: 42, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
   tipPillActive: { backgroundColor: C.accent, borderColor: C.accent },
   tipPillText: { fontSize: 13.5, fontWeight: '600', color: C.dim },
   tipPillTextActive: { color: '#fff' },
 
   peopleCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 18,
-    borderWidth: 1, borderColor: C.line, paddingHorizontal: 8, marginBottom: 24, height: 82,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 18,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 8, marginBottom: 24, height: 82,
   },
   counterBtn: { width: 54, height: 54, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line },
   counterBtnDisabled: { opacity: 0.3 },
