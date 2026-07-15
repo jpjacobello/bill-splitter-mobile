@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import {
-  StyleSheet, View, Text, TextInput,
-  TouchableOpacity, ScrollView, Keyboard, Linking, Modal, Pressable,
-} from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Linking, Modal, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  Host, Form, Section, TextField, Switch, LabeledContent, Button, Label,
+  Text as UIText,
+} from '@expo/ui/swift-ui';
+import { onTapGesture } from '@expo/ui/swift-ui/modifiers';
 import ActionSheet from '../../components/ActionSheet';
 import { useBillStore } from '../../store/useBillStore';
 import { usePro } from '../../hooks/usePro';
@@ -19,96 +21,69 @@ import { DEFAULT_TIP_KEY, TIP_REMINDER_KEY, TipReminderMode } from '../../utils/
 const TIP_PRESETS = [0.15, 0.18, 0.20, 0.25];
 const APP_VERSION = '1.0.0';
 
-// ── Reusable primitives ────────────────────────────────────────────────────
-
-function SectionHeader({ label }: { label: string }) {
-  return <Text style={styles.sectionHeader}>{label}</Text>;
-}
-
-function SettingRow({
-  label,
-  value,
-  icon,
-  onPress,
-  chevron = true,
-  last = false,
-  labelColor,
-  children,
-}: {
-  label: string;
-  value?: string;
-  icon?: React.ComponentProps<typeof Ionicons>['name'];
-  onPress?: () => void;
-  chevron?: boolean;
-  last?: boolean;
-  labelColor?: string;
-  children?: React.ReactNode;
-}) {
-  const Wrapper: any = onPress ? TouchableOpacity : View;
-  return (
-    <>
-      <Wrapper
-        style={styles.row}
-        onPress={onPress}
-        activeOpacity={0.65}
-      >
-        <Text style={[styles.rowLabel, labelColor ? { color: labelColor } : undefined]}>{label}</Text>
-        <View style={styles.rowRight}>
-          {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-          {icon ? <Ionicons name={icon} size={18} color={C.faint} /> : null}
-          {chevron && onPress ? <Ionicons name="chevron-forward" size={16} color={C.faint} style={{ marginLeft: 2 }} /> : null}
-        </View>
-      </Wrapper>
-      {!last && <View style={styles.separator} />}
-      {children}
-    </>
-  );
-}
-
-function GroupCard({ children }: { children: React.ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
-}
-
-// ── Main screen ────────────────────────────────────────────────────────────
-
+// Native iOS Settings via @expo/ui (SwiftUI Form). Data/handlers preserved from
+// the previous custom RN implementation; only the presentation is now native.
 export default function SettingsScreen() {
   const router = useRouter();
   const { setHostName } = useBillStore();
   const { isPro, loading: proLoading, restore, devSetPro } = usePro();
+  const insets = useSafeAreaInsets();
+
   const [resetProOpen, setResetProOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreMsg, setRestoreMsg] = useState('Checking for purchases…');
   const [comingSoon, setComingSoon] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [nameSaved, setNameSaved] = useState(false);
+
+  // TextField is uncontrolled: seed values feed defaultValue (set once after
+  // storage loads), refs hold live edits, persisted on blur/submit. Never drive
+  // defaultValue/key from live state — that remounts the field mid-typing.
+  const [seedName, setSeedName] = useState('');
+  const [seedVenmo, setSeedVenmo] = useState('');
+  const [seedCash, setSeedCash] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const nameRef = useRef('');
+  const venmoRef = useRef('');
+  const cashRef = useRef('');
+
   const [defaultTip, setDefaultTip] = useState<number | null>(null);
   const [tipReminder, setTipReminder] = useState<TipReminderMode>('always');
-  const [venmoHandle, setVenmoHandleState] = useState('');
-  const [cashHandle, setCashHandleState] = useState('');
-  const [venmoSaved, setVenmoSaved] = useState(false);
-  const [cashSaved, setCashSaved] = useState(false);
-  const [nameExpanded, setNameExpanded] = useState(false);
-  const [venmoExpanded, setVenmoExpanded] = useState(false);
-  const [cashExpanded, setCashExpanded] = useState(false);
-  const [tipExpanded, setTipExpanded] = useState(false);
-  const [tipReminderExpanded, setTipReminderExpanded] = useState(false);
   const [currency, setCurrencyState] = useState('USD');
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
-  const insets = useSafeAreaInsets();
-  const nameInputRef = useRef<TextInput>(null);
-  const venmoInputRef = useRef<TextInput>(null);
-  const cashInputRef = useRef<TextInput>(null);
+  const [tipSheetOpen, setTipSheetOpen] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.multiGet([SAVED_NAME_KEY, DEFAULT_TIP_KEY, TIP_REMINDER_KEY]).then(([savedName, savedTip, savedReminder]) => {
-      if (savedName[1]) setName(savedName[1]);
+    (async () => {
+      const [savedName, savedTip, savedReminder] = await AsyncStorage.multiGet([SAVED_NAME_KEY, DEFAULT_TIP_KEY, TIP_REMINDER_KEY]);
+      const v = await getVenmoHandle();
+      const c = await getCashAppHandle();
+      const cur = await getCurrency();
+      const nm = savedName[1] ?? ''; setSeedName(nm); nameRef.current = nm;
+      const vv = v ?? ''; setSeedVenmo(vv); venmoRef.current = vv;
+      const cv = c ?? ''; setSeedCash(cv); cashRef.current = cv;
       setDefaultTip(savedTip[1] !== null ? parseFloat(savedTip[1]) : null);
       setTipReminder((savedReminder[1] as TipReminderMode) ?? 'always');
-    });
-    getVenmoHandle().then((h) => { if (h) setVenmoHandleState(h); });
-    getCashAppHandle().then((h) => { if (h) setCashHandleState(h); });
-    getCurrency().then(setCurrencyState);
+      setCurrencyState(cur);
+      setLoaded(true); // mount the Form only once every field's seed is ready
+    })();
   }, []);
+
+  const persistName = async (raw: string) => {
+    const trimmed = raw.trim();
+    setSeedName(trimmed);
+    if (!trimmed) return;
+    await AsyncStorage.setItem(SAVED_NAME_KEY, trimmed);
+    setHostName(trimmed);
+  };
+  const persistVenmo = async (raw: string) => {
+    const trimmed = raw.trim().replace(/^@/, '');
+    setSeedVenmo(trimmed);
+    if (trimmed) await setVenmoHandle(trimmed);
+  };
+  const persistCash = async (raw: string) => {
+    const trimmed = raw.trim().replace(/^\$/, '');
+    setSeedCash(trimmed);
+    if (trimmed) await setCashAppHandle(trimmed);
+  };
 
   const handleSetCurrency = async (code: string) => {
     setCurrencyState(code);
@@ -116,47 +91,11 @@ export default function SettingsScreen() {
     await setCurrency(code);
     setCurrencyModalOpen(false);
   };
-
-  const handleSaveVenmo = async () => {
-    const trimmed = venmoHandle.trim().replace(/^@/, '');
-    if (!trimmed) return;
-    Keyboard.dismiss();
-    await setVenmoHandle(trimmed);
-    setVenmoSaved(true);
-    setVenmoExpanded(false);
-    setTimeout(() => setVenmoSaved(false), 2000);
-  };
-
-  const handleSaveCash = async () => {
-    const trimmed = cashHandle.trim().replace(/^\$/, '');
-    if (!trimmed) return;
-    Keyboard.dismiss();
-    await setCashAppHandle(trimmed);
-    setCashSaved(true);
-    setCashExpanded(false);
-    setTimeout(() => setCashSaved(false), 2000);
-  };
-
-  const handleSaveName = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    Keyboard.dismiss();
-    await AsyncStorage.setItem(SAVED_NAME_KEY, trimmed);
-    setHostName(trimmed);
-    setNameSaved(true);
-    setNameExpanded(false);
-    setTimeout(() => setNameSaved(false), 2000);
-  };
-
   const handleSetDefaultTip = async (pct: number | null) => {
     setDefaultTip(pct);
-    if (pct === null) {
-      await AsyncStorage.removeItem(DEFAULT_TIP_KEY);
-    } else {
-      await AsyncStorage.setItem(DEFAULT_TIP_KEY, String(pct));
-    }
+    if (pct === null) await AsyncStorage.removeItem(DEFAULT_TIP_KEY);
+    else await AsyncStorage.setItem(DEFAULT_TIP_KEY, String(pct));
   };
-
   const handleSetTipReminder = async (mode: TipReminderMode) => {
     setTipReminder(mode);
     await AsyncStorage.setItem(TIP_REMINDER_KEY, mode);
@@ -164,7 +103,6 @@ export default function SettingsScreen() {
 
   const currencyLabel = `${currencyInfo(currency).flag} ${currency}`;
   const tipLabel = defaultTip === null ? 'None' : `${Math.round(defaultTip * 100)}%`;
-  const tipReminderLabel = tipReminder === 'always' ? 'Always' : 'Never';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -172,308 +110,94 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Profile ── */}
-        <SectionHeader label="Profile" />
-        <GroupCard>
-          <SettingRow
-            label="Your Name"
-            value={name || 'Not set'}
-            last
-            onPress={() => {
-              setNameExpanded((v) => !v);
-              setTimeout(() => nameInputRef.current?.focus(), 80);
-            }}
-          />
-          {nameExpanded && (
-            <View style={styles.expandedArea}>
-              <View style={styles.nameRow}>
-                <TextInput
-                  ref={nameInputRef}
-                  style={styles.nameInput}
-                  value={name}
-                  onChangeText={(t) => { setName(t); setNameSaved(false); }}
-                  placeholder="Your name"
-                  placeholderTextColor={C.faint}
-                  autoCapitalize="words"
-                  returnKeyType="done"
-                  onSubmitEditing={handleSaveName}
-                />
-                <TouchableOpacity
-                  style={[styles.saveBtn, nameSaved && styles.saveBtnDone, !name.trim() && styles.saveBtnDisabled]}
-                  onPress={handleSaveName}
-                  disabled={!name.trim()}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.saveBtnText, nameSaved && styles.saveBtnTextDone]}>
-                    {nameSaved ? '✓' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </GroupCard>
+      {loaded && (
+      <Host style={styles.host} colorScheme="dark" useViewportSizeMeasurement>
+        <Form>
+          <Section title="Profile">
+            <TextField
+              defaultValue={seedName}
+              placeholder="Your name"
+              autocorrection={false}
+              onChangeText={(t) => { nameRef.current = t; }}
+              onChangeFocus={(focused) => { if (!focused) persistName(nameRef.current); }}
+              onSubmit={persistName}
+            />
+          </Section>
 
-        {/* ── Payment ── */}
-        <SectionHeader label="Payment" />
-        <GroupCard>
-          <SettingRow
-            label="Venmo @handle"
-            value={venmoHandle ? `@${venmoHandle}` : 'Not set'}
-            onPress={() => {
-              setVenmoExpanded((v) => !v);
-              setCashExpanded(false);
-              setTimeout(() => venmoInputRef.current?.focus(), 80);
-            }}
-          />
-          {venmoExpanded && (
-            <View style={styles.expandedArea}>
-              <View style={styles.nameRow}>
-                <TextInput
-                  ref={venmoInputRef}
-                  style={styles.nameInput}
-                  value={venmoHandle}
-                  onChangeText={(t) => { setVenmoHandleState(t); setVenmoSaved(false); }}
-                  placeholder="yourhandle"
-                  placeholderTextColor={C.faint}
-                  autoCapitalize="none"
-                  returnKeyType="done"
-                  onSubmitEditing={handleSaveVenmo}
-                />
-                <TouchableOpacity
-                  style={[styles.saveBtn, venmoSaved && styles.saveBtnDone, !venmoHandle.trim() && styles.saveBtnDisabled]}
-                  onPress={handleSaveVenmo}
-                  disabled={!venmoHandle.trim()}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.saveBtnText, venmoSaved && styles.saveBtnTextDone]}>
-                    {venmoSaved ? '✓' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          <View style={styles.separator} />
-          <SettingRow
-            label="Cash App $cashtag"
-            value={cashHandle ? `$${cashHandle}` : 'Not set'}
-            last
-            onPress={() => {
-              setCashExpanded((v) => !v);
-              setVenmoExpanded(false);
-              setTimeout(() => cashInputRef.current?.focus(), 80);
-            }}
-          />
-          {cashExpanded && (
-            <View style={styles.expandedArea}>
-              <View style={styles.nameRow}>
-                <TextInput
-                  ref={cashInputRef}
-                  style={styles.nameInput}
-                  value={cashHandle}
-                  onChangeText={(t) => { setCashHandleState(t); setCashSaved(false); }}
-                  placeholder="yourcashtag"
-                  placeholderTextColor={C.faint}
-                  autoCapitalize="none"
-                  returnKeyType="done"
-                  onSubmitEditing={handleSaveCash}
-                />
-                <TouchableOpacity
-                  style={[styles.saveBtn, cashSaved && styles.saveBtnDone, !cashHandle.trim() && styles.saveBtnDisabled]}
-                  onPress={handleSaveCash}
-                  disabled={!cashHandle.trim()}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.saveBtnText, cashSaved && styles.saveBtnTextDone]}>
-                    {cashSaved ? '✓' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </GroupCard>
+          <Section title="Payment">
+            <TextField
+              defaultValue={seedVenmo}
+              placeholder="Venmo @handle"
+              autocorrection={false}
+              onChangeText={(t) => { venmoRef.current = t; }}
+              onChangeFocus={(focused) => { if (!focused) persistVenmo(venmoRef.current); }}
+              onSubmit={persistVenmo}
+            />
+            <TextField
+              defaultValue={seedCash}
+              placeholder="Cash App $cashtag"
+              autocorrection={false}
+              onChangeText={(t) => { cashRef.current = t; }}
+              onChangeFocus={(focused) => { if (!focused) persistCash(cashRef.current); }}
+              onSubmit={persistCash}
+            />
+          </Section>
 
-        {/* ── Bill Preferences ── */}
-        <SectionHeader label="Bill Preferences" />
-        <GroupCard>
-          <SettingRow
-            label="Currency"
-            value={currencyLabel}
-            onPress={() => { setCurrencyModalOpen(true); setTipExpanded(false); setTipReminderExpanded(false); }}
-          />
-          <View style={styles.separator} />
-          <SettingRow
-            label="Default Tip"
-            value={tipLabel}
-            onPress={() => { setTipExpanded((v) => !v); setTipReminderExpanded(false); }}
-          />
-          {tipExpanded && (
-            <View style={styles.expandedArea}>
-              <Text style={styles.expandedHint}>Applied automatically when a receipt has no tip.</Text>
-              <View style={styles.tipChips}>
-                <TouchableOpacity
-                  style={[styles.tipChip, defaultTip === null && styles.tipChipActive]}
-                  onPress={() => handleSetDefaultTip(null)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.tipChipText, defaultTip === null && styles.tipChipTextActive]}>None</Text>
-                </TouchableOpacity>
-                {TIP_PRESETS.map((pct) => (
-                  <TouchableOpacity
-                    key={pct}
-                    style={[styles.tipChip, defaultTip === pct && styles.tipChipActive]}
-                    onPress={() => handleSetDefaultTip(pct)}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[styles.tipChipText, defaultTip === pct && styles.tipChipTextActive]}>
-                      {Math.round(pct * 100)}%
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-          <View style={styles.separator} />
-          <SettingRow
-            label="Tip Reminder"
-            value={tipReminderLabel}
-            last
-            onPress={() => { setTipReminderExpanded((v) => !v); setTipExpanded(false); }}
-          />
-          {tipReminderExpanded && (
-            <View style={styles.expandedArea}>
-              {([
-                { mode: 'always' as TipReminderMode, title: 'Always', desc: 'Show a warning whenever no tip is detected on a receipt.' },
-                { mode: 'never' as TipReminderMode, title: 'Never', desc: 'Never show a tip warning.' },
-              ]).map(({ mode, title, desc }) => (
-                <TouchableOpacity
-                  key={mode}
-                  style={styles.radioRow}
-                  onPress={() => handleSetTipReminder(mode)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioTextGroup}>
-                    <Text style={styles.radioTitle}>{title}</Text>
-                    <Text style={styles.radioDesc}>{desc}</Text>
-                  </View>
-                  {tipReminder === mode && (
-                    <Ionicons name="checkmark" size={18} color={C.blue} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </GroupCard>
+          <Section title="Bill Preferences">
+            <LabeledContent label="Currency" modifiers={[onTapGesture(() => setCurrencyModalOpen(true))]}>
+              <UIText>{currencyLabel}</UIText>
+            </LabeledContent>
+            <LabeledContent label="Default Tip" modifiers={[onTapGesture(() => setTipSheetOpen(true))]}>
+              <UIText>{tipLabel}</UIText>
+            </LabeledContent>
+            <Switch
+              value={tipReminder === 'always'}
+              label="Tip Reminder"
+              color={C.accent}
+              onValueChange={(v) => handleSetTipReminder(v ? 'always' : 'never')}
+            />
+          </Section>
 
-        {/* ── Subscription ── */}
-        <SectionHeader label="Subscription" />
-        {!proLoading && (
-          isPro ? (
-            <>
-              <GroupCard>
-                <TouchableOpacity
-                  style={styles.proActiveRow}
-                  activeOpacity={1}
-                  onLongPress={() => setResetProOpen(true)}
-                  delayLongPress={800}
-                >
-                  <Text style={styles.rowLabel}>Status</Text>
-                  <View style={styles.rowRight}>
-                    <Text style={styles.proActiveValue}>Pro (Active)</Text>
-                  </View>
-                </TouchableOpacity>
-              </GroupCard>
-
-              <SectionHeader label="Subscription Management" />
-              <GroupCard>
-                <SettingRow
-                  label="Manage Subscription"
-                  chevron={false}
-                  labelColor={C.blue}
-                  onPress={() => Linking.openURL('itms-apps://apps.apple.com/account/subscriptions')}
-                />
-                <SettingRow
-                  label="Restore Purchases"
-                  chevron={false}
-                  labelColor={C.blue}
-                  last
-                  onPress={async () => {
-                    setRestoreMsg('Checking for purchases…');
-                    setRestoreOpen(true);
-                    const ok = await restore();
-                    setRestoreMsg(ok ? 'Divi Pro restored.' : 'No purchases found to restore.');
-                  }}
-                />
-              </GroupCard>
-              <Text style={styles.subFootnote}>You can manage your subscription in the App Store.</Text>
-            </>
+          {!proLoading && (isPro ? (
+            <Section title="Subscription" footer="You can manage your subscription in the App Store.">
+              <LabeledContent label="Status" modifiers={[onTapGesture(() => setResetProOpen(true))]}>
+                <UIText>Pro (Active)</UIText>
+              </LabeledContent>
+              <Button label="Manage Subscription" onPress={() => Linking.openURL('itms-apps://apps.apple.com/account/subscriptions')} />
+              <Button
+                label="Restore Purchases"
+                onPress={async () => {
+                  setRestoreMsg('Checking for purchases…');
+                  setRestoreOpen(true);
+                  const ok = await restore();
+                  setRestoreMsg(ok ? 'Divi Pro restored.' : 'No purchases found to restore.');
+                }}
+              />
+            </Section>
           ) : (
-            <View style={styles.proCard}>
-              <Text style={styles.proCardTitle}>Divi Pro</Text>
-              <View style={styles.proFeatureList}>
-                {[
-                  'Bill history — revisit every past split',
-                  'Saved groups — reload your usual crew',
-                  'No "Split with Divi" in Venmo notes',
-                ].map((f) => (
-                  <View key={f} style={styles.proFeatureRow}>
-                    <Text style={styles.proFeatureCheck}>✓</Text>
-                    <Text style={styles.proFeatureText}>{f}</Text>
-                  </View>
-                ))}
-              </View>
-              <TouchableOpacity
-                style={styles.upgradeBtn}
-                activeOpacity={0.8}
-                onPress={() => router.push('/paywall')}
-              >
-                <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
-              </TouchableOpacity>
-            </View>
-          )
-        )}
+            <Section title="Divi Pro">
+              <Label title="Bill history — revisit every past split" systemImage="checkmark" />
+              <Label title="Saved groups — reload your usual crew" systemImage="checkmark" />
+              <Label title="No “Split with Divi” in Venmo notes" systemImage="checkmark" />
+              <Button label="Upgrade to Pro" onPress={() => router.push('/paywall')} />
+            </Section>
+          ))}
 
-        {/* ── Feedback ── */}
-        <SectionHeader label="Feedback" />
-        <GroupCard>
-          <SettingRow
-            label="Contact Us"
-            icon="mail-outline"
-            onPress={() => Linking.openURL('mailto:jpjacobello@gmail.com?subject=Divi Feedback')}
-          />
-          <SettingRow
-            label="Leave a Review"
-            icon="heart-outline"
-            last
-            onPress={() => setComingSoon('App Store listing coming soon!')}
-          />
-        </GroupCard>
+          <Section title="Feedback">
+            <Button label="Contact Us" systemImage="envelope" onPress={() => Linking.openURL('mailto:jpjacobello@gmail.com?subject=Divi Feedback')} />
+            <Button label="Leave a Review" systemImage="heart" onPress={() => setComingSoon('App Store listing coming soon!')} />
+          </Section>
 
-        {/* ── About & Legal ── */}
-        <SectionHeader label="About & Legal" />
-        <GroupCard>
-          <SettingRow
-            label="App Version"
-            value={APP_VERSION}
-            chevron={false}
-          />
-          <SettingRow
-            label="Privacy Policy"
-            onPress={() => setComingSoon('Privacy policy coming soon!')}
-          />
-          <SettingRow
-            label="Terms of Service"
-            last
-            onPress={() => setComingSoon('Terms of service coming soon!')}
-          />
-        </GroupCard>
+          <Section title="About & Legal">
+            <LabeledContent label="App Version"><UIText>{APP_VERSION}</UIText></LabeledContent>
+            <Button label="Privacy Policy" onPress={() => setComingSoon('Privacy policy coming soon!')} />
+            <Button label="Terms of Service" onPress={() => setComingSoon('Terms of service coming soon!')} />
+          </Section>
+        </Form>
+      </Host>
+      )}
 
-      </ScrollView>
-
+      {/* Currency picker — kept as the existing RN sheet (rich list w/ flags). */}
       <Modal
         visible={currencyModalOpen}
         transparent
@@ -490,12 +214,7 @@ export default function SettingsScreen() {
               {CURRENCIES.map((c) => {
                 const active = currency === c.code;
                 return (
-                  <TouchableOpacity
-                    key={c.code}
-                    style={styles.currencyOption}
-                    onPress={() => handleSetCurrency(c.code)}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity key={c.code} style={styles.currencyOption} onPress={() => handleSetCurrency(c.code)} activeOpacity={0.7}>
                     <Text style={styles.currencyFlag}>{c.flag}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.currencyName, active && styles.currencyNameActive]}>{c.name}</Text>
@@ -510,6 +229,16 @@ export default function SettingsScreen() {
         </Pressable>
       </Modal>
 
+      <ActionSheet
+        visible={tipSheetOpen}
+        title="Default Tip"
+        message="Applied automatically when a receipt has no tip."
+        options={[
+          { label: 'None', onPress: () => handleSetDefaultTip(null) },
+          ...TIP_PRESETS.map((pct) => ({ label: `${Math.round(pct * 100)}%`, onPress: () => handleSetDefaultTip(pct) })),
+        ]}
+        onClose={() => setTipSheetOpen(false)}
+      />
       <ActionSheet
         visible={resetProOpen}
         title="Reset to Free?"
@@ -535,60 +264,9 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 6, paddingBottom: 8,
-  },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 6, paddingBottom: 8 },
   title: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
-  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120 },
-
-  sectionHeader: {
-    fontSize: 12.5, fontWeight: '700', color: C.faint,
-    letterSpacing: 1.2, textTransform: 'uppercase',
-    marginBottom: 10, marginTop: 26, marginLeft: 2,
-  },
-
-  card: {
-    backgroundColor: C.card, borderRadius: 18,
-    borderWidth: 1, borderColor: C.line, overflow: 'hidden',
-  },
-
-  row: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14, minHeight: 52,
-  },
-  rowLabel: { fontSize: 15.5, color: C.text, fontWeight: '500' },
-  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rowValue: { fontSize: 15, color: C.dim },
-  separator: { height: 1, backgroundColor: C.line, marginLeft: 16 },
-
-  expandedArea: { paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: C.line },
-  expandedHint: { fontSize: 12.5, color: C.dim, marginBottom: 12, marginTop: 12 },
-  nameRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 12 },
-  nameInput: {
-    flex: 1, height: 46, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
-    borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: C.text,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  saveBtn: {
-    height: 46, paddingHorizontal: 18, backgroundColor: C.text,
-    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-  },
-  saveBtnDone: { backgroundColor: C.accentDim },
-  saveBtnDisabled: { opacity: 0.35 },
-  saveBtnText: { fontSize: 14.5, fontWeight: '700', color: C.bg },
-  saveBtnTextDone: { color: C.accent },
-
-  radioRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line,
-  },
-  radioTextGroup: { flex: 1, gap: 2, paddingRight: 12 },
-  radioTitle: { fontSize: 15, color: C.text, fontWeight: '500' },
-  radioDesc: { fontSize: 12, color: C.dim },
-
-  tipChips: { flexDirection: 'row', gap: 8 },
+  host: { flex: 1 },
 
   currencyBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   currencySheet: {
@@ -600,40 +278,9 @@ const styles = StyleSheet.create({
   currencySheetTitle: { fontSize: 18, fontWeight: '800', color: C.text },
   currencySheetHint: { fontSize: 12.5, color: C.dim, marginTop: 4, marginBottom: 8, lineHeight: 17 },
   currencyList: { marginTop: 2 },
-  currencyOption: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13,
-    borderBottomWidth: 1, borderBottomColor: C.line,
-  },
+  currencyOption: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.line },
   currencyFlag: { fontSize: 24 },
   currencyName: { fontSize: 15.5, color: C.text, fontWeight: '500' },
   currencyNameActive: { color: C.text, fontWeight: '700' },
   currencyMeta: { fontSize: 12.5, color: C.dim, marginTop: 1 },
-
-  tipChip: {
-    flex: 1, paddingVertical: 9, borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: C.line,
-    alignItems: 'center',
-  },
-  tipChipActive: { backgroundColor: C.text, borderColor: C.text },
-  tipChipText: { fontSize: 13, fontWeight: '600', color: C.dim },
-  tipChipTextActive: { color: C.bg },
-
-  proActiveRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14,
-  },
-  proActiveValue: { fontSize: 15, color: C.accent, fontWeight: '700' },
-  subFootnote: { fontSize: 12, color: C.faint, marginTop: 8, marginLeft: 4 },
-
-  proCard: {
-    backgroundColor: C.card, borderRadius: 18, padding: 18,
-    borderWidth: 1, borderColor: C.line, gap: 14,
-  },
-  proCardTitle: { fontSize: 18, fontWeight: '800', color: C.text },
-  proFeatureList: { gap: 8 },
-  proFeatureRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  proFeatureCheck: { fontSize: 14, fontWeight: '700', color: C.accent, width: 16 },
-  proFeatureText: { fontSize: 14, color: C.dim, flex: 1 },
-  upgradeBtn: { backgroundColor: C.text, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  upgradeBtnText: { fontSize: 16, fontWeight: '700', color: C.bg },
 });
