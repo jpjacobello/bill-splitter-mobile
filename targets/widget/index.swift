@@ -53,23 +53,55 @@ struct Provider: TimelineProvider {
 }
 
 struct DiviWidgetEntryView: View {
+  @Environment(\.widgetFamily) var family
   var entry: Provider.Entry
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("Divi")
-        .font(.system(size: 22, weight: .heavy, design: .rounded))
-        .foregroundColor(.white)
-      Spacer(minLength: 8)
-      HStack(spacing: 6) {
-        Image(systemName: "plus").font(.system(size: 14, weight: .bold))
-        Text("New Split").font(.system(size: 15, weight: .bold))
+    switch family {
+    // ── Lock screen: circular "+" tap target ──
+    case .accessoryCircular:
+      ZStack {
+        AccessoryWidgetBackground()
+        Image(systemName: "plus.viewfinder").font(.system(size: 20, weight: .semibold))
       }
-      .foregroundColor(DiviTheme.bg)
-      .padding(.horizontal, 14).padding(.vertical, 9)
-      .background(Capsule().fill(DiviTheme.accent))
+      .widgetURL(DiviTheme.newSplitURL)
+
+    // ── Lock screen: wide "Divi · New Split" row ──
+    case .accessoryRectangular:
+      HStack(spacing: 8) {
+        Image(systemName: "plus.viewfinder").font(.system(size: 22, weight: .semibold))
+        VStack(alignment: .leading, spacing: 1) {
+          Text("Divi").font(.system(size: 15, weight: .bold))
+          Text("New Split").font(.system(size: 13, weight: .medium))
+        }
+        Spacer(minLength: 0)
+      }
+      .widgetURL(DiviTheme.newSplitURL)
+
+    // ── Lock screen: inline (above the clock) ──
+    case .accessoryInline:
+      Label("New Split", systemImage: "plus.viewfinder")
+        .widgetURL(DiviTheme.newSplitURL)
+
+    // ── Home screen ──
+    default:
+      VStack(alignment: .leading, spacing: 0) {
+        Text("Divi")
+          .font(.system(size: 22, weight: .heavy, design: .rounded))
+          .foregroundColor(.white)
+        Spacer(minLength: 8)
+        HStack(spacing: 6) {
+          Image(systemName: "plus").font(.system(size: 14, weight: .bold))
+          Text("New Split").font(.system(size: 15, weight: .bold))
+        }
+        .foregroundColor(DiviTheme.bg)
+        .padding(.horizontal, 14).padding(.vertical, 9)
+        .background(Capsule().fill(DiviTheme.accent))
+      }
+      .padding(16)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+      .widgetURL(DiviTheme.newSplitURL)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    .widgetURL(DiviTheme.newSplitURL)
   }
 }
 
@@ -77,15 +109,17 @@ struct DiviWidget: Widget {
   let kind = "DiviWidget"
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: Provider()) { entry in
+      // Padding lives per-family inside the view (accessory widgets must not be
+      // over-padded); containerBackground stays here for iOS 17 compliance.
       if #available(iOS 17.0, *) {
-        DiviWidgetEntryView(entry: entry).padding(16).containerBackground(DiviTheme.bg, for: .widget)
+        DiviWidgetEntryView(entry: entry).containerBackground(DiviTheme.bg, for: .widget)
       } else {
-        DiviWidgetEntryView(entry: entry).padding(16).background(DiviTheme.bg)
+        DiviWidgetEntryView(entry: entry).background(DiviTheme.bg)
       }
     }
     .configurationDisplayName("New Split")
     .description("Start a new bill split.")
-    .supportedFamilies([.systemSmall])
+    .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular, .accessoryInline])
   }
 }
 
