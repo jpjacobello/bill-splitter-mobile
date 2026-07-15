@@ -1,0 +1,13 @@
+{
+  "name": "functions",
+  "description": "Divi Cloud Functions — Live Activity background push (Phase B)",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-functions": "^5.1.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
