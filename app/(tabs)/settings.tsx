@@ -10,7 +10,7 @@ import {
   Host, Form, Section, TextField, Switch, LabeledContent, Button,
   Text as UIText,
 } from '@expo/ui/swift-ui';
-import { onTapGesture } from '@expo/ui/swift-ui/modifiers';
+import { buttonStyle } from '@expo/ui/swift-ui/modifiers';
 import ActionSheet from '../../components/ActionSheet';
 import { useBillStore } from '../../store/useBillStore';
 import { usePro } from '../../hooks/usePro';
@@ -116,12 +116,13 @@ export default function SettingsScreen() {
           </Section>
 
           <Section title="Bill Preferences">
-            <LabeledContent label="Currency" modifiers={[onTapGesture(() => setCurrencyModalOpen(true))]}>
-              <UIText>{currencyLabel}</UIText>
-            </LabeledContent>
-            <LabeledContent label="Default Tip" modifiers={[onTapGesture(() => setTipSheetOpen(true))]}>
-              <UIText>{tipLabel}</UIText>
-            </LabeledContent>
+            {/* Button + plain style = the whole row is tappable, not just the text. */}
+            <Button onPress={() => setCurrencyModalOpen(true)} modifiers={[buttonStyle('plain')]}>
+              <LabeledContent label="Currency"><UIText>{currencyLabel}</UIText></LabeledContent>
+            </Button>
+            <Button onPress={() => setTipSheetOpen(true)} modifiers={[buttonStyle('plain')]}>
+              <LabeledContent label="Default Tip"><UIText>{tipLabel}</UIText></LabeledContent>
+            </Button>
             <Switch
               value={tipReminder === 'always'}
               label="Tip Reminder"
@@ -132,9 +133,9 @@ export default function SettingsScreen() {
 
           {!proLoading && (isPro ? (
             <Section title="Subscription">
-              <LabeledContent label="Status" modifiers={[onTapGesture(() => setResetProOpen(true))]}>
-                <UIText>Pro (Active)</UIText>
-              </LabeledContent>
+              <Button onPress={() => setResetProOpen(true)} modifiers={[buttonStyle('plain')]}>
+                <LabeledContent label="Status"><UIText>Pro (Active)</UIText></LabeledContent>
+              </Button>
               <Button onPress={() => Linking.openURL('itms-apps://apps.apple.com/account/subscriptions')}>Manage Subscription</Button>
               <Button
                 onPress={async () => {
@@ -176,17 +177,19 @@ export default function SettingsScreen() {
         <Pressable style={styles.currencyBackdrop} onPress={() => setCurrencyModalOpen(false)}>
           <Animated.View
             style={[styles.currencySheet, { paddingBottom: insets.bottom + 8, transform: [{ translateY: currencySwipe.dragTranslate }] }]}
-            onStartShouldSetResponder={() => true}
           >
-            {/* Drag the header (not the list) to dismiss — keeps list scroll intact */}
-            <PanGestureHandler {...currencySwipe.pan}>
-              <View>
-                <View style={styles.currencyHandle} />
-                <Text style={styles.currencySheetTitle}>Currency</Text>
-                <Text style={styles.currencySheetHint}>Used to display amounts everywhere, including shared bill links.</Text>
-              </View>
-            </PanGestureHandler>
-            <ScrollView style={styles.currencyList} showsVerticalScrollIndicator={false}>
+            {/* Inner Pressable blocks tap-through to the backdrop without stealing
+                the pan gesture (onStartShouldSetResponder did steal it). Drag the
+                header to dismiss; the list below scrolls normally. */}
+            <Pressable onPress={() => {}}>
+              <PanGestureHandler {...currencySwipe.pan}>
+                <View>
+                  <View style={styles.currencyHandle} />
+                  <Text style={styles.currencySheetTitle}>Currency</Text>
+                  <Text style={styles.currencySheetHint}>Used to display amounts everywhere, including shared bill links.</Text>
+                </View>
+              </PanGestureHandler>
+              <ScrollView style={styles.currencyList} showsVerticalScrollIndicator={false}>
               {CURRENCIES.map((c) => {
                 const active = currency === c.code;
                 return (
@@ -200,7 +203,8 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+              </ScrollView>
+            </Pressable>
           </Animated.View>
         </Pressable>
       </Modal>
