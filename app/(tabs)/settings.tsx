@@ -95,9 +95,9 @@ export default function SettingsScreen() {
   };
 
   const showWidgetHelp = () => Alert.alert(
-    'Divi widget',
-    'Home screen — long-press an empty area, tap ＋ (top-left), search “Divi”, add the widget.\n\nLock screen — long-press the lock screen, tap Customize → Lock Screen, tap a widget slot, find Divi.\n\nEither one jumps straight into scanning a receipt.',
-    [{ text: 'Got it' }],
+    'Add the Divi widget',
+    'Home screen — long-press, tap ＋, search “Divi”.\n\nLock screen — long-press, tap Customize, add Divi.\n\nEither opens straight to scanning.',
+    [{ text: 'Done' }],
   );
 
   const currencyLabel = `${currencyInfo(currency).flag} ${currency}`;
