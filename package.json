@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
-    "@expo/ui": "~0.2.0-beta.9",
+    "@expo/ui": "0.2.0-beta.9",
     "@gorhom/bottom-sheet": "^5.2.14",
     "@react-native-async-storage/async-storage": "2.2.0",
     "burnt": "^0.13.0",

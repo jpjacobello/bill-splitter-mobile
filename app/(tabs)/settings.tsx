@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, Linking, Modal, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -34,16 +34,13 @@ export default function SettingsScreen() {
   const [restoreMsg, setRestoreMsg] = useState('Checking for purchases…');
   const [comingSoon, setComingSoon] = useState<string | null>(null);
 
-  // TextField is uncontrolled: seed values feed defaultValue (set once after
-  // storage loads), refs hold live edits, persisted on blur/submit. Never drive
-  // defaultValue/key from live state — that remounts the field mid-typing.
+  // TextField is uncontrolled: seed values feed defaultValue once (set after
+  // storage loads, Form gated on `loaded`) so the field never remounts mid-typing.
+  // beta.9 has no blur/submit event, so we persist on each change.
   const [seedName, setSeedName] = useState('');
   const [seedVenmo, setSeedVenmo] = useState('');
   const [seedCash, setSeedCash] = useState('');
   const [loaded, setLoaded] = useState(false);
-  const nameRef = useRef('');
-  const venmoRef = useRef('');
-  const cashRef = useRef('');
 
   const [defaultTip, setDefaultTip] = useState<number | null>(null);
   const [tipReminder, setTipReminder] = useState<TipReminderMode>('always');
@@ -57,9 +54,9 @@ export default function SettingsScreen() {
       const v = await getVenmoHandle();
       const c = await getCashAppHandle();
       const cur = await getCurrency();
-      const nm = savedName[1] ?? ''; setSeedName(nm); nameRef.current = nm;
-      const vv = v ?? ''; setSeedVenmo(vv); venmoRef.current = vv;
-      const cv = c ?? ''; setSeedCash(cv); cashRef.current = cv;
+      setSeedName(savedName[1] ?? '');
+      setSeedVenmo(v ?? '');
+      setSeedCash(c ?? '');
       setDefaultTip(savedTip[1] !== null ? parseFloat(savedTip[1]) : null);
       setTipReminder((savedReminder[1] as TipReminderMode) ?? 'always');
       setCurrencyState(cur);
@@ -114,33 +111,12 @@ export default function SettingsScreen() {
       <Host style={styles.host} colorScheme="dark" useViewportSizeMeasurement>
         <Form>
           <Section title="Profile">
-            <TextField
-              defaultValue={seedName}
-              placeholder="Your name"
-              autocorrection={false}
-              onChangeText={(t) => { nameRef.current = t; }}
-              onChangeFocus={(focused) => { if (!focused) persistName(nameRef.current); }}
-              onSubmit={persistName}
-            />
+            <TextField defaultValue={seedName} placeholder="Your name" autocorrection={false} onChangeText={persistName} />
           </Section>
 
           <Section title="Payment">
-            <TextField
-              defaultValue={seedVenmo}
-              placeholder="Venmo @handle"
-              autocorrection={false}
-              onChangeText={(t) => { venmoRef.current = t; }}
-              onChangeFocus={(focused) => { if (!focused) persistVenmo(venmoRef.current); }}
-              onSubmit={persistVenmo}
-            />
-            <TextField
-              defaultValue={seedCash}
-              placeholder="Cash App $cashtag"
-              autocorrection={false}
-              onChangeText={(t) => { cashRef.current = t; }}
-              onChangeFocus={(focused) => { if (!focused) persistCash(cashRef.current); }}
-              onSubmit={persistCash}
-            />
+            <TextField defaultValue={seedVenmo} placeholder="Venmo @handle" autocorrection={false} onChangeText={persistVenmo} />
+            <TextField defaultValue={seedCash} placeholder="Cash App $cashtag" autocorrection={false} onChangeText={persistCash} />
           </Section>
 
           <Section title="Bill Preferences">
@@ -159,39 +135,38 @@ export default function SettingsScreen() {
           </Section>
 
           {!proLoading && (isPro ? (
-            <Section title="Subscription" footer="You can manage your subscription in the App Store.">
+            <Section title="Subscription">
               <LabeledContent label="Status" modifiers={[onTapGesture(() => setResetProOpen(true))]}>
                 <UIText>Pro (Active)</UIText>
               </LabeledContent>
-              <Button label="Manage Subscription" onPress={() => Linking.openURL('itms-apps://apps.apple.com/account/subscriptions')} />
+              <Button onPress={() => Linking.openURL('itms-apps://apps.apple.com/account/subscriptions')}>Manage Subscription</Button>
               <Button
-                label="Restore Purchases"
                 onPress={async () => {
                   setRestoreMsg('Checking for purchases…');
                   setRestoreOpen(true);
                   const ok = await restore();
                   setRestoreMsg(ok ? 'Divi Pro restored.' : 'No purchases found to restore.');
                 }}
-              />
+              >Restore Purchases</Button>
             </Section>
           ) : (
             <Section title="Divi Pro">
               <Label title="Bill history — revisit every past split" systemImage="checkmark" />
               <Label title="Saved groups — reload your usual crew" systemImage="checkmark" />
               <Label title="No “Split with Divi” in Venmo notes" systemImage="checkmark" />
-              <Button label="Upgrade to Pro" onPress={() => router.push('/paywall')} />
+              <Button onPress={() => router.push('/paywall')}>Upgrade to Pro</Button>
             </Section>
           ))}
 
           <Section title="Feedback">
-            <Button label="Contact Us" systemImage="envelope" onPress={() => Linking.openURL('mailto:jpjacobello@gmail.com?subject=Divi Feedback')} />
-            <Button label="Leave a Review" systemImage="heart" onPress={() => setComingSoon('App Store listing coming soon!')} />
+            <Button systemImage="envelope" onPress={() => Linking.openURL('mailto:jpjacobello@gmail.com?subject=Divi Feedback')}>Contact Us</Button>
+            <Button systemImage="heart" onPress={() => setComingSoon('App Store listing coming soon!')}>Leave a Review</Button>
           </Section>
 
           <Section title="About & Legal">
             <LabeledContent label="App Version"><UIText>{APP_VERSION}</UIText></LabeledContent>
-            <Button label="Privacy Policy" onPress={() => setComingSoon('Privacy policy coming soon!')} />
-            <Button label="Terms of Service" onPress={() => setComingSoon('Terms of service coming soon!')} />
+            <Button onPress={() => setComingSoon('Privacy policy coming soon!')}>Privacy Policy</Button>
+            <Button onPress={() => setComingSoon('Terms of service coming soon!')}>Terms of Service</Button>
           </Section>
         </Form>
       </Host>
