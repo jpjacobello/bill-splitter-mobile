@@ -34,7 +34,17 @@ export function reclassifyFees(receipt: Receipt): Receipt {
   };
 }
 
-export const activeParser: ReceiptParser = (imageUri) => openaiParser(imageUri).then(reclassifyFees);
+// $0.00 lines are freebies / modifiers — assigning them does nothing and just
+// clutters the grid. Drop them (they contribute nothing to the split). Negative
+// prices are discounts and are kept (they're split across everyone elsewhere).
+export function dropZeroItems(receipt: Receipt): Receipt {
+  const nonZero = receipt.items.filter((it) => Math.abs(it.price) >= 0.005);
+  if (nonZero.length === receipt.items.length) return receipt;
+  return { ...receipt, items: nonZero };
+}
+
+export const activeParser: ReceiptParser = (imageUri) =>
+  openaiParser(imageUri).then(reclassifyFees).then(dropZeroItems);
 
 async function mockParser(imageUri: string): Promise<Receipt> {
   await new Promise((res) => setTimeout(res, 1200)); // simulate latency
