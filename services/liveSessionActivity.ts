@@ -5,8 +5,20 @@ import {
   startSessionActivity,
   updateSessionActivity,
   endSessionActivity,
+  addPushTokenListener,
   type SessionActivityState,
 } from '../modules/live-activity';
+import { setSessionPushToken } from './billSession';
+
+// Register once: when ActivityKit issues the activity's push token, persist it to
+// the session doc so the backend can push background updates (Phase B).
+let tokenSub: { remove(): void } | null = null;
+function ensurePushTokenSync() {
+  if (tokenSub) return;
+  tokenSub = addPushTokenListener(({ token, sessionId }) => {
+    setSessionPushToken(sessionId, token).catch(() => {});
+  });
+}
 
 function stateOf(session: BillSession): SessionActivityState {
   const claimed = claimerBreakdown(session).reduce((sum, c) => sum + c.amount, 0);
@@ -23,6 +35,7 @@ export function liveActivityAvailable(): boolean {
 }
 
 export async function beginSessionActivity(session: BillSession): Promise<void> {
+  ensurePushTokenSync();
   await startSessionActivity(session.merchantName, session.id, stateOf(session));
 }
 

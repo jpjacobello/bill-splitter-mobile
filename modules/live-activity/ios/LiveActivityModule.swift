@@ -35,6 +35,11 @@ public class LiveActivityModule: Module {
   public func definition() -> ModuleDefinition {
     Name("LiveActivity")
 
+    // Emitted when ActivityKit issues/rotates the activity's push token (Phase B:
+    // background updates via APNs). JS stores this on the session doc so the
+    // backend can push content-state updates while the app is closed.
+    Events("onPushToken")
+
     Function("isSupported") { () -> Bool in
       if #available(iOS 16.2, *) {
         return ActivityAuthorizationInfo().areActivitiesEnabled
@@ -55,9 +60,18 @@ public class LiveActivityModule: Module {
         claimedAmount: claimed, totalAmount: total, claimantCount: count, currencyCode: currency
       )
       do {
-        let act = try Activity.request(attributes: attributes, content: .init(state: state, staleDate: nil))
+        // pushType: .token → ActivityKit vends a push token so the backend can
+        // update this activity via APNs while the app is backgrounded/closed.
+        let act = try Activity.request(attributes: attributes, content: .init(state: state, staleDate: nil), pushType: .token)
         self.activity = act
         promise.resolve(act.id)
+        // Stream the push token (issued shortly after start, and on rotation).
+        Task {
+          for await tokenData in act.pushTokenUpdates {
+            let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+            self.sendEvent("onPushToken", ["token": hex, "sessionId": sessionId])
+          }
+        }
       } catch {
         promise.reject("ERR_LIVE_ACTIVITY_START", error.localizedDescription)
       }

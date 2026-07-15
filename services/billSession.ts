@@ -112,6 +112,12 @@ export async function claimItems(
   });
 }
 
+// Store the Live Activity push token so the backend can update the lock-screen
+// activity via APNs while the host app is closed (Phase B).
+export async function setSessionPushToken(sessionId: string, token: string): Promise<void> {
+  await updateDoc(doc(db, SESSIONS, sessionId), { liveActivityPushToken: token });
+}
+
 export async function closeSession(sessionId: string): Promise<void> {
   await updateDoc(doc(db, SESSIONS, sessionId), { status: 'closed' });
 }

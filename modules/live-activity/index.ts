@@ -48,3 +48,11 @@ export async function endSessionActivity(): Promise<void> {
     // ignore
   }
 }
+
+export type PushTokenEvent = { token: string; sessionId: string };
+
+// Fires when ActivityKit vends/rotates the activity's push token (Phase B).
+export function addPushTokenListener(cb: (e: PushTokenEvent) => void): { remove(): void } {
+  if (!LiveActivity) return { remove() {} };
+  return LiveActivity.addListener('onPushToken', cb);
+}
