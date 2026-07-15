@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, Animated,
   ScrollView, FlatList, TextInput, Keyboard, Modal, Pressable,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, ActionSheetIOS,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -403,17 +403,49 @@ export default function AssignItemsScreen() {
   metaParts.push(`${totalItems} item${totalItems !== 1 ? 's' : ''}`);
   const metaLine = metaParts.join(' · ');
 
-  const openOverflow = () => setSheet({ options: [
-    { label: 'Split evenly', icon: 'people-outline', onPress: handleSplitAll },
-    { label: 'Clear all', icon: 'close-circle-outline', destructive: true, onPress: handleClearAll },
-    { label: hasReceiptIssue ? 'Fix receipt' : 'Edit receipt', icon: 'create-outline', onPress: () => router.push('/receipt-review?from=assign-items') },
-  ] });
+  const fixReceipt = () => router.push('/receipt-review?from=assign-items');
+  const issueReason = receipt.tip === 0 ? 'no tip' : `off by $${Math.abs(calculatedTotal - receipt.total).toFixed(2)}`;
 
-  const openAddPeople = () => setSheet({ title: 'Add people', options: [
-    { label: 'Add by name', icon: 'person-add-outline', onPress: () => { setShowAddPerson(true); setTimeout(() => { peopleScrollRef.current?.scrollToEnd({ animated: true }); personInputRef.current?.focus(); }, 80); } },
-    { label: 'From contacts', icon: 'people-circle-outline', onPress: handlePickContact },
-    { label: 'Load a group', icon: 'bookmark-outline', onPress: handleOpenGroups },
-  ] });
+  // Present a native iOS action sheet (falls back to the branded RN sheet
+  // elsewhere). `actions` are ordered; the trailing Cancel is added here.
+  const presentNative = (opts: { title?: string; actions: SheetOption[] }) => {
+    if (Platform.OS !== 'ios') { setSheet({ title: opts.title, options: opts.actions }); return; }
+    const labels = [...opts.actions.map((a) => a.label), 'Cancel'];
+    const destructiveButtonIndex = opts.actions.findIndex((a) => a.destructive);
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: opts.title,
+        options: labels,
+        cancelButtonIndex: labels.length - 1,
+        destructiveButtonIndex: destructiveButtonIndex >= 0 ? destructiveButtonIndex : undefined,
+        userInterfaceStyle: 'dark',
+      },
+      (i) => { if (i != null && i < opts.actions.length) opts.actions[i].onPress(); }
+    );
+  };
+
+  const openOverflow = () => presentNative({
+    actions: hasReceiptIssue
+      ? [
+          { label: `⚠️  Fix receipt · ${issueReason}`, onPress: fixReceipt },
+          { label: 'Split evenly', onPress: handleSplitAll },
+          { label: 'Clear all', destructive: true, onPress: handleClearAll },
+        ]
+      : [
+          { label: 'Split evenly', onPress: handleSplitAll },
+          { label: 'Edit receipt', onPress: fixReceipt },
+          { label: 'Clear all', destructive: true, onPress: handleClearAll },
+        ],
+  });
+
+  const openAddPeople = () => presentNative({
+    title: 'Add people',
+    actions: [
+      { label: 'Add by name', onPress: () => { setShowAddPerson(true); setTimeout(() => { peopleScrollRef.current?.scrollToEnd({ animated: true }); personInputRef.current?.focus(); }, 80); } },
+      { label: 'From contacts', onPress: handlePickContact },
+      { label: 'Load a group', onPress: handleOpenGroups },
+    ],
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -434,6 +466,17 @@ export default function AssignItemsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Explains the amber dot: a tappable banner that routes to Fix receipt. */}
+        {hasReceiptIssue && (
+          <TouchableOpacity style={styles.fixBanner} onPress={fixReceipt} activeOpacity={0.8}>
+            <Ionicons name="alert-circle" size={16} color={colors.amber} />
+            <Text style={styles.fixBannerText} numberOfLines={1}>
+              {receipt.tip === 0 ? 'No tip on this receipt' : `Total ${issueReason}`} — tap to fix
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.amber} />
+          </TouchableOpacity>
+        )}
 
         {/* People buckets — the pen + each person's running total */}
         <ScrollView
@@ -771,6 +814,12 @@ const styles = StyleSheet.create({
   merchant: { fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
   meta: { fontSize: 13, color: C.faint, marginTop: 2 },
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  fixBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginTop: 12, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12,
+    backgroundColor: 'rgba(245,161,90,0.12)', borderWidth: 1, borderColor: 'rgba(245,161,90,0.35)',
+  },
+  fixBannerText: { flex: 1, fontSize: 13.5, fontWeight: '600', color: colors.amber },
   kebab: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
