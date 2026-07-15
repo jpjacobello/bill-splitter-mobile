@@ -129,10 +129,10 @@ struct LockScreenLiveActivityView: View {
   let context: ActivityViewContext<DiviSessionAttributes>
   var body: some View {
     let s = context.state
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 7) {
       HStack {
         Text(context.attributes.merchantName)
-          .font(.system(size: 16, weight: .bold)).foregroundColor(.white)
+          .font(.system(size: 15, weight: .bold)).foregroundColor(.white)
           .lineLimit(1)
         Spacer()
         Text("\(s.claimantCount) claimed")
@@ -140,11 +140,12 @@ struct LockScreenLiveActivityView: View {
       }
       ProgressView(value: progressFraction(s))
         .tint(DiviTheme.accent)
-      HStack(alignment: .firstTextBaseline) {
+        .scaleEffect(x: 1, y: 0.7, anchor: .center)
+      HStack(alignment: .firstTextBaseline, spacing: 5) {
         Text(DiviTheme.money(s.claimedAmount, s.currencyCode))
-          .font(.system(size: 20, weight: .heavy)).foregroundColor(DiviTheme.accent)
+          .font(.system(size: 17, weight: .heavy)).foregroundColor(DiviTheme.accent)
         Text("of \(DiviTheme.money(s.totalAmount, s.currencyCode))")
-          .font(.system(size: 13, weight: .medium)).foregroundColor(DiviTheme.dim)
+          .font(.system(size: 12, weight: .medium)).foregroundColor(DiviTheme.dim)
         Spacer()
       }
     }
@@ -155,7 +156,8 @@ struct DiviSessionLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: DiviSessionAttributes.self) { context in
       LockScreenLiveActivityView(context: context)
-        .padding(16)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 11)
         .activityBackgroundTint(DiviTheme.bg)
         .activitySystemActionForegroundColor(.white)
     } dynamicIsland: { context in
