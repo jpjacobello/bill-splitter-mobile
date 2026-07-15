@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { VenmoLogo } from '../components/BrandLogos';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -99,7 +100,7 @@ function ShareArt() {
         ))}
       </View>
       <View style={s.rail}>
-        <View style={[s.pay, { backgroundColor: '#008CFF' }]}><Text style={s.payTxt}>V</Text></View>
+        <VenmoLogo size={38} />
         <View style={[s.pay, { backgroundColor: '#34C759' }]}><Text style={s.payTxt}>💬</Text></View>
       </View>
       <Text style={s.noApp}>✦ No app needed for them</Text>
