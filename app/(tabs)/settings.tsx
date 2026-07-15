@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Linking, Modal, Pressable, TouchableOpacity, Animated } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Linking, Modal, Pressable, TouchableOpacity, Animated, Alert } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSwipeDismiss } from '../../hooks/useSwipeDismiss';
@@ -94,6 +94,12 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem(TIP_REMINDER_KEY, mode);
   };
 
+  const showWidgetHelp = () => Alert.alert(
+    'Divi widget',
+    'Home screen — long-press an empty area, tap ＋ (top-left), search “Divi”, add the widget.\n\nLock screen — long-press the lock screen, tap Customize → Lock Screen, tap a widget slot, find Divi.\n\nEither one jumps straight into scanning a receipt.',
+    [{ text: 'Got it' }],
+  );
+
   const currencyLabel = `${currencyInfo(currency).flag} ${currency}`;
   const tipLabel = defaultTip === null ? 'None' : `${Math.round(defaultTip * 100)}%`;
 
@@ -151,6 +157,10 @@ export default function SettingsScreen() {
               <Button onPress={() => router.push('/paywall')}>Upgrade to Pro</Button>
             </Section>
           ))}
+
+          <Section title="Widget">
+            <Button systemImage="plus.viewfinder" onPress={showWidgetHelp}>Add the Divi widget</Button>
+          </Section>
 
           <Section title="Feedback">
             <Button systemImage="envelope" onPress={() => Linking.openURL('mailto:jpjacobello@gmail.com?subject=Divi Feedback')}>Contact Us</Button>
