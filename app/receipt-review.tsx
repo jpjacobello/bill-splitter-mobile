@@ -29,8 +29,12 @@ export default function ReceiptReviewScreen() {
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { receipt, receiptImageUri, updateItem, deleteItem, addItem, updateReceiptField, updateTip, setReceipt } = useBillStore();
-  const { isPro } = usePro();
+  const { isPro, loading: proLoading } = usePro();
   const [showPhoto, setShowPhoto] = useState(false);
+  // Gates the default-tip effect until FX conversion has settled, so a default
+  // tip is never computed on the pre-conversion (foreign) subtotal and written
+  // over the converted receipt.
+  const [fxSettled, setFxSettled] = useState(false);
   const [tipWarnOpen, setTipWarnOpen] = useState(false);
 
   // ── FX convert-on-scan (Pro) ──────────────────────────────────────────────
@@ -65,22 +69,29 @@ export default function ReceiptReviewScreen() {
   };
 
   useEffect(() => {
-    if (!needsConversion || isConverted || !isPro || fxTried.current) return;
+    if (fxTried.current || proLoading) return; // wait until Pro state is known
     fxTried.current = true;
-    applyConversion().catch(() => { fxTried.current = false; });
-  }, [isPro, needsConversion, isConverted]);
+    if (!needsConversion || isConverted || !isPro) { setFxSettled(true); return; }
+    applyConversion().catch(() => {}).finally(() => setFxSettled(true));
+  }, [isPro, proLoading, needsConversion, isConverted]);
 
-  // Apply default tip if receipt has no tip and it wasn't on the original receipt
+  // Apply default tip if receipt has no tip and it wasn't on the original receipt.
+  // Waits for FX to settle and reads the receipt LIVE from the store, so the tip
+  // is computed on the converted (home-currency) subtotal, not a stale foreign one.
   useEffect(() => {
-    if (!receipt || !!receipt.tip || receipt.tipIsFromReceipt) return;
+    if (!fxSettled) return;
+    const r = useBillStore.getState().receipt;
+    if (!r || !!r.tip || r.tipIsFromReceipt) return;
     AsyncStorage.getItem(DEFAULT_TIP_KEY).then((val) => {
       if (!val) return;
+      const cur = useBillStore.getState().receipt;
+      if (!cur || !!cur.tip || cur.tipIsFromReceipt) return;
       const pct = parseFloat(val);
-      const tip = parseFloat((receipt.subtotal * pct).toFixed(2));
+      const tip = parseFloat((cur.subtotal * pct).toFixed(2));
       updateTip(tip);
-      updateReceiptField('total', parseFloat((receipt.subtotal + receipt.tax + (receipt.fees ?? 0) + tip).toFixed(2)));
+      updateReceiptField('total', parseFloat((cur.subtotal + cur.tax + (cur.fees ?? 0) + tip).toFixed(2)));
     });
-  }, []);
+  }, [fxSettled]);
 
   type PendingRow = { id: string; name: string; price: string; qty: string };
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);

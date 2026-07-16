@@ -58,13 +58,29 @@ function computeState(session) {
     const paidSeats = claims.filter((c) => c.itemId === 'equal-split').length;
     claimed = Math.min(total, (paidSeats + 1) * perHead);
   } else {
-    // Itemized: claimed subtotal (positive items) + proportional tax/fees/tip.
-    let subtotal = 0;
+    // Itemized: mirror calcShare (utils/calcShare.ts). Give claimed positive
+    // spend its proportional slice of any negative discount line BEFORE deriving
+    // the tax/tip ratio, otherwise the numerator omits the discount the
+    // denominator (receipt.subtotal) includes and the ratio inflates past 1.
+    const claimMap = new Map();
     for (const c of claims) {
       if (c.itemId === 'equal-split') continue;
-      const item = items.find((i) => i.id === c.itemId);
-      if (item && item.price > 0) subtotal += item.price * c.fraction;
+      claimMap.set(c.itemId, (claimMap.get(c.itemId) || 0) + c.fraction);
     }
+    let posSubtotal = 0;
+    let totalPositive = 0;
+    let totalDiscount = 0;
+    for (const item of items) {
+      if (item.price > 0) {
+        totalPositive += item.price;
+        const fraction = claimMap.get(item.id) || 0;
+        if (fraction > 0) posSubtotal += item.price * fraction;
+      } else if (item.price < 0) {
+        totalDiscount += item.price;
+      }
+    }
+    const discountShare = totalPositive > 0 ? totalDiscount * (posSubtotal / totalPositive) : 0;
+    const subtotal = round2(posSubtotal + discountShare);
     const base = receipt.subtotal > 0 ? receipt.subtotal : 1;
     const ratio = subtotal / base;
     claimed = subtotal + ((receipt.tax || 0) + (receipt.fees || 0) + (receipt.tip || 0)) * ratio;
@@ -125,6 +141,14 @@ function claimedFraction(session, itemId) {
     .reduce((s, c) => s + c.fraction, 0);
 }
 function isFullyClaimed(session) {
+  // Equal (Quick Split): host occupies one seat and never claims, so completion
+  // is all guest seats filled (paidSeats >= peopleCount - 1), not fraction >= 1.
+  if (session.splitType === 'equal') {
+    const peopleCount = session.peopleCount || 0;
+    if (peopleCount <= 1) return false;
+    const paidSeats = Object.values(session.claims || {}).filter((c) => c.itemId === 'equal-split').length;
+    return paidSeats >= peopleCount - 1;
+  }
   const items = ((session.receipt && session.receipt.items) || []).filter((i) => i.price > 0 && !i.parentId);
   return items.length > 0 && items.every((i) => claimedFraction(session, i.id) >= 0.999);
 }

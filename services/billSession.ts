@@ -87,6 +87,20 @@ export async function claimItems(
 
     const existingClaims: Record<string, Claim> = session.claims ?? {};
 
+    // Equal (Quick Split): the host holds one of the `peopleCount` seats, so only
+    // peopleCount-1 guest seats may be claimed. Cap by seat COUNT, not summed
+    // fraction — the generic <=1.001 fraction check below permits `peopleCount`
+    // claims (1.0 total), letting two concurrent final-seat claims both commit and
+    // over-collect a full per-head share. See split/[id].tsx seatsLeft logic.
+    if (session.splitType === 'equal') {
+      const seatSize = session.peopleCount && session.peopleCount > 0 ? session.peopleCount - 1 : 0;
+      const takenSeats = Object.values(existingClaims).filter((c) => c.itemId === 'equal-split').length;
+      const newSeats = newClaims.filter((c) => c.itemId === 'equal-split').length;
+      if (takenSeats + newSeats > seatSize) {
+        throw new Error('All seats already claimed');
+      }
+    }
+
     for (const { itemId, fraction } of newClaims) {
       const totalAlreadyClaimed = Object.values(existingClaims)
         .filter((c) => c.itemId === itemId)

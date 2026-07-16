@@ -26,9 +26,15 @@ service cloud.firestore {
       // amounts, creator, and Venmo handle stay immutable — no one can tamper
       // with the bill or redirect payment.
       allow update: if
+        // A closed bill is frozen: no reopening, no late claim edits, nothing.
+        resource.data.status == 'open' &&
         request.resource.data.diff(resource.data)
           .affectedKeys().hasOnly(['claims', 'status', 'liveActivityPushToken']) &&
-        request.resource.data.status in ['open', 'closed'];
+        request.resource.data.status in ['open', 'closed'] &&
+        // Claims are append-only: existing claim entries can't be removed or
+        // overwritten — an update may only add new keys.
+        !request.resource.data.claims.diff(resource.data.claims)
+          .affectedKeys().hasAny(resource.data.claims.keys());
 
       // Sessions are never deleted from the client (expiry handled app-side).
       allow delete: if false;

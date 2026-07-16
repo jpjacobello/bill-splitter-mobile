@@ -231,8 +231,15 @@ export default function ActivityScreen() {
             label: 'Delete', icon: 'trash-outline', destructive: true,
             onPress: async () => {
               if (!deleteEntry) return;
-              await deleteBillFromHistory(deleteEntry.id);
-              setHistory(await getBillHistory());
+              const id = deleteEntry.id;
+              // Serialize through the same queue as archiveSession: both are
+              // non-atomic RMWs on the shared 'billHistory' key, so an in-flight
+              // auto-archive and this delete could otherwise clobber each other.
+              queueRef.current = queueRef.current.catch(() => {}).then(async () => {
+                await deleteBillFromHistory(id);
+                setHistory(await getBillHistory());
+              });
+              await queueRef.current;
             },
           }]}
           onClose={() => setDeleteEntry(null)}

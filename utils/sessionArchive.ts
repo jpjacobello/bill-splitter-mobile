@@ -12,6 +12,16 @@ function claimedFraction(session: BillSession, itemId: string): number {
 
 /** True once every claimable top-level item is fully spoken for. */
 export function isSessionFullyClaimed(session: BillSession): boolean {
+  // Equal (Quick Split): the host occupies one of the `peopleCount` seats and
+  // never files a claim, so the 'equal-split' fraction tops out at
+  // (peopleCount-1)/peopleCount. Completion = every guest seat claimed.
+  if (session.splitType === 'equal') {
+    const peopleCount = session.peopleCount ?? 0;
+    if (peopleCount <= 1) return false;
+    const paidSeats = Object.values(session.claims ?? {})
+      .filter((c) => c.itemId === 'equal-split').length;
+    return paidSeats >= peopleCount - 1;
+  }
   const items = session.receipt.items.filter((i) => i.price > 0 && !i.parentId);
   return items.length > 0 && items.every((i) => claimedFraction(session, i.id) >= 0.999);
 }

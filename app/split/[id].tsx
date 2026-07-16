@@ -92,7 +92,9 @@ export default function PayYourShareScreen() {
       return;
     }
 
+    let cancelled = false;
     getSession(id).then((s) => {
+      if (cancelled) return; // unmounted mid-load: don't setState or subscribe
       if (!s) {
         setErrorMsg('This bill link has expired or does not exist.');
         setScreen('error');
@@ -112,9 +114,14 @@ export default function PayYourShareScreen() {
         if (!updated) return;
         setSession(updated);
       });
+    }).catch(() => {
+      if (cancelled) return;
+      setErrorMsg("Couldn't load this bill. Check your connection and try again.");
+      setScreen('error');
     });
 
     return () => {
+      cancelled = true;
       unsubRef.current?.();
     };
   }, [id]);
@@ -393,11 +400,13 @@ export default function PayYourShareScreen() {
 
               <View style={styles.seats}>
                 {Array.from({ length: peopleCount }).map((_, i) => (
-                  <View key={i} style={[styles.seat, i < seatsTaken && styles.seatOn]} />
+                  // +1: the host holds one seat (already covered), so it always
+                  // reads as filled — otherwise "ALL IN" shows one empty dot.
+                  <View key={i} style={[styles.seat, i < seatsTaken + 1 && styles.seatOn]} />
                 ))}
               </View>
               <Text style={styles.seatsCap}>
-                {seatsTaken} OF {peopleCount} PAID{seatsLeft > 0 ? ` · ${seatsLeft} LEFT` : ' · ALL IN'}
+                {seatsTaken + 1} OF {peopleCount} PAID{seatsLeft > 0 ? ` · ${seatsLeft} LEFT` : ' · ALL IN'}
               </Text>
             </View>
 
