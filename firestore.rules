@@ -21,12 +21,13 @@ service cloud.firestore {
           'createdAt', 'expiresAt', 'status', 'claims'
         ]);
 
-      // Recipients may only add claims or the organizer may close it.
-      // The receipt, amounts, creator, and Venmo handle are immutable —
-      // no one can tamper with the bill or redirect payment.
+      // Recipients may only add claims, the organizer may close it, and the
+      // host's device may record the Live Activity push token. The receipt,
+      // amounts, creator, and Venmo handle stay immutable — no one can tamper
+      // with the bill or redirect payment.
       allow update: if
         request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly(['claims', 'status']) &&
+          .affectedKeys().hasOnly(['claims', 'status', 'liveActivityPushToken']) &&
         request.resource.data.status in ['open', 'closed'];
 
       // Sessions are never deleted from the client (expiry handled app-side).

@@ -240,7 +240,11 @@ export const useBillStore = create<BillStore>()(persist((set, get) => ({
 
   setActiveSessionId: (id) => set({ activeSessionId: id }),
 
-  reset: () => set({ hostName: '', paidById: 'host', people: [], receipt: null, pendingImageUri: null, receiptImageUri: null, activeSessionId: null }),
+  // NOTE: does NOT clear activeSessionId — that points at a still-live shared
+  // session whose Live Activity must keep running while friends claim. Starting
+  // a new shared session overwrites it via setActiveSessionId; it's cleared only
+  // when the session actually ends (see useHostLiveActivity).
+  reset: () => set({ hostName: '', paidById: 'host', people: [], receipt: null, pendingImageUri: null, receiptImageUri: null }),
 }), {
   name: 'divi-bill-store',
   storage: createJSONStorage(() => AsyncStorage),

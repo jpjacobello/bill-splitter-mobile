@@ -9,7 +9,9 @@ export type ReceiptParser = (imageUri: string) => Promise<Receipt>;
 // split proportionally across everyone (like tax/tip), not sit in the item grid
 // as an assignable dish. Match on the name and on the auto-* ids the parser
 // occasionally emits.
-const FEE_NAME = /(credit\s*card|cc)\s*(fee|surcharge|charge)?|service\s*(charge|fee)|sur[-\s]?charge|processing\s*fee|convenience\s*fee|non[-\s]?cash|admin(istrative)?\s*fee|card\s*fee|delivery\s*(fee|charge)/i;
+// NOTE: "cc" is word-boundaried AND requires a fee/charge word — bare "cc"
+// unanchored matched real dishes (broCColi, cappuCCino, proseCCo, foCACcia).
+const FEE_NAME = /credit\s*card\s*(fee|surcharge|charge)?|\bcc\b\s*(fee|surcharge|charge)|service\s*(charge|fee)|sur[-\s]?charge|processing\s*fee|convenience\s*fee|non[-\s]?cash|admin(istrative)?\s*fee|card\s*fee|delivery\s*(fee|charge)/i;
 const FEE_IDS = new Set(['auto-surcharge', 'auto-fee']);
 
 function isFeeItem(name: string, id: string): boolean {
