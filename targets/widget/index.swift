@@ -7,8 +7,10 @@ import SwiftUI
 enum DiviTheme {
   static let bg = Color(red: 0.086, green: 0.086, blue: 0.098)     // #161619
   static let card = Color(red: 0.137, green: 0.137, blue: 0.161)   // #232329
-  static let accent = Color(red: 0.243, green: 0.847, blue: 0.541) // #3ED88A
+  static let accent = Color(red: 0.243, green: 0.898, blue: 0.549) // #3EE58C — brighter/more vibrant
+  static let accentDeep = Color(red: 0.086, green: 0.722, blue: 0.439) // #16B870 — gradient base
   static let dim = Color(red: 0.671, green: 0.671, blue: 0.706)    // #ABABB4
+  static let laBg = Color(red: 0.035, green: 0.035, blue: 0.043)   // #09090B — deeper black for the Live Activity
   static let newSplitURL = URL(string: "billsplitter://receipt-upload?source=camera")
   // Live Activity tap → the HOST's live-session page (Activity tab), NOT the
   // claimant join link (split/{id} is "enter your name as another person").
@@ -134,23 +136,35 @@ struct LockScreenLiveActivityView: View {
   let context: ActivityViewContext<DiviSessionAttributes>
   var body: some View {
     let s = context.state
-    VStack(alignment: .leading, spacing: 7) {
+    let pct = progressFraction(s)
+    VStack(alignment: .leading, spacing: 10) {
       HStack {
         Text(context.attributes.merchantName)
-          .font(.system(size: 15, weight: .bold)).foregroundColor(.white)
+          .font(.system(size: 16, weight: .bold)).foregroundColor(.white)
           .lineLimit(1)
         Spacer()
         Text("\(s.claimantCount) claimed")
-          .font(.system(size: 12, weight: .semibold)).foregroundColor(DiviTheme.dim)
+          .font(.system(size: 12.5, weight: .semibold)).foregroundColor(DiviTheme.dim)
       }
-      ProgressView(value: progressFraction(s))
-        .tint(DiviTheme.accent)
-        .scaleEffect(x: 1, y: 0.7, anchor: .center)
+      // Custom bar: thicker + a vibrant gradient with a soft glow (flat
+      // ProgressView tint reads dull on the deep-black background).
+      GeometryReader { geo in
+        ZStack(alignment: .leading) {
+          Capsule().fill(Color.white.opacity(0.12))
+          Capsule()
+            .fill(LinearGradient(
+              colors: [DiviTheme.accentDeep, DiviTheme.accent],
+              startPoint: .leading, endPoint: .trailing))
+            .frame(width: max(9, geo.size.width * pct))
+            .shadow(color: DiviTheme.accent.opacity(0.6), radius: 4)
+        }
+      }
+      .frame(height: 9)
       HStack(alignment: .firstTextBaseline, spacing: 5) {
         Text(DiviTheme.money(s.claimedAmount, s.currencyCode))
-          .font(.system(size: 17, weight: .heavy)).foregroundColor(DiviTheme.accent)
+          .font(.system(size: 20, weight: .heavy)).foregroundColor(DiviTheme.accent)
         Text("of \(DiviTheme.money(s.totalAmount, s.currencyCode))")
-          .font(.system(size: 12, weight: .medium)).foregroundColor(DiviTheme.dim)
+          .font(.system(size: 12.5, weight: .medium)).foregroundColor(DiviTheme.dim)
         Spacer()
       }
     }
@@ -161,9 +175,9 @@ struct DiviSessionLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: DiviSessionAttributes.self) { context in
       LockScreenLiveActivityView(context: context)
-        .padding(.horizontal, 15)
-        .padding(.vertical, 11)
-        .activityBackgroundTint(DiviTheme.bg)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 15)
+        .activityBackgroundTint(DiviTheme.laBg)
         .activitySystemActionForegroundColor(.white)
         .widgetURL(DiviTheme.sessionURL(context.attributes.sessionId))
     } dynamicIsland: { context in
