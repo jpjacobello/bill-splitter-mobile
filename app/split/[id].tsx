@@ -200,6 +200,20 @@ export default function PayYourShareScreen() {
   const isEqual = session?.splitType === 'equal';
   const equalFraction = session?.peopleCount ? 1 / session.peopleCount : 1;
 
+  // Opens Venmo prefilled to pay the host. Shared by the auto-open on claim and
+  // the persistent Pay button on the done screen.
+  const openPay = async (amount: string) => {
+    const venmoHandle = session?.creatorVenmoHandle ?? '';
+    const note = encodeURIComponent(`${session?.merchantName ?? ''} — your share via Divi`);
+    const venmoUrl = `venmo://paycharge?txn=pay&recipients=${venmoHandle}&amount=${amount}&note=${note}`;
+    try {
+      if (Platform.OS === 'web') window.location.href = venmoUrl;
+      else await Linking.openURL(venmoUrl);
+    } catch {
+      if (Platform.OS === 'web') window.open(`https://venmo.com/${venmoHandle}`, '_blank');
+    }
+  };
+
   const handleClaim = async () => {
     if (!session || submitting) return;
     if (!isEqual && selected.size === 0) return;
@@ -216,29 +230,10 @@ export default function PayYourShareScreen() {
       await claimItems(session.id, name.trim(), newClaims);
 
       const breakdown = calcShare(session.receipt, newClaims);
-      const venmoHandle = session.creatorVenmoHandle;
-      const amount = breakdown.totalOwed.toFixed(2);
-      const note = encodeURIComponent(
-        `${session.merchantName} — your share via Divi`
-      );
-      const venmoUrl = `venmo://paycharge?txn=pay&recipients=${venmoHandle}&amount=${amount}&note=${note}`;
-
       setScreen('done');
-
-      setTimeout(async () => {
-        try {
-          if (Platform.OS === 'web') {
-            window.location.href = venmoUrl;
-          } else {
-            await Linking.openURL(venmoUrl);
-          }
-        } catch {
-          // Venmo not installed — show web fallback
-          if (Platform.OS === 'web') {
-            window.open(`https://venmo.com/${venmoHandle}`, '_blank');
-          }
-        }
-      }, 600);
+      // Auto-open Venmo once; the done screen also has a persistent Pay button
+      // (the auto-open can silently no-op — no Venmo, desktop browser, etc.).
+      setTimeout(() => { openPay(breakdown.totalOwed.toFixed(2)); }, 600);
     } catch (e: any) {
       setSubmitting(false);
       const msg = e?.message ?? 'Something went wrong.';
@@ -331,10 +326,23 @@ export default function PayYourShareScreen() {
           <Text style={styles.doneIcon}>✓</Text>
           <Text style={styles.doneTitle}>Items claimed</Text>
           <View style={[styles.stamp, styles.stampGreen]}>
-            <Text style={[styles.stampLbl, { color: PAL.green }]}>PAID</Text>
+            <Text style={[styles.stampLbl, { color: PAL.green }]}>CLAIMED</Text>
             <Text style={[styles.stampAmt, { color: PAL.green }]}>{formatCurrency(breakdown.totalOwed)}</Text>
           </View>
-          <Text style={styles.doneMsg}>Opening Venmo to pay {session!.creatorName}…</Text>
+          {session!.creatorVenmoHandle ? (
+            <>
+              <TouchableOpacity
+                style={styles.cta}
+                onPress={() => openPay(breakdown.totalOwed.toFixed(2))}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.ctaText}>Pay {session!.creatorName} with Venmo</Text>
+              </TouchableOpacity>
+              <Text style={styles.doneMsg}>Not paid yet — tap to send your share in Venmo.</Text>
+            </>
+          ) : (
+            <Text style={styles.doneMsg}>Send {formatCurrency(breakdown.totalOwed)} to {session!.creatorName}.</Text>
+          )}
           <Perf pos="bottom" />
         </View>
       </View>

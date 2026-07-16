@@ -68,14 +68,21 @@ export default function SettingsScreen() {
   const persistName = async (raw: string) => {
     const trimmed = raw.trim();
     setSeedName(trimmed);
-    if (!trimmed) return;
+    // Persist the cleared state too — early-returning on empty meant deleting
+    // the field silently reverted to the old saved value.
+    if (!trimmed) {
+      await AsyncStorage.removeItem(SAVED_NAME_KEY);
+      setHostName('');
+      return;
+    }
     await AsyncStorage.setItem(SAVED_NAME_KEY, trimmed);
     setHostName(trimmed);
   };
   const persistVenmo = async (raw: string) => {
     const trimmed = raw.trim().replace(/^@/, '');
     setSeedVenmo(trimmed);
-    if (trimmed) await setVenmoHandle(trimmed);
+    // Always write (empty clears it) — skipping on empty resurrected the old handle.
+    await setVenmoHandle(trimmed);
   };
 
   const handleSetCurrency = async (code: string) => {
