@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,14 @@ export default function SplitMethodScreen() {
   const router = useRouter();
   const { receipt, people, receiptImageUri, setActiveSessionId } = useBillStore();
   const [sharing, setSharing] = useState(false);
+  // One-shot guard so a double-tap doesn't push two copies of the screen.
+  const navLock = useRef(false);
+  const goAssign = () => {
+    if (navLock.current) return;
+    navLock.current = true;
+    router.push('/assign-items');
+    setTimeout(() => { navLock.current = false; }, 600);
+  };
   const [venmoOpen, setVenmoOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
 
@@ -86,7 +94,7 @@ export default function SplitMethodScreen() {
             </MotiView>
 
             <MotiView from={{ opacity: 0, translateY: 12 }} animate={{ opacity: 1, translateY: 0 }} transition={{ type: 'timing', duration: 420, delay: 150 }}>
-              <TouchableOpacity style={styles.optionCard} onPress={() => router.push('/assign-items')} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.optionCard} onPress={goAssign} activeOpacity={0.85}>
                 <View style={[styles.iconWrap, { backgroundColor: C.blue + '22' }]}>
                   <SymbolView name="person.2.fill" size={24} tintColor={C.blue} type="hierarchical" />
                 </View>

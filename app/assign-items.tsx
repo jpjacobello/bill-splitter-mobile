@@ -710,6 +710,10 @@ export default function AssignItemsScreen() {
           await saveBillToHistory({ merchantName: receipt.merchantName, people, receipt, receiptImageUri: receiptImageUri ?? undefined });
           setCompleteOpen(false);
           reset();
+          // Dismiss the consumed scan flow (receipt-upload → split-method →
+          // assign-items) like the share paths do, else edge-swipe-back reaches
+          // dead $0.00 screens of the finished bill.
+          if (router.canDismiss()) router.dismissAll();
           router.replace('/');
         }}
       />

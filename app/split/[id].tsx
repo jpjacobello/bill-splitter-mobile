@@ -136,7 +136,13 @@ export default function PayYourShareScreen() {
       } else {
         // default: 1 unit (or the half-unit remainder on a multi-qty item), split just for me
         const startUnits = item.quantity > 1 ? Math.min(1, remainingUnits(item, alreadyClaimed)) : 1;
-        next.set(item.id, { units: startUnits, ways: 1 });
+        // ...but if the whole unit no longer fits what's unclaimed (e.g. a qty-1 item
+        // that's already partially claimed), split it enough ways that the default
+        // share fits the remainder, so Pay can't be rejected out of the gate.
+        const share = unitsToFraction(item.id, startUnits);
+        const remain = remainingFraction(alreadyClaimed);
+        const startWays = Math.max(1, Math.ceil(share / remain - 1e-9));
+        next.set(item.id, { units: startUnits, ways: startWays });
       }
       return next;
     });

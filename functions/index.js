@@ -118,6 +118,17 @@ function sendActivityPush(token, event, contentState, p8) {
   });
 }
 
+// Mirrors utils/sessionArchive.ts isSessionFullyClaimed.
+function claimedFraction(session, itemId) {
+  return Object.values(session.claims || {})
+    .filter((c) => c.itemId === itemId)
+    .reduce((s, c) => s + c.fraction, 0);
+}
+function isFullyClaimed(session) {
+  const items = ((session.receipt && session.receipt.items) || []).filter((i) => i.price > 0 && !i.parentId);
+  return items.length > 0 && items.every((i) => claimedFraction(session, i.id) >= 0.999);
+}
+
 exports.onSessionClaim = onDocumentUpdated(
   { document: 'billSessions/{sessionId}', secrets: [APNS_KEY], region: 'us-central1' },
   async (event) => {
@@ -141,6 +152,14 @@ exports.onSessionClaim = onDocumentUpdated(
     const next = computeState(after);
     const prev = computeState(before);
     if (next.claimedAmount === prev.claimedAmount && next.claimantCount === prev.claimantCount) return;
+
+    // A claim that fully claims a still-open session should dismiss the activity,
+    // matching the client (useHostLiveActivity ends on fully-claimed) — otherwise
+    // the lock screen stays pinned live all night if the host app is closed.
+    if (isFullyClaimed(after) && !isFullyClaimed(before)) {
+      await sendActivityPush(token, 'end', next, p8).catch((e) => console.error('APNs end failed:', e.message));
+      return;
+    }
 
     await sendActivityPush(token, 'update', next, p8).catch((e) => console.error('APNs update failed:', e.message));
   },

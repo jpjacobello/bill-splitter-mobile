@@ -98,8 +98,14 @@ export default function ReceiptReviewScreen() {
 
   const handleItemPriceChange = (id: string, text: string) => {
     const price = parseDollar(text);
-    updateItem(id, { price });
-    const updated = receipt.items.map((i) => i.id === id ? { ...i, price } : i);
+    // Also recompute unitPrice from the new price, else a later quantity edit
+    // (handleItemQtyChange recomputes price = unitPrice * qty) silently reverts
+    // this correction from the now-stale unitPrice.
+    const item = receipt.items.find((i) => i.id === id);
+    const qty = item?.quantity ?? 1;
+    const updates = { price, unitPrice: qty > 0 ? price / qty : price };
+    updateItem(id, updates);
+    const updated = receipt.items.map((i) => i.id === id ? { ...i, ...updates } : i);
     syncTotals(updated);
   };
 

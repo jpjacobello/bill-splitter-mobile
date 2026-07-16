@@ -92,8 +92,9 @@ export default function PaywallScreen() {
     if (!pkg || busy) return;
     setBusy(true);
     try {
-      const ok = await purchase(pkg);
-      if (ok) router.back();
+      // Don't call router.back() here: purchase() sets isPro, and the isPro
+      // effect above already dismisses. Both firing pops the screen underneath too.
+      await purchase(pkg);
     } catch { /* user cancelled or store error — stay on paywall */ }
     setBusy(false);
   };
@@ -220,7 +221,7 @@ export default function PaywallScreen() {
             Subscriptions auto-renew until cancelled. Cancel anytime in the App Store. Payment is charged to your Apple ID.
           </Text>
           {__DEV__ && (
-            <TouchableOpacity onPress={() => { devSetPro(true); router.back(); }}>
+            <TouchableOpacity onPress={() => devSetPro(true)}>
               <Text style={s.devLink}>[dev] simulate Pro</Text>
             </TouchableOpacity>
           )}

@@ -21,6 +21,11 @@ export default function BottomSheet({
 }) {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
+  // Tracks the live `visible` prop for the PanResponder: grabbing a drag while
+  // the sheet is closing (visible=false) cancels animateOut's timing animation,
+  // so setMounted(false) never fires and the Modal is stranded on screen forever.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const slide = useRef(new Animated.Value(FALLBACK_H)).current;
   const kb = useRef(new Animated.Value(0)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -67,7 +72,7 @@ export default function BottomSheet({
 
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onMoveShouldSetPanResponder: (_, g) => visibleRef.current && g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
       onPanResponderMove: (_, g) => { if (g.dy > 0) slide.setValue(g.dy); },
       onPanResponderRelease: (_, g) => {
         if (g.dy > CLOSE_DISTANCE || g.vy > CLOSE_VELOCITY) onClose();

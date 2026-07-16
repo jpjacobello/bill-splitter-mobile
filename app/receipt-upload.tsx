@@ -9,6 +9,7 @@ import ActionSheet from '../components/ActionSheet';
 import DigitizedReceipt from '../components/DigitizedReceipt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBillStore } from '../store/useBillStore';
+import { startNewBill } from '../utils/startBill';
 import { activeParser } from '../services/receiptParser';
 import { flattenDocument, enhanceDocument } from '../modules/document-flattener';
 import { mockReceipt } from '../data/mockData';
@@ -73,6 +74,7 @@ export default function ReceiptUploadScreen() {
   const pendingFired = useRef(false);
   const demoFired = useRef(false);
   const sourceFired = useRef(false);
+  const continueLock = useRef(false); // one-shot guard against double-tap on Continue
 
   const openSheet = () => {
     setSheetMounted(true);
@@ -136,7 +138,9 @@ export default function ReceiptUploadScreen() {
         setNotReceiptMode(true);
         return true;
       }
-      const allIds = people.map((p) => p.id);
+      // Read live from the store: startNewBill (widget path) mutates people
+      // after this handler's closure captured the render-time roster.
+      const allIds = useBillStore.getState().people.map((p) => p.id);
       const receipt = {
         ...parsed,
         items: parsed.items.map((item) =>
@@ -205,6 +209,10 @@ export default function ReceiptUploadScreen() {
     if ((source !== 'camera' && source !== 'library') || sourceFired.current) return;
     sourceFired.current = true;
     const task = InteractionManager.runAfterInteractions(async () => {
+      // Widget deep links land here directly (unlike the in-app dial, which calls
+      // startNewBill first). Reset + seed the host so a warm start doesn't carry
+      // the previous roster and a cold start isn't left with no host at all.
+      await startNewBill();
       const picked = await pickImage(source === 'camera');
       if (!picked && router.canGoBack()) router.back();
     });
@@ -292,7 +300,7 @@ export default function ReceiptUploadScreen() {
         <View style={styles.footer}>
           {(imageUri || isDemoLoaded) && !parsing ? (
             receipt && (
-              <TouchableOpacity style={styles.continueBtn} onPress={() => router.push('/split-method')} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.continueBtn} onPress={() => { if (continueLock.current) return; continueLock.current = true; router.push('/split-method'); setTimeout(() => { continueLock.current = false; }, 600); }} activeOpacity={0.85}>
                 <Text style={styles.continueBtnText}>Continue</Text>
                 <Ionicons name="arrow-forward" size={18} color={C.bg} />
               </TouchableOpacity>

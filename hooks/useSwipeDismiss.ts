@@ -20,10 +20,15 @@ export function useSwipeDismiss(onClose: () => void) {
   const onGestureEvent = Animated.event([{ nativeEvent: { translationY: dragY } }], { useNativeDriver: true });
 
   const onHandlerStateChange = (e: PanGestureHandlerStateChangeEvent) => {
-    if (e.nativeEvent.state !== State.END) return;
-    const { translationY, velocityY } = e.nativeEvent;
-    if (translationY > 120 || velocityY > 900) onClose();
-    else Animated.spring(dragY, { toValue: 0, useNativeDriver: true, ...motion.sheet }).start();
+    const { state, translationY, velocityY } = e.nativeEvent;
+    if (state === State.END) {
+      if (translationY > 120 || velocityY > 900) onClose();
+      else Animated.spring(dragY, { toValue: 0, useNativeDriver: true, ...motion.sheet }).start();
+    } else if (state === State.CANCELLED || state === State.FAILED) {
+      // System interruption mid-drag (call banner, control center, backgrounding)
+      // — spring back to rest, else the sheet stays sunk at the frozen offset.
+      Animated.spring(dragY, { toValue: 0, useNativeDriver: true, ...motion.sheet }).start();
+    }
   };
 
   const dragTranslate = dragY.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: 'clamp' });

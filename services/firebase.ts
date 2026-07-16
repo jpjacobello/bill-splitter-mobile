@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -10,5 +10,11 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-export const db = getFirestore(app);
+// ignoreUndefinedProperties: parsers can emit undefined merchantName/date and
+// receipts nest them — the plain SDK throws "Unsupported field value: undefined"
+// on setDoc, killing session creation. Drop undefined fields instead.
+const isNew = getApps().length === 0;
+const app = isNew ? initializeApp(firebaseConfig) : getApps()[0];
+export const db = isNew
+  ? initializeFirestore(app, { ignoreUndefinedProperties: true })
+  : getFirestore(app);

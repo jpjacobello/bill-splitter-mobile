@@ -28,12 +28,14 @@ export function reclassifyFees(receipt: Receipt): Receipt {
   const movedFees = feeItems.reduce((sum, it) => sum + it.price, 0);
   const subtotal = Math.round(keep.reduce((sum, it) => sum + it.price, 0) * 100) / 100;
 
-  return {
-    ...receipt,
-    items: keep,
-    subtotal,
-    fees: Math.round(((receipt.fees ?? 0) + movedFees) * 100) / 100,
-  };
+  // Anchor fees to the receipt total: the parser can report a surcharge BOTH as
+  // a line item AND in `fees`, so blindly summing double-counts it. Clamp to the
+  // residual (total − subtotal − tax − tip) when the total is trustworthy.
+  const rawFees = Math.round(((receipt.fees ?? 0) + movedFees) * 100) / 100;
+  const residual = Math.round((receipt.total - subtotal - receipt.tax - receipt.tip) * 100) / 100;
+  const fees = receipt.total > 0 && residual >= 0 ? Math.min(rawFees, residual) : rawFees;
+
+  return { ...receipt, items: keep, subtotal, fees };
 }
 
 // $0.00 lines are freebies / modifiers — assigning them does nothing and just

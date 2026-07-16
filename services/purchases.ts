@@ -12,6 +12,7 @@ const KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY;
 
 let mod: typeof import('react-native-purchases').default | null = null;
 let available = false;
+let configured = false;
 
 function rc() {
   if (mod) return mod;
@@ -27,10 +28,12 @@ const hasPro = (info: CustomerInfo | null | undefined) =>
   !!info?.entitlements.active[ENTITLEMENT];
 
 export function configurePurchases() {
+  if (configured) return; // idempotent — safe to call from both _layout and usePro
   if (Platform.OS !== 'ios' || !KEY) return; // iOS-only for now; no key = skip
   try {
     rc()?.configure({ apiKey: KEY });
     available = true;
+    configured = true;
   } catch {
     available = false;
   }

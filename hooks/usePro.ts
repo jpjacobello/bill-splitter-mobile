@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { PurchasesPackage } from 'react-native-purchases';
 import {
-  fetchProStatus, onProChange, purchasePackage, restorePurchases,
+  fetchProStatus, onProChange, purchasePackage, restorePurchases, configurePurchases,
 } from '../services/purchases';
 
 // Shared module-level store so every screen sees the same Pro state. Source of
@@ -19,6 +19,10 @@ let initialized = false;
 function ensureInit() {
   if (initialized) return;
   initialized = true;
+  // Child tab effects run before RootLayout's — configure here too (idempotent)
+  // so `available` is true before we read status/register the listener. Without
+  // this, paying users resolved to free every launch until Restore Purchases.
+  configurePurchases();
   fetchProStatus().then((v) => set({ isPro: v, loading: false }));
   onProChange((v) => set({ isPro: v }));
 }

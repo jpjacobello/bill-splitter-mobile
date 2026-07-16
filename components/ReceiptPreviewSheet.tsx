@@ -147,6 +147,12 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
                 <Text style={styles.totalLabel}>Tax</Text>
                 <Text style={styles.totalValue}>{formatCurrency(person.breakdown.taxShare)}</Text>
               </View>
+              {person.breakdown.feesShare > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Fees</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(person.breakdown.feesShare)}</Text>
+                </View>
+              )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tip</Text>
                 <Text style={styles.totalValue}>{formatCurrency(person.breakdown.tipShare)}</Text>
@@ -166,6 +172,12 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
                 <Text style={styles.totalLabel}>Tax</Text>
                 <Text style={styles.totalValue}>{formatCurrency(receipt.tax)}</Text>
               </View>
+              {(receipt.fees ?? 0) > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Fees</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(receipt.fees ?? 0)}</Text>
+                </View>
+              )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tip</Text>
                 <Text style={styles.totalValue}>{formatCurrency(receipt.tip)}</Text>

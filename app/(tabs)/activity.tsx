@@ -10,7 +10,7 @@ import Perforation from '../../components/Perforation';
 import { moneyText, ui as C } from '../../theme';
 import { outstandingOwed, claimerBreakdown } from '../../utils/sessionOwed';
 import { BillSession, BillHistoryEntry } from '../../types';
-import { subscribeToSession, closeSession } from '../../services/billSession';
+import { subscribeToSession, closeSession, getSession } from '../../services/billSession';
 import { getSessions, removeSession, StoredSession } from '../../utils/sessionStorage';
 import { sessionToHistory, isSessionFullyClaimed } from '../../utils/sessionArchive';
 import { getBillHistory, saveBillToHistory, deleteBillFromHistory } from '../../utils/proStorage';
@@ -52,20 +52,27 @@ export default function ActivityScreen() {
   const [history, setHistory] = useState<BillHistoryEntry[]>([]);
   const unsubsRef = useRef<Map<string, () => void>>(new Map());
   const archivedRef = useRef<Set<string>>(new Set());
+  // Serializes archive writes: saveBillToHistory + removeSession are non-atomic
+  // read-modify-writes on shared AsyncStorage keys, so two sessions archiving
+  // concurrently could clobber each other's history entry. Chain them.
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
   const isProRef = useRef(isPro);
   isProRef.current = isPro;
 
-  const archiveSession = useCallback(async (session: BillSession) => {
-    if (archivedRef.current.has(session.id)) return;
+  const archiveSession = useCallback((session: BillSession): Promise<void> => {
+    if (archivedRef.current.has(session.id)) return queueRef.current;
     archivedRef.current.add(session.id);
-    // carry the host's local receipt photo (saved at share time) into history
-    const meta = (await getSessions()).find((x) => x.sessionId === session.id);
-    await saveBillToHistory({ ...sessionToHistory(session), receiptImageUri: meta?.receiptImageUri });
-    await removeSession(session.id);
-    unsubsRef.current.get(session.id)?.();
-    unsubsRef.current.delete(session.id);
-    setStored((prev) => prev.filter((s) => s.sessionId !== session.id));
-    setHistory(await getBillHistory());
+    queueRef.current = queueRef.current.catch(() => {}).then(async () => {
+      // carry the host's local receipt photo (saved at share time) into history
+      const meta = (await getSessions()).find((x) => x.sessionId === session.id);
+      await saveBillToHistory({ ...sessionToHistory(session), receiptImageUri: meta?.receiptImageUri });
+      await removeSession(session.id);
+      unsubsRef.current.get(session.id)?.();
+      unsubsRef.current.delete(session.id);
+      setStored((prev) => prev.filter((s) => s.sessionId !== session.id));
+      setHistory(await getBillHistory());
+    });
+    return queueRef.current;
   }, []);
 
   const load = useCallback(async () => {
@@ -89,8 +96,14 @@ export default function ActivityScreen() {
     await Share.share({ message: `${s.merchantName ? s.merchantName + ' — ' : ''}Pay your share`, url: `${WEB_BASE_URL}/split/${s.sessionId}` });
   };
   const confirmClose = async (s: StoredSession) => {
-    await closeSession(s.sessionId);
-    const live = liveData.get(s.sessionId);
+    // Swallow a rejected close (deleted doc / permission / network) so we still
+    // fall through to local cleanup — otherwise the LIVE card sticks forever.
+    try { await closeSession(s.sessionId); } catch {}
+    // Re-fetch from the server instead of reading the stale render-time liveData
+    // closure: a claim committed during the close round-trip would otherwise be
+    // dropped from the archived record and mis-assigned to the host.
+    let live: BillSession | null = null;
+    try { live = await getSession(s.sessionId); } catch {}
     if (live) await archiveSession({ ...live, status: 'closed' });
     else { await removeSession(s.sessionId); setStored((p) => p.filter((x) => x.sessionId !== s.sessionId)); }
   };
