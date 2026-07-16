@@ -25,10 +25,12 @@ Otherwise attempt to parse it and return exactly this structure (no other text):
   "tax": 0.00,
   "tip": 0.00,
   "fees": 0.00,
-  "total": 0.00
+  "total": 0.00,
+  "currency": "USD"
 }
 
 Rules:
+- currency: the 3-letter ISO 4217 code the amounts are printed in, inferred from the currency symbol (¥ → JPY or CNY by context, € → EUR, £ → GBP, ₩ → KRW, ₹ → INR, etc.), the receipt language, or the merchant's country. Use null if genuinely unclear.
 - quantity: the exact number from the QTY column. If there is no QTY column but the item name starts with a number (e.g. "3 Aperol Spritz" or "2 BTL Downeast Cider"), extract that leading number as the quantity and use the rest as the name. Default 1 if not shown.
 - price: the LINE TOTAL for that item (the rightmost price column). Example: if the receipt shows "Guinness Draught  7  $11.00  $77.00", price is $77.00 not $11.00.
 - For discounts or comps, use a negative price (e.g. -10.00)
@@ -134,6 +136,10 @@ export async function openaiParser(imageUri: string): Promise<Receipt> {
   const fees = Number(parsed.fees) || 0;
   const total = Number(parsed.total) || subtotal + tax + tip + fees;
 
+  const currency = typeof parsed.currency === 'string' && parsed.currency.trim()
+    ? parsed.currency.trim().toUpperCase()
+    : undefined;
+
   return {
     merchantName: parsed.merchantName ?? undefined,
     date: parsed.date ?? undefined,
@@ -144,5 +150,6 @@ export async function openaiParser(imageUri: string): Promise<Receipt> {
     tip,
     total,
     tipIsFromReceipt: tip > 0,
+    currency,
   };
 }

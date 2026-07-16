@@ -26,6 +26,9 @@ export type Receipt = {
   tip: number;
   total: number;
   tipIsFromReceipt: boolean;
+  currency?: string; // ISO 4217 the amounts are expressed in (detected on scan; = home code after conversion)
+  originalCurrency?: string; // pre-conversion code, set only after an FX conversion (for the banner/revert)
+  fxRate?: number; // home-per-1-original rate applied during conversion
 };
 
 export type PersonBreakdown = {

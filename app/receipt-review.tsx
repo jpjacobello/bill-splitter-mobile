@@ -12,7 +12,11 @@ import ActionSheet from '../components/ActionSheet';
 import { colors, ui as C } from '../theme';
 import { useBillStore } from '../store/useBillStore';
 import { DEFAULT_TIP_KEY } from '../utils/tipPrefs';
-import { formatCurrency } from '../utils/currency';
+import { formatCurrency, getActiveCurrency, currencyInfo, currencySymbol } from '../utils/currency';
+import { usePro } from '../hooks/usePro';
+import { getRate } from '../services/fxRates';
+import { convertReceipt } from '../utils/convertReceipt';
+import { Receipt } from '../types';
 
 const TIP_PRESETS = [0.15, 0.18, 0.2, 0.25];
 
@@ -24,9 +28,47 @@ function parseDollar(text: string): number {
 export default function ReceiptReviewScreen() {
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const { receipt, receiptImageUri, updateItem, deleteItem, addItem, updateReceiptField, updateTip } = useBillStore();
+  const { receipt, receiptImageUri, updateItem, deleteItem, addItem, updateReceiptField, updateTip, setReceipt } = useBillStore();
+  const { isPro } = usePro();
   const [showPhoto, setShowPhoto] = useState(false);
   const [tipWarnOpen, setTipWarnOpen] = useState(false);
+
+  // ── FX convert-on-scan (Pro) ──────────────────────────────────────────────
+  // Scanned a receipt in a currency other than home? Convert every amount once
+  // so the rest of the app runs in one currency. Original is snapshotted for a
+  // one-tap revert. See utils/convertReceipt + services/fxRates.
+  const originalReceiptRef = useRef<Receipt | null>(null);
+  const fxTried = useRef(false);
+  const homeCurrency = getActiveCurrency();
+  const detectedCurrency = receipt?.currency;
+  // Only meaningful when the detected code is a real currency we can format and
+  // it differs from home; a receipt we already converted carries originalCurrency.
+  const needsConversion =
+    !!detectedCurrency &&
+    detectedCurrency !== homeCurrency &&
+    currencyInfo(detectedCurrency).code === detectedCurrency;
+  const isConverted = !!receipt?.originalCurrency;
+
+  const applyConversion = async () => {
+    if (!receipt || !detectedCurrency) return;
+    const rate = await getRate(detectedCurrency, homeCurrency);
+    if (!rate) return; // offline / unknown — keep the original, never block the flow
+    originalReceiptRef.current = receipt;
+    setReceipt(convertReceipt(receipt, rate, homeCurrency));
+  };
+
+  const revertConversion = () => {
+    if (originalReceiptRef.current) {
+      setReceipt(originalReceiptRef.current);
+      originalReceiptRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!needsConversion || isConverted || !isPro || fxTried.current) return;
+    fxTried.current = true;
+    applyConversion().catch(() => { fxTried.current = false; });
+  }, [isPro, needsConversion, isConverted]);
 
   // Apply default tip if receipt has no tip and it wasn't on the original receipt
   useEffect(() => {
@@ -151,6 +193,30 @@ export default function ReceiptReviewScreen() {
               )}
             </View>
           </View>
+
+          {/* ── FX CONVERSION ── */}
+          {isConverted ? (
+            <View style={styles.fxBanner}>
+              <Text style={styles.fxBannerText}>
+                Converted from {receipt.originalCurrency}
+                {receipt.fxRate != null && `  ·  1 ${receipt.originalCurrency} = ${currencySymbol(homeCurrency)}${receipt.fxRate < 0.1 ? receipt.fxRate.toPrecision(3) : receipt.fxRate.toFixed(2)}`}
+              </Text>
+              <TouchableOpacity onPress={revertConversion} activeOpacity={0.7}>
+                <Text style={styles.fxKeep}>Keep original</Text>
+              </TouchableOpacity>
+            </View>
+          ) : needsConversion ? (
+            <TouchableOpacity
+              style={styles.fxChip}
+              activeOpacity={0.8}
+              onPress={() => (isPro ? applyConversion() : router.push('/paywall'))}
+            >
+              <Ionicons name="swap-horizontal" size={15} color={C.blue} />
+              <Text style={styles.fxChipText}>
+                Convert {detectedCurrency} to {homeCurrency}{!isPro && '  ·  Pro'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           {/* ── RECONCILIATION ── */}
           <View style={[styles.reconcileBadge, reconciles ? styles.reconcileOk : styles.reconcileOff]}>
@@ -469,6 +535,21 @@ const styles = StyleSheet.create({
   reconcileOk: { backgroundColor: 'rgba(62,173,116,0.10)', borderWidth: 1, borderColor: 'rgba(62,173,116,0.28)' },
   reconcileOff: { backgroundColor: 'rgba(210,60,60,0.10)', borderWidth: 1, borderColor: 'rgba(210,60,60,0.28)' },
   reconcileText: { fontSize: 13, fontWeight: '500', color: C.text },
+
+  // FX conversion banner + chip
+  fxBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 8,
+    backgroundColor: 'rgba(46,107,176,0.12)', borderWidth: 1, borderColor: 'rgba(46,107,176,0.30)',
+  },
+  fxBannerText: { flex: 1, fontSize: 12.5, fontWeight: '500', color: C.text },
+  fxKeep: { fontSize: 12.5, fontWeight: '700', color: C.blue, textDecorationLine: 'underline' },
+  fxChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8,
+    backgroundColor: 'rgba(46,107,176,0.12)', borderWidth: 1, borderColor: 'rgba(46,107,176,0.30)',
+  },
+  fxChipText: { fontSize: 12.5, fontWeight: '700', color: C.blue },
 
   // Items
   itemRow: {

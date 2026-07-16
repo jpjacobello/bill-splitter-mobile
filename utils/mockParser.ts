@@ -21,5 +21,8 @@ export async function parseReceiptFromImage(imageUri: string): Promise<Receipt> 
     tip: 13.1,
     total: 84.5,
     tipIsFromReceipt: true,
+    // Dev fixture for FX: point activeParser (services/receiptParser.ts) at this
+    // to exercise the foreign-currency convert-on-scan flow without a real receipt.
+    currency: 'JPY',
   };
 }
