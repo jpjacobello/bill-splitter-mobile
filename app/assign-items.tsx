@@ -304,16 +304,19 @@ export default function AssignItemsScreen() {
   // inline field). Loops so several names can be added back-to-back.
   const promptAddName = () => {
     Alert.prompt(
-      'Add person',
-      undefined,
+      'Add people',
+      'Separate multiple names with commas',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Add',
-          onPress: (name?: string) => {
-            const trimmed = name?.trim();
-            if (!trimmed) return;
-            addPerson(trimmed);
+          onPress: (input?: string) => {
+            const names = (input ?? '')
+              .split(/[,\n]/)
+              .map((n) => n.trim())
+              .filter(Boolean);
+            if (!names.length) return;
+            names.forEach((n) => addPerson(n));
             setTimeout(() => peopleScrollRef.current?.scrollToEnd({ animated: true }), 60);
           },
         },
