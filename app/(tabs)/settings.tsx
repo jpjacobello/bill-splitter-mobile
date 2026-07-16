@@ -131,7 +131,7 @@ export default function SettingsScreen() {
           <Section title="Bill Preferences">
             {/* Button + plain style = the whole row is tappable, not just the text. */}
             <Button onPress={() => setCurrencyModalOpen(true)} modifiers={[buttonStyle('plain')]}>
-              <LabeledContent label="Currency"><UIText>{currencyLabel}</UIText></LabeledContent>
+              <LabeledContent label="Home currency"><UIText>{currencyLabel}</UIText></LabeledContent>
             </Button>
             <Button onPress={() => setTipSheetOpen(true)} modifiers={[buttonStyle('plain')]}>
               <LabeledContent label="Default Tip"><UIText>{tipLabel}</UIText></LabeledContent>
@@ -202,8 +202,8 @@ export default function SettingsScreen() {
               <PanGestureHandler {...currencySwipe.pan}>
                 <View>
                   <View style={styles.currencyHandle} />
-                  <Text style={styles.currencySheetTitle}>Currency</Text>
-                  <Text style={styles.currencySheetHint}>Used to display amounts everywhere, including shared bill links.</Text>
+                  <Text style={styles.currencySheetTitle}>Home currency</Text>
+                  <Text style={styles.currencySheetHint}>Displays amounts everywhere (including shared links), and scanned foreign receipts convert to it.</Text>
                 </View>
               </PanGestureHandler>
               <ScrollView style={styles.currencyList} showsVerticalScrollIndicator={false}>
