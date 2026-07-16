@@ -20,15 +20,24 @@ export function calcShare(receipt: Receipt, claims: ClaimInput[]): ShareBreakdow
     claimMap.set(itemId, (claimMap.get(itemId) ?? 0) + fraction);
   }
 
-  let subtotal = 0;
+  let posSubtotal = 0;
+  let totalPositive = 0;
+  let totalDiscount = 0;
   for (const item of receipt.items) {
-    if (item.price <= 0) continue;
-    const fraction = claimMap.get(item.id) ?? 0;
-    if (fraction > 0) {
-      subtotal += item.price * fraction;
+    if (item.price > 0) {
+      totalPositive += item.price;
+      const fraction = claimMap.get(item.id) ?? 0;
+      if (fraction > 0) posSubtotal += item.price * fraction;
+    } else if (item.price < 0) {
+      totalDiscount += item.price; // discounts are negative
     }
   }
-  subtotal = r2(subtotal);
+  // Give this claim its proportional slice of any discount (by positive spend),
+  // matching the host-side calcSplit — otherwise guests were charged the full
+  // pre-discount subtotal while the discount shrank the ratio base, so their
+  // shares collectively overshot the bill.
+  const discountShare = totalPositive > 0 ? totalDiscount * (posSubtotal / totalPositive) : 0;
+  const subtotal = r2(posSubtotal + discountShare);
 
   const base = receipt.subtotal > 0 ? receipt.subtotal : 1;
   const ratio = subtotal / base;

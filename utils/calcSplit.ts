@@ -56,13 +56,22 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
     }
   }
 
+  // Sum of assigned subtotals. When items are UNASSIGNED this is less than
+  // receipt.subtotal, so tax/fees/tip must be reconciled against only the
+  // ASSIGNED portion — otherwise the unassigned items' entire tax/tip gets
+  // dumped on the largest payer instead of staying unassigned. When everything
+  // is assigned, assignedSubtotal == receipt.subtotal and behavior is unchanged.
+  const assignedSubtotal = r2(breakdowns.reduce((s, b) => s + b.subtotal, 0));
+  const portion = (amount: number): number =>
+    receipt.subtotal > 0 ? r2(amount * (assignedSubtotal / receipt.subtotal)) : amount;
+
   // Step 2: compute raw tax shares (proportional) and round them
   const n = breakdowns.length || 1;
   const rawTaxShares = breakdowns.map((b) =>
     receipt.subtotal > 0 ? receipt.tax * (b.subtotal / receipt.subtotal) : receipt.tax / n
   );
   const roundedTaxShares = rawTaxShares.map(r2);
-  const taxRemainder = r2(receipt.tax - roundedTaxShares.reduce((s, t) => s + t, 0));
+  const taxRemainder = r2(portion(receipt.tax) - roundedTaxShares.reduce((s, t) => s + t, 0));
   if (Math.abs(taxRemainder) >= 0.01) {
     const largestTaxIdx = breakdowns.reduce(
       (maxIdx, b, i, arr) => (b.subtotal > arr[maxIdx].subtotal ? i : maxIdx), 0
@@ -76,7 +85,7 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
     receipt.subtotal > 0 ? totalFees * (b.subtotal / receipt.subtotal) : totalFees / n
   );
   const roundedFeesShares = rawFeesShares.map(r2);
-  const feesRemainder = r2(totalFees - roundedFeesShares.reduce((s, f) => s + f, 0));
+  const feesRemainder = r2(portion(totalFees) - roundedFeesShares.reduce((s, f) => s + f, 0));
   if (Math.abs(feesRemainder) >= 0.01) {
     const largestIdx = breakdowns.reduce(
       (maxIdx, b, i, arr) => (b.subtotal > arr[maxIdx].subtotal ? i : maxIdx), 0
@@ -89,7 +98,7 @@ export function calcSplit(people: Person[], receipt: Receipt): SplitSummary {
     receipt.subtotal > 0 ? receipt.tip * (b.subtotal / receipt.subtotal) : receipt.tip / n
   );
   const roundedTipShares = rawTipShares.map(r2);
-  const tipRemainder = r2(receipt.tip - roundedTipShares.reduce((s, t) => s + t, 0));
+  const tipRemainder = r2(portion(receipt.tip) - roundedTipShares.reduce((s, t) => s + t, 0));
   if (Math.abs(tipRemainder) >= 0.01) {
     const largestTipIdx = breakdowns.reduce(
       (maxIdx, b, i, arr) => (b.subtotal > arr[maxIdx].subtotal ? i : maxIdx), 0

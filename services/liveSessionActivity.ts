@@ -21,13 +21,20 @@ function ensurePushTokenSync() {
 }
 
 function stateOf(session: BillSession): SessionActivityState {
-  const claimed = claimerBreakdown(session).reduce((sum, c) => sum + c.amount, 0);
-  return {
-    total: session.receipt.total,
-    claimed,
-    count: claimersCount(session),
-    currency: session.currency ?? 'USD',
-  };
+  const total = session.receipt.total;
+  let claimed: number;
+  if (session.splitType === 'equal' && session.peopleCount && session.peopleCount > 0) {
+    // Equal split: claimerBreakdown is itemized-only and returned $0 here. Each
+    // paid seat + the host's own (already-covered) seat settles a per-head share.
+    const perHead = total / session.peopleCount;
+    const paidSeats = Object.values(session.claims ?? {}).filter((c) => c.itemId === 'equal-split').length;
+    claimed = Math.min(total, (paidSeats + 1) * perHead);
+  } else {
+    // Itemized: claimerBreakdown now includes each claimer's tax/fees/tip, so the
+    // sum can actually reach `total` once everything is claimed.
+    claimed = claimerBreakdown(session).reduce((sum, c) => sum + c.amount, 0);
+  }
+  return { total, claimed, count: claimersCount(session), currency: session.currency ?? 'USD' };
 }
 
 export function liveActivityAvailable(): boolean {

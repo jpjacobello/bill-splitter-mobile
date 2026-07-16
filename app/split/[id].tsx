@@ -344,7 +344,10 @@ export default function PayYourShareScreen() {
   if (isEqual) {
     const peopleCount = session!.peopleCount ?? 1;
     const seatsTaken = Object.values(claims).filter((c) => c.itemId === 'equal-split').length;
-    const seatsLeft = Math.max(0, peopleCount - seatsTaken);
+    // The host occupies one of the `peopleCount` seats (they fronted the bill),
+    // so only peopleCount-1 guests owe. Offering `peopleCount` seats over-collects
+    // a full share and the split would never read as complete.
+    const seatsLeft = Math.max(0, peopleCount - 1 - seatsTaken);
     const alreadyPaid = Object.values(claims).some((c) => c.claimerName === name.trim());
     const perHead = calcShare(receipt, [{ itemId: 'equal-split', fraction: equalFraction }]).totalOwed;
 

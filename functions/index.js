@@ -43,21 +43,40 @@ function apnsJwt(p8) {
 function round2(n) {
   return Math.round(n * 100) / 100;
 }
+// MUST mirror client stateOf (services/liveSessionActivity.ts) + calcShare so
+// the background lock-screen number matches the in-app number.
 function computeState(session) {
-  const items = (session.receipt && session.receipt.items) || [];
+  const receipt = session.receipt || {};
+  const items = receipt.items || [];
   const claims = Object.values(session.claims || {});
+  const total = receipt.total || 0;
+
   let claimed = 0;
-  for (const c of claims) {
-    if (c.itemId === 'equal-split') continue;
-    const item = items.find((i) => i.id === c.itemId);
-    if (item) claimed += item.price * c.fraction;
+  if (session.splitType === 'equal' && session.peopleCount > 0) {
+    // Each paid seat + the host's own already-covered seat settles a per-head share.
+    const perHead = total / session.peopleCount;
+    const paidSeats = claims.filter((c) => c.itemId === 'equal-split').length;
+    claimed = Math.min(total, (paidSeats + 1) * perHead);
+  } else {
+    // Itemized: claimed subtotal (positive items) + proportional tax/fees/tip.
+    let subtotal = 0;
+    for (const c of claims) {
+      if (c.itemId === 'equal-split') continue;
+      const item = items.find((i) => i.id === c.itemId);
+      if (item && item.price > 0) subtotal += item.price * c.fraction;
+    }
+    const base = receipt.subtotal > 0 ? receipt.subtotal : 1;
+    const ratio = subtotal / base;
+    claimed = subtotal + ((receipt.tax || 0) + (receipt.fees || 0) + (receipt.tip || 0)) * ratio;
   }
+
   const count = session.splitType === 'equal'
     ? claims.filter((c) => c.itemId === 'equal-split').length
     : new Set(claims.map((c) => c.claimerName)).size;
+
   return {
     claimedAmount: round2(claimed),
-    totalAmount: (session.receipt && session.receipt.total) || 0,
+    totalAmount: total,
     claimantCount: count,
     currencyCode: session.currency || 'USD',
   };

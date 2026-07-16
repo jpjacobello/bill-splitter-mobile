@@ -1,4 +1,15 @@
 import { BillSession } from '../types';
+import { calcShare, ClaimInput } from './calcShare';
+
+// Itemized amounts MUST include the claimer's proportional tax/fees/tip — that's
+// what they actually pay via Venmo (see calcShare). Summing bare item.price*
+// fraction understated every "owed"/ledger/Live-Activity number and meant the
+// itemized progress bar could never reach 100% (total includes tax/tip).
+function itemizedClaimInputs(session: BillSession, filter?: (claimerName: string) => boolean): ClaimInput[] {
+  return Object.values(session.claims ?? {})
+    .filter((c) => c.itemId !== 'equal-split' && (!filter || filter(c.claimerName)))
+    .map((c) => ({ itemId: c.itemId, fraction: c.fraction }));
+}
 
 // What others still owe the host for a live session — shown on Home ("owed to
 // you") and the Activity live cards. Unlike raw claim totals, this reflects the
@@ -15,27 +26,27 @@ export function outstandingOwed(session: BillSession | null): number {
     return remaining * share;
   }
 
-  // Itemized: we only know a share once it's claimed, so sum claimed shares.
-  return Object.values(session.claims ?? {}).reduce((sum, c) => {
-    const item = session.receipt.items.find((i) => i.id === c.itemId);
-    return item ? sum + item.price * c.fraction : sum;
-  }, 0);
+  // Itemized: we only know a share once it's claimed. Sum claimed shares WITH
+  // their proportional tax/fees/tip, matching what claimers actually pay.
+  return calcShare(session.receipt, itemizedClaimInputs(session)).totalOwed;
 }
 
 export type Claimer = { name: string; amount: number };
 
 // Per-claimer breakdown for the read-only live ledger: group itemized claims by
-// name, sum shares. (No paid tracking — Divi isn't a ledger you manage.)
+// name, each claimer's amount = their subtotal + proportional tax/fees/tip
+// (exactly what their Venmo request asks for). No paid tracking.
 export function claimerBreakdown(session: BillSession | null): Claimer[] {
   if (!session) return [];
-  const byName: Record<string, number> = {};
+  const names = new Set<string>();
   for (const c of Object.values(session.claims ?? {})) {
     if (c.itemId === 'equal-split') continue;
-    const item = session.receipt.items.find((i) => i.id === c.itemId);
-    if (!item) continue;
-    byName[c.claimerName] = (byName[c.claimerName] ?? 0) + item.price * c.fraction;
+    if (session.receipt.items.some((i) => i.id === c.itemId)) names.add(c.claimerName);
   }
-  return Object.entries(byName).map(([name, amount]) => ({ name, amount }));
+  return Array.from(names).map((name) => ({
+    name,
+    amount: calcShare(session.receipt, itemizedClaimInputs(session, (n) => n === name)).totalOwed,
+  }));
 }
 
 // How many people have CLAIMED on a session (for the "N claimed" stat).
