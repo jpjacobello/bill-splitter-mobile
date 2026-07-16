@@ -204,8 +204,16 @@ export default function PayYourShareScreen() {
   // the persistent Pay button on the done screen.
   const openPay = async (amount: string) => {
     const venmoHandle = session?.creatorVenmoHandle ?? '';
-    const note = encodeURIComponent(`${session?.merchantName ?? ''} — your share via Divi`);
-    const venmoUrl = `venmo://paycharge?txn=pay&recipients=${venmoHandle}&amount=${amount}&note=${note}`;
+    // Venmo has no currency field — it treats `amount` as USD. Only prefill it
+    // for USD sessions; otherwise a €40 share opens Venmo as $40. For non-USD,
+    // drop the amount and put the correctly-formatted figure in the note instead.
+    const isUSD = (session?.currency ?? 'USD') === 'USD';
+    const noteText = isUSD
+      ? `${session?.merchantName ?? ''} — your share via Divi`
+      : `${session?.merchantName ?? ''} — your share is ${formatCurrency(Number(amount))} via Divi`;
+    const note = encodeURIComponent(noteText);
+    const amountParam = isUSD ? `&amount=${amount}` : '';
+    const venmoUrl = `venmo://paycharge?txn=pay&recipients=${venmoHandle}${amountParam}&note=${note}`;
     try {
       if (Platform.OS === 'web') window.location.href = venmoUrl;
       else await Linking.openURL(venmoUrl);
