@@ -302,28 +302,35 @@ export default function AssignItemsScreen() {
 
   // Native iOS text-entry dialog for adding a person by name (replaces the
   // inline field). Loops so several names can be added back-to-back.
+  // Loops so several people can be added back-to-back: after each Add the prompt
+  // reopens for the next name (tap Done to stop) — self-explanatory, no need to
+  // know the comma trick. Commas/newlines still work for adding several at once.
   const promptAddName = () => {
-    Alert.prompt(
-      'Add people',
-      'Separate multiple names with commas',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Add',
-          onPress: (input?: string) => {
-            const names = (input ?? '')
-              .split(/[,\n]/)
-              .map((n) => n.trim())
-              .filter(Boolean);
-            if (!names.length) return;
-            names.forEach((n) => addPerson(n));
-            setTimeout(() => peopleScrollRef.current?.scrollToEnd({ animated: true }), 60);
+    const ask = () => {
+      Alert.prompt(
+        'Add a person',
+        'Tap Add to keep adding, Done when finished.',
+        [
+          { text: 'Done', style: 'cancel' },
+          {
+            text: 'Add',
+            onPress: (input?: string) => {
+              const names = (input ?? '')
+                .split(/[,\n]/)
+                .map((n) => n.trim())
+                .filter(Boolean);
+              if (!names.length) return; // empty Add → stop
+              names.forEach((n) => addPerson(n));
+              setTimeout(() => peopleScrollRef.current?.scrollToEnd({ animated: true }), 60);
+              ask(); // reopen for the next name
+            },
           },
-        },
-      ],
-      'plain-text',
-      '',
-    );
+        ],
+        'plain-text',
+        '',
+      );
+    };
+    ask();
   };
 
   const addByName = () => {
