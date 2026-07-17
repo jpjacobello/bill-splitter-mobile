@@ -194,15 +194,14 @@ struct DiviSessionLiveActivity: Widget {
       // Gold in progress → green once fully paid, matching the lock screen.
       let diFill = progressFraction(s) >= 0.999 ? DiviTheme.accentDone : DiviTheme.accent
       return DynamicIsland {
-        // Everything lives in .bottom — content in the narrow leading/trailing
-        // slots beside the sensor gets clipped ("0 claimed" ran off-screen), and
-        // a separate .center row wasted a tall band of empty island.
-        DynamicIslandExpandedRegion(.leading) {
-          Image(systemName: "fork.knife").foregroundColor(diFill)
-        }
+        // EVERYTHING lives in .bottom (full width). The narrow leading/trailing
+        // slots beside the sensor clip their content — the fork glyph got cut off
+        // there — so the fork rides inline before the merchant instead.
         DynamicIslandExpandedRegion(.bottom) {
           VStack(spacing: 6) {
-            HStack {
+            HStack(spacing: 6) {
+              Image(systemName: "fork.knife")
+                .font(.system(size: 13, weight: .semibold)).foregroundColor(diFill)
               Text(context.attributes.merchantName)
                 .font(.system(size: 14, weight: .bold)).foregroundColor(.white)
                 .lineLimit(1)
