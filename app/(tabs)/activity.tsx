@@ -47,6 +47,11 @@ export default function ActivityScreen() {
   const [closeTarget, setCloseTarget] = useState<StoredSession | null>(null);
   const [detailEntry, setDetailEntry] = useState<BillHistoryEntry | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<BillHistoryEntry | null>(null);
+  // Delete requested from INSIDE the detail sheet: stash it, close the detail
+  // sheet, and only present the confirm once the detail has fully unmounted.
+  // Two native Modals transitioning at once (present-over-dismissing or
+  // dismiss-with-dismissing) wedges iOS — strictly one sheet at a time.
+  const pendingDeleteRef = useRef<BillHistoryEntry | null>(null);
   const [stored, setStored] = useState<StoredSession[]>([]);
   const [liveData, setLiveData] = useState<Map<string, BillSession | null>>(new Map());
   const [history, setHistory] = useState<BillHistoryEntry[]>([]);
@@ -221,7 +226,15 @@ export default function ActivityScreen() {
         <BillDetailSheet
           entry={detailEntry}
           onClose={() => setDetailEntry(null)}
-          onRequestDelete={(e) => setDeleteEntry(e)}
+          onRequestDelete={(e) => { pendingDeleteRef.current = e; setDetailEntry(null); }}
+          onClosed={() => {
+            const pending = pendingDeleteRef.current;
+            if (!pending) return;
+            pendingDeleteRef.current = null;
+            // Small beat so the native dismissal fully settles before the next
+            // Modal presents — present-during-dismiss is the freeze we're avoiding.
+            setTimeout(() => setDeleteEntry(pending), 80);
+          }}
         />
         <ActionSheet
           visible={deleteEntry !== null}
@@ -238,9 +251,6 @@ export default function ActivityScreen() {
               queueRef.current = queueRef.current.catch(() => {}).then(async () => {
                 await deleteBillFromHistory(id);
                 setHistory(await getBillHistory());
-                // Close the detail sheet only now — AFTER the confirm sheet has
-                // dismissed itself — so two Modals never transition at once.
-                setDetailEntry(null);
               });
               await queueRef.current;
             },

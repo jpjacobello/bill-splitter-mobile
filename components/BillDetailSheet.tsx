@@ -16,11 +16,12 @@ const getPersonColor = (i: number) => colors.person[i % colors.person.length];
 // Presents through SwipeSheet (gorhom) so the drag follows your finger 1:1 and
 // scrolling the body couples with the dismiss gesture.
 export default function BillDetailSheet({
-  entry, onClose, onRequestDelete,
+  entry, onClose, onRequestDelete, onClosed,
 }: {
   entry: BillHistoryEntry | null;
   onClose: () => void;
   onRequestDelete: (entry: BillHistoryEntry) => void;
+  onClosed?: () => void; // fires after the sheet has fully animated out + unmounted
 }) {
   // Retain the entry through the slide-out so the sheet animates down with its
   // dark content instead of flashing empty when the parent nulls `entry`.
@@ -43,6 +44,7 @@ export default function BillDetailSheet({
       <SwipeSheet
         visible={entry !== null}
         onClose={onClose}
+        onClosed={onClosed}
         tall
         background={C.bg}
         headerStyle={styles.headerWrap}
