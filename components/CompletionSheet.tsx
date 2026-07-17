@@ -161,11 +161,11 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
   // Guard against an accidental tap — starting over clears everything.
   const confirmStartOver = () => {
     Alert.alert(
-      'Start over?',
-      'This clears the current receipt and all assignments. Your split is saved to history first.',
+      'Start a new split?',
+      'This clears the current receipt and all assignments and returns Home. Your split is saved to history first.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Start Over', style: 'destructive', onPress: onDone },
+        { text: 'New Split', style: 'destructive', onPress: onDone },
       ],
     );
   };
@@ -306,7 +306,7 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
         )}
 
         <TouchableOpacity style={styles.startOver} onPress={confirmStartOver} activeOpacity={0.7}>
-          <Text style={styles.startOverText}>Start over</Text>
+          <Text style={styles.startOverText}>New split</Text>
         </TouchableOpacity>
       </Animated.View>
 
