@@ -27,7 +27,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "aps-environment": "production"
+        "aps-environment": "development"
       }
     },
     "android": {

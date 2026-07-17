@@ -14,30 +14,37 @@ const jwt = require('jsonwebtoken');
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 
-const APNS_KEY = defineSecret('APNS_KEY');
+// Two APNs auth keys so BOTH build types work without flipping config:
+//  • APNS_KEY_PROD → production host (TestFlight / App Store builds)
+//  • APNS_KEY      → sandbox host    (local dev builds)
+// A Live Activity's push token is tied to the build's aps-environment; we can't
+// tell which from the token, so sendActivityPush tries production first and
+// falls back to sandbox on a BadDeviceToken (wrong-environment) response.
+const APNS_KEY = defineSecret('APNS_KEY');           // sandbox (Divi APN Sbx)
+const APNS_KEY_PROD = defineSecret('APNS_KEY_PROD'); // production (Divi APN Prod)
 
 // Non-secret identifiers (safe to commit).
-const APNS_KEY_ID = 'TX7TLW95KP'; // Production APNs key (Divi APN Prod)
 const APNS_TEAM_ID = '569MN7R95U';
 const BUNDLE_ID = 'com.jpjacobello.divi';
-// PRODUCTION host — matches aps-environment=production (TestFlight / App Store).
-// For local dev/sandbox builds, switch back to 'https://api.sandbox.push.apple.com'
-// (+ the sandbox key + aps-environment=development).
-const APNS_HOST = 'https://api.push.apple.com';
 
-// ── APNs auth JWT (cached ~50 min; Apple allows reuse up to 60) ───────────────
-let cachedJwt = null;
-let cachedAtMs = 0;
-function apnsJwt(p8) {
+const APNS_ENVS = [
+  { name: 'prod', host: 'https://api.push.apple.com', kid: 'TX7TLW95KP', secret: APNS_KEY_PROD },
+  { name: 'sbx', host: 'https://api.sandbox.push.apple.com', kid: 'Y6258YQJ6K', secret: APNS_KEY },
+];
+
+// ── APNs auth JWT (cached per key ~50 min; Apple allows reuse up to 60) ────────
+const jwtCache = {}; // kid → { jwt, atMs }
+function apnsJwt(kid, p8) {
   const now = Date.now();
-  if (cachedJwt && now - cachedAtMs < 50 * 60 * 1000) return cachedJwt;
-  cachedJwt = jwt.sign(
+  const c = jwtCache[kid];
+  if (c && now - c.atMs < 50 * 60 * 1000) return c.jwt;
+  const token = jwt.sign(
     { iss: APNS_TEAM_ID, iat: Math.floor(now / 1000) },
     p8,
-    { algorithm: 'ES256', header: { alg: 'ES256', kid: APNS_KEY_ID } },
+    { algorithm: 'ES256', header: { alg: 'ES256', kid } },
   );
-  cachedAtMs = now;
-  return cachedJwt;
+  jwtCache[kid] = { jwt: token, atMs: now };
+  return token;
 }
 
 // ── Content-state — MUST match DiviSessionAttributes.ContentState (Swift) ─────
@@ -99,10 +106,10 @@ function computeState(session) {
   };
 }
 
-// ── Send one APNs Live Activity push ─────────────────────────────────────────
-function sendActivityPush(token, event, contentState, p8) {
+// One POST to a specific APNs environment. Resolves { status, body }.
+function pushToEnv(env, token, event, contentState) {
   return new Promise((resolve, reject) => {
-    const client = http2.connect(APNS_HOST);
+    const client = http2.connect(env.host);
     client.on('error', reject);
 
     const aps = { timestamp: Math.floor(Date.now() / 1000), event };
@@ -113,7 +120,7 @@ function sendActivityPush(token, event, contentState, p8) {
     const req = client.request({
       ':method': 'POST',
       ':path': `/3/device/${token}`,
-      authorization: `bearer ${apnsJwt(p8)}`,
+      authorization: `bearer ${apnsJwt(env.kid, env.secret.value())}`,
       'apns-topic': `${BUNDLE_ID}.push-type.liveactivity`,
       'apns-push-type': 'liveactivity',
       'apns-priority': '10',
@@ -125,14 +132,29 @@ function sendActivityPush(token, event, contentState, p8) {
     req.setEncoding('utf8');
     req.on('response', (h) => { status = h[':status']; });
     req.on('data', (d) => { body += d; });
-    req.on('end', () => {
-      client.close();
-      if (status === 200) resolve();
-      else reject(new Error(`APNs ${status}: ${body}`));
-    });
+    req.on('end', () => { client.close(); resolve({ status, body }); });
     req.on('error', reject);
     req.end(payload);
   });
+}
+
+// Try production first, fall back to sandbox on a wrong-environment token, so a
+// single deployment serves both TestFlight/App Store and local dev builds.
+async function sendActivityPush(token, event, contentState) {
+  let lastErr;
+  for (const env of APNS_ENVS) {
+    let p8;
+    try { p8 = env.secret.value(); } catch { continue; } // secret not set → skip
+    if (!p8) continue;
+    try {
+      const { status, body } = await pushToEnv(env, token, event, contentState);
+      if (status === 200) return;
+      // BadDeviceToken = token belongs to the OTHER environment → try the next.
+      if (status === 400 && body.includes('BadDeviceToken')) { lastErr = new Error(`APNs ${env.name} ${status}: ${body}`); continue; }
+      throw new Error(`APNs ${env.name} ${status}: ${body}`);
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('APNs: no environment accepted the token');
 }
 
 // Mirrors utils/sessionArchive.ts isSessionFullyClaimed.
@@ -155,7 +177,7 @@ function isFullyClaimed(session) {
 }
 
 exports.onSessionClaim = onDocumentUpdated(
-  { document: 'billSessions/{sessionId}', secrets: [APNS_KEY], region: 'us-central1' },
+  { document: 'billSessions/{sessionId}', secrets: [APNS_KEY, APNS_KEY_PROD], region: 'us-central1' },
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
@@ -164,11 +186,9 @@ exports.onSessionClaim = onDocumentUpdated(
     const token = after.liveActivityPushToken;
     if (!token) return; // no Live Activity registered for this session
 
-    const p8 = APNS_KEY.value();
-
     // Session just closed → dismiss the activity.
     if (after.status === 'closed' && before.status !== 'closed') {
-      await sendActivityPush(token, 'end', computeState(after), p8).catch((e) => console.error('APNs end failed:', e.message));
+      await sendActivityPush(token, 'end', computeState(after)).catch((e) => console.error('APNs end failed:', e.message));
       return;
     }
     if (after.status === 'closed') return;
@@ -182,10 +202,10 @@ exports.onSessionClaim = onDocumentUpdated(
     // matching the client (useHostLiveActivity ends on fully-claimed) — otherwise
     // the lock screen stays pinned live all night if the host app is closed.
     if (isFullyClaimed(after) && !isFullyClaimed(before)) {
-      await sendActivityPush(token, 'end', next, p8).catch((e) => console.error('APNs end failed:', e.message));
+      await sendActivityPush(token, 'end', next).catch((e) => console.error('APNs end failed:', e.message));
       return;
     }
 
-    await sendActivityPush(token, 'update', next, p8).catch((e) => console.error('APNs update failed:', e.message));
+    await sendActivityPush(token, 'update', next).catch((e) => console.error('APNs update failed:', e.message));
   },
 );
