@@ -1,10 +1,9 @@
 import { useRef } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity,
-  ScrollView, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import SwipeSheet, { SheetScrollView } from './SwipeSheet';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Receipt, PersonBreakdown } from '../types';
@@ -71,19 +70,12 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
   const subtitle = person ? (receipt.merchantName || '') : showPeopleSummary ? (receipt.merchantName || '') : formatDate(receipt.date);
 
   return (
-    <Modal
+    <SwipeSheet
       visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={styles.sheet}>
-        {/* Glass background */}
-        <BlurView style={StyleSheet.absoluteFill} tint="dark" intensity={85} />
-        <View style={[StyleSheet.absoluteFill, styles.glassSheen]} />
-
-        {/* Header */}
+      onClose={onClose}
+      blur
+      headerStyle={styles.headerPad}
+      header={
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.receiptThumb}>
@@ -100,9 +92,10 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
             </TouchableOpacity>
           </View>
         </View>
-
+      }
+    >
         {/* Items */}
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <SheetScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {person
             ? person.breakdown.assignedItems.map(({ item, share }) => (
                 <View key={item.id} style={styles.itemRow}>
@@ -188,7 +181,7 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
               </View>
             </>
           )}
-        </ScrollView>
+        </SheetScrollView>
 
         {/* Share button */}
         <View style={styles.footer}>
@@ -211,35 +204,18 @@ export default function ReceiptPreviewSheet({ visible, receipt, onClose, person,
             paidById={paidById}
           />
         </View>
-      </View>
-    </Modal>
+    </SwipeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '75%',
-    paddingBottom: 34,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderBottomWidth: 0,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  glassSheen: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
+  headerPad: { paddingHorizontal: 0 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingBottom: 14,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },

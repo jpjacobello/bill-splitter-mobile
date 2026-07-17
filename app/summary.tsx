@@ -151,7 +151,7 @@ export default function SummaryScreen() {
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.startOver} onPress={() => setStartOverOpen(true)} activeOpacity={0.7}>
-              <Text style={styles.startOverText}>Start over</Text>
+              <Text style={styles.startOverText}>New split</Text>
             </TouchableOpacity>
 
           </MotiView>
@@ -176,9 +176,9 @@ export default function SummaryScreen() {
 
       <ActionSheet
         visible={startOverOpen}
-        title="Start over?"
+        title="Start a new split?"
         message="This clears the current receipt and all assignments. It's saved to your history first."
-        options={[{ label: 'Start Over', icon: 'refresh-outline', destructive: true, onPress: confirmStartOver }]}
+        options={[{ label: 'New Split', icon: 'refresh-outline', destructive: true, onPress: confirmStartOver }]}
         onClose={() => setStartOverOpen(false)}
       />
       <ActionSheet

@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text,
+  Alert, Animated, Easing, ScrollView, StyleSheet, Text,
   TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useSwipeDismiss } from '../hooks/useSwipeDismiss';
+import SwipeSheet, { SheetScrollView } from './SwipeSheet';
 import { VenmoLogo } from './BrandLogos';
 import ReceiptPreviewSheet from './ReceiptPreviewSheet';
 import ShareableReceiptCard, { calcCardScale } from './ShareableReceiptCard';
@@ -90,11 +88,7 @@ type Props = {
 };
 
 export default function CompletionSheet({ visible, receipt, people, isPro, paidById, onClose, onFixReceipt, onDone, celebrate }: Props) {
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const anim = useRef(new Animated.Value(0)).current;
-  const swipe = useSwipeDismiss(onClose);
-  const [mounted, setMounted] = useState(false);
   const [runConfetti, setRunConfetti] = useState(false);
   const [selectedId, setSelectedId] = useState<string>('');
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
@@ -111,29 +105,16 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
   }, [visible]);
 
   useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      anim.setValue(0);
-      swipe.reset();
-      Animated.timing(anim, {
-        toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }).start();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Confetti only when the screen says to celebrate (first auto-pop per receipt).
-      if (celebrate) {
-        setRunConfetti(true);
-        const t = setTimeout(() => setRunConfetti(false), 2400);
-        return () => clearTimeout(t);
-      }
-      setRunConfetti(false);
-      return;
+    if (!visible) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Confetti only when the screen says to celebrate (first auto-pop per receipt).
+    if (celebrate) {
+      setRunConfetti(true);
+      const t = setTimeout(() => setRunConfetti(false), 2400);
+      return () => clearTimeout(t);
     }
-    Animated.timing(anim, {
-      toValue: 0, duration: 240, easing: Easing.in(Easing.cubic), useNativeDriver: true,
-    }).start(() => setMounted(false));
-  }, [visible]);
-
-  if (!mounted) return null;
+    setRunConfetti(false);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedIndex = people.findIndex((p) => p.id === selectedId);
   const selected = summary.people[selectedIndex];
@@ -171,38 +152,25 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
   };
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View style={[styles.backdrop, { opacity: anim }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.sheet,
-          {
-            paddingBottom: insets.bottom + 20,
-            transform: [{ translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [520, 0] }), swipe.dragTranslate) }],
-          },
-        ]}
-      >
-        {/* Only mount when celebrating — otherwise resting pieces show as stray
-            confetti bits pinned to the top of the modal on every reopen. */}
-        {runConfetti && <Confetti run={runConfetti} width={width} />}
-
-        {/* Drag the grabber + header to dismiss; content below scrolls normally */}
-        <PanGestureHandler {...swipe.pan}>
-          <View>
-            <View style={styles.grab} />
-            <View style={styles.top}>
-              <Text style={styles.eyebrow}>SPLIT COMPLETE</Text>
-              <Text style={[styles.total, moneyText]}>
-                {formatCurrency(receipt.total)} · {people.length} way{people.length !== 1 ? 's' : ''}
-              </Text>
-              <Text style={styles.sub}>Tap a person to see their share</Text>
-            </View>
+    <SwipeSheet
+      visible={visible}
+      onClose={onClose}
+      header={
+        <>
+          {/* Only mount when celebrating — otherwise resting pieces show as stray
+              confetti bits pinned to the top of the modal on every reopen. */}
+          {runConfetti && <Confetti run={runConfetti} width={width} />}
+          <View style={styles.top}>
+            <Text style={styles.eyebrow}>SPLIT COMPLETE</Text>
+            <Text style={[styles.total, moneyText]}>
+              {formatCurrency(receipt.total)} · {people.length} way{people.length !== 1 ? 's' : ''}
+            </Text>
+            <Text style={styles.sub}>Tap a person to see their share</Text>
           </View>
-        </PanGestureHandler>
-
+        </>
+      }
+    >
+      <View style={styles.bodyPad}>
         {gate && (
           <TouchableOpacity
             style={styles.banner}
@@ -245,7 +213,7 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
         {/* selected person's receipt */}
         {selected && (
           <View style={styles.card}>
-            <ScrollView style={styles.itemsScroll} showsVerticalScrollIndicator={false}>
+            <SheetScrollView style={styles.itemsScroll} showsVerticalScrollIndicator={false}>
               {selected.assignedItems.map((a, i) => {
                 const shared = a.item.assignedTo.length > 1;
                 return (
@@ -258,7 +226,7 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
                   </View>
                 );
               })}
-            </ScrollView>
+            </SheetScrollView>
 
             <View style={styles.dash} />
             <View style={styles.line}>
@@ -308,45 +276,36 @@ export default function CompletionSheet({ visible, receipt, people, isPro, paidB
         <TouchableOpacity style={styles.startOver} onPress={confirmStartOver} activeOpacity={0.7}>
           <Text style={styles.startOverText}>New split</Text>
         </TouchableOpacity>
-      </Animated.View>
 
-      <ReceiptPreviewSheet
-        visible={showShare}
-        receipt={receipt}
-        allPeople={summary.people}
-        showPeopleSummary
-        paidById={paidById ?? undefined}
-        onClose={() => setShowShare(false)}
-      />
+        <ReceiptPreviewSheet
+          visible={showShare}
+          receipt={receipt}
+          allPeople={summary.people}
+          showPeopleSummary
+          paidById={paidById ?? undefined}
+          onClose={() => setShowShare(false)}
+        />
 
-      {/* Off-screen card captured for the native share sheet */}
-      {selected && (
-        <View style={styles.offScreen} pointerEvents="none">
-          <ShareableReceiptCard
-            ref={cardRef}
-            receipt={receipt}
-            person={selected}
-            scale={calcCardScale(selected.assignedItems.length)}
-            paidById={paidById ?? undefined}
-          />
-        </View>
-      )}
-    </Modal>
+        {/* Off-screen card captured for the native share sheet */}
+        {selected && (
+          <View style={styles.offScreen} pointerEvents="none">
+            <ShareableReceiptCard
+              ref={cardRef}
+              receipt={receipt}
+              person={selected}
+              scale={calcCardScale(selected.assignedItems.length)}
+              paidById={paidById ?? undefined}
+            />
+          </View>
+        )}
+      </View>
+    </SwipeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim },
-  sheet: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
-    backgroundColor: colors.sheet,
-    borderTopLeftRadius: 26, borderTopRightRadius: 26,
-    paddingHorizontal: 20, paddingTop: 10,
-    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-    overflow: 'hidden',
-  },
-  confettiLayer: { position: 'absolute', top: 0, left: 0, right: 0, height: 260 },
-  grab: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)', marginBottom: 14 },
+  bodyPad: { paddingHorizontal: 20, paddingBottom: 8 },
+  confettiLayer: { position: 'absolute', top: 0, left: -20, right: -20, height: 260 },
 
   top: { alignItems: 'center', marginBottom: 16 },
   eyebrow: { fontSize: 11, fontWeight: '800', color: C.accent, letterSpacing: 1.4 },

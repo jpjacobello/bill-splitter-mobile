@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, Animated,
-  ScrollView, FlatList, TextInput, Keyboard, Modal, Pressable,
-  KeyboardAvoidingView, Platform, ActionSheetIOS, Alert,
+  ScrollView, FlatList, TextInput, Keyboard, Platform, ActionSheetIOS, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +13,7 @@ import { Host, ContextMenu, Button as UIButton, Image as UIImage } from '@expo/u
 import { colors, ui as C } from '../theme';
 import ItemActionSheet from '../components/ItemActionSheet';
 import ActionSheet, { SheetOption } from '../components/ActionSheet';
+import SwipeSheet, { SheetScrollView, SheetTextInput } from '../components/SwipeSheet';
 import CompletionSheet from '../components/CompletionSheet';
 import { useBillStore } from '../store/useBillStore';
 import { getUnassignedTotal, calcSplit } from '../utils/calcSplit';
@@ -728,13 +728,13 @@ export default function AssignItemsScreen() {
         }}
       />
 
-      <Modal
+      <SwipeSheet
         visible={showGroupsModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowGroupsModal(false)}
-      >
-        <SafeAreaView style={styles.groupsContainer} edges={['top', 'left', 'right']}>
+        onClose={() => setShowGroupsModal(false)}
+        tall
+        background={C.bg}
+        headerStyle={styles.groupsHeaderWrap}
+        header={
           <View style={styles.groupsHeader}>
             <Text style={styles.groupsTitle}>Groups</Text>
             <View style={styles.groupsHeaderActions}>
@@ -751,8 +751,9 @@ export default function AssignItemsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-
-          <ScrollView contentContainerStyle={styles.groupsScroll} keyboardShouldPersistTaps="handled">
+        }
+      >
+          <SheetScrollView contentContainerStyle={styles.groupsScroll} keyboardShouldPersistTaps="handled">
 
             {/* ── Load or edit a saved group ── */}
             {savedGroups.length > 0 && (
@@ -791,9 +792,8 @@ export default function AssignItemsScreen() {
                 <Text style={styles.groupsEmptyHint}>Tap “New Group” to save a crew you split with often, then reload them into any bill.</Text>
               </View>
             )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+          </SheetScrollView>
+      </SwipeSheet>
 
       <GroupEditor
         draft={groupDraft}
@@ -819,17 +819,11 @@ export default function AssignItemsScreen() {
         onClose={() => setSheet(null)}
       />
 
-      <Modal
+      <SwipeSheet
         visible={tipSheetOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setTipSheetOpen(false)}
-        statusBarTranslucent
-      >
-        <KeyboardAvoidingView style={styles.tipFlex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Pressable style={styles.tipBackdrop} onPress={() => setTipSheetOpen(false)}>
-            <Pressable style={[styles.tipSheet, { paddingBottom: insets.bottom + 16 }]}>
-              <View style={styles.tipHandle} />
+        onClose={() => setTipSheetOpen(false)}
+        header={
+          <>
               <Text style={styles.tipTitle}>Add a tip?</Text>
               <Text style={styles.tipSub}>This receipt has no tip. For the {formatCurrency(receipt.subtotal)} subtotal.</Text>
 
@@ -853,7 +847,7 @@ export default function AssignItemsScreen() {
 
               <View style={styles.tipInputWrap}>
                 <Text style={styles.tipInputPrefix}>{currencySymbol()}</Text>
-                <TextInput
+                <SheetTextInput
                   style={styles.tipInputField}
                   value={tipInput}
                   onChangeText={setTipInput}
@@ -874,10 +868,9 @@ export default function AssignItemsScreen() {
               <TouchableOpacity style={styles.tipSkipBtn} onPress={() => setTipSheetOpen(false)} activeOpacity={0.7}>
                 <Text style={styles.tipSkipText}>Skip, no tip</Text>
               </TouchableOpacity>
-            </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+          </>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -1149,6 +1142,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
   groupsContainer: { flex: 1, backgroundColor: C.bg },
+  groupsHeaderWrap: { paddingHorizontal: 0 },
   groupsHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,

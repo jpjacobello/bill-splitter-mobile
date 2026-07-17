@@ -122,7 +122,6 @@ export default function HomeScreen() {
           <Enter delay={70}>
             <View style={styles.hero}>
               <View style={styles.heroLabelRow}>
-                <View style={styles.liveDot} />
                 <Text style={styles.heroLabel}>CLAIMED SO FAR</Text>
               </View>
               <AnimatedMoney value={owed} style={styles.heroAmt} />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import BottomSheet from './BottomSheet';
+import SwipeSheet, { SheetTextInput } from './SwipeSheet';
 import { colors, ui as C } from '../theme';
 import { TrackedPerson } from '../utils/peopleStorage';
 
@@ -56,7 +56,8 @@ export default function GroupEditor({
   const canSave = name.trim().length > 0 && selected.size > 0;
 
   return (
-    <BottomSheet visible={draft !== null} onClose={onClose}>
+    <SwipeSheet visible={draft !== null} onClose={onClose} header={
+      <>
       <View style={styles.editorHead}>
         <View style={[styles.bigAvatar, { backgroundColor: C.blue + '22' }]}>
           <SymbolView name="person.2.fill" size={26} tintColor={C.blue} type="hierarchical" />
@@ -65,7 +66,7 @@ export default function GroupEditor({
       </View>
 
       <View style={styles.formCard}>
-        <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="Group name"
+        <SheetTextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="Group name"
           placeholderTextColor={C.faint} autoCapitalize="words" />
       </View>
 
@@ -79,7 +80,7 @@ export default function GroupEditor({
       </TouchableOpacity>
 
       <View style={styles.addMemberRow}>
-        <TextInput style={styles.addMemberInput} value={newName} onChangeText={setNewName}
+        <SheetTextInput style={styles.addMemberInput} value={newName} onChangeText={setNewName}
           placeholder="Or type a name" placeholderTextColor={C.faint}
           autoCapitalize="words" returnKeyType="done" onSubmitEditing={addNew} />
         <TouchableOpacity style={[styles.addMemberBtn, !newName.trim() && { opacity: 0.4 }]} onPress={addNew} disabled={!newName.trim()} activeOpacity={0.8}>
@@ -109,7 +110,8 @@ export default function GroupEditor({
           <Text style={styles.removeText}>Delete Group</Text>
         </TouchableOpacity>
       )}
-    </BottomSheet>
+      </>
+    } />
   );
 }
 

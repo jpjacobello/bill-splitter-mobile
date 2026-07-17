@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { BillHistoryEntry } from '../types';
 import { calcSplit } from '../utils/calcSplit';
@@ -8,11 +7,14 @@ import { formatCurrency } from '../utils/currency';
 import { colors, ui as C, moneyText } from '../theme';
 import Perforation from './Perforation';
 import ReceiptPreviewSheet from './ReceiptPreviewSheet';
+import SwipeSheet, { SheetScrollView } from './SwipeSheet';
 
 const getPersonColor = (i: number) => colors.person[i % colors.person.length];
 
 // Tap a past bill in Activity to open this: per-person breakdown (as a receipt),
 // the original photo (pinch-to-zoom), and share of the digitized receipt.
+// Presents through SwipeSheet (gorhom) so the drag follows your finger 1:1 and
+// scrolling the body couples with the dismiss gesture.
 export default function BillDetailSheet({
   entry, onClose, onRequestDelete,
 }: {
@@ -20,116 +22,131 @@ export default function BillDetailSheet({
   onClose: () => void;
   onRequestDelete: (entry: BillHistoryEntry) => void;
 }) {
-  return (
-    <Modal visible={entry !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      {entry && <Detail entry={entry} onClose={onClose} onDelete={() => onRequestDelete(entry)} />}
-    </Modal>
-  );
-}
-
-function Detail({ entry, onClose, onDelete }: { entry: BillHistoryEntry; onClose: () => void; onDelete: () => void }) {
+  // Retain the entry through the slide-out so the sheet animates down with its
+  // dark content instead of flashing empty when the parent nulls `entry`.
+  const [rendered, setRendered] = useState(entry);
   const [showPhoto, setShowPhoto] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const summary = calcSplit(entry.people, entry.receipt);
-  const dateStr = new Date(entry.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  useEffect(() => {
+    if (entry) setRendered(entry);
+    else { setShowPhoto(false); setShowShare(false); }
+  }, [entry]);
+
+  const e = rendered;
+  const summary = useMemo(() => (e ? calcSplit(e.people, e.receipt) : null), [e]);
+  const dateStr = e
+    ? new Date(e.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : '';
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.iconBtn} activeOpacity={0.7}>
-            <SymbolView name="chevron.down" size={20} tintColor={C.text} />
-          </TouchableOpacity>
-          <Text style={styles.title} numberOfLines={1}>{entry.merchantName || 'Bill Split'}</Text>
-          <View style={styles.headerRight}>
-            <TouchableOpacity onPress={() => setShowShare(true)} style={styles.iconBtn} activeOpacity={0.7}>
-              <SymbolView name="square.and.arrow.up" size={19} tintColor={C.dim} />
-            </TouchableOpacity>
-            {entry.receiptImageUri ? (
-              <TouchableOpacity style={styles.photoThumb} onPress={() => setShowPhoto(true)} activeOpacity={0.8}>
-                <Image source={{ uri: entry.receiptImageUri }} style={styles.photoThumbImg} />
-                <View style={styles.photoThumbOverlay}><SymbolView name="arrow.up.left.and.arrow.down.right" size={9} tintColor="#fff" /></View>
+      <SwipeSheet
+        visible={entry !== null}
+        onClose={onClose}
+        tall
+        background={C.bg}
+        headerStyle={styles.headerWrap}
+        header={
+          e && (
+            <View style={styles.header}>
+              <TouchableOpacity onPress={onClose} style={styles.iconBtn} activeOpacity={0.7}>
+                <SymbolView name="chevron.down" size={20} tintColor={C.text} />
               </TouchableOpacity>
-            ) : (
-              <TouchableOpacity onPress={onDelete} style={styles.iconBtn} activeOpacity={0.7}>
-                <SymbolView name="trash" size={18} tintColor={C.dim} />
+              <Text style={styles.title} numberOfLines={1}>{e.merchantName || 'Bill Split'}</Text>
+              <View style={styles.headerRight}>
+                <TouchableOpacity onPress={() => setShowShare(true)} style={styles.iconBtn} activeOpacity={0.7}>
+                  <SymbolView name="square.and.arrow.up" size={19} tintColor={C.dim} />
+                </TouchableOpacity>
+                {e.receiptImageUri ? (
+                  <TouchableOpacity style={styles.photoThumb} onPress={() => setShowPhoto(true)} activeOpacity={0.8}>
+                    <Image source={{ uri: e.receiptImageUri }} style={styles.photoThumbImg} />
+                    <View style={styles.photoThumbOverlay}><SymbolView name="arrow.up.left.and.arrow.down.right" size={9} tintColor="#fff" /></View>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={() => onRequestDelete(e)} style={styles.iconBtn} activeOpacity={0.7}>
+                    <SymbolView name="trash" size={18} tintColor={C.dim} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )
+        }
+      >
+        {e && summary && (
+          <>
+          <SheetScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            <Text style={styles.date}>{dateStr}</Text>
+
+            <View style={styles.receipt}>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Receipt total</Text>
+                <Text style={[styles.totalValue, moneyText]}>{formatCurrency(e.receipt.total)}</Text>
+              </View>
+
+              <Perforation dots={32} />
+
+              {summary.people.map((b, index) => {
+                const isHost = b.person.isHost;
+                const color = getPersonColor(index);
+                return (
+                  <View key={b.person.id} style={styles.person}>
+                    <View style={styles.personLeft}>
+                      <View style={[styles.dot, { backgroundColor: color }]} />
+                      <View>
+                        <View style={styles.nameRow}>
+                          <Text style={styles.personName}>{b.person.name}</Text>
+                          {isHost && <View style={styles.hostBadge}><Text style={styles.hostBadgeText}>paid</Text></View>}
+                        </View>
+                        <Text style={styles.itemCount}>{b.assignedItems.length} item{b.assignedItems.length !== 1 ? 's' : ''}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.owed, moneyText, { color: isHost ? C.dim : C.text }]}>{formatCurrency(b.totalOwed)}</Text>
+                  </View>
+                );
+              })}
+
+              <Perforation dots={32} />
+
+              <View style={styles.totalRow}>
+                <Text style={styles.calcLabel}>Calculated total</Text>
+                <Text style={[styles.calcValue, moneyText]}>{formatCurrency(summary.calculatedTotal)}</Text>
+              </View>
+            </View>
+
+            {e.receiptImageUri && (
+              <TouchableOpacity style={styles.deleteRow} onPress={() => onRequestDelete(e)} activeOpacity={0.7}>
+                <SymbolView name="trash" size={15} tintColor="#E86A78" />
+                <Text style={styles.deleteText}>Delete bill</Text>
               </TouchableOpacity>
             )}
-          </View>
-        </View>
+          </SheetScrollView>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.date}>{dateStr}</Text>
+          <ReceiptPreviewSheet visible={showShare} receipt={e.receipt} allPeople={summary.people} showPeopleSummary onClose={() => setShowShare(false)} />
 
-          <View style={styles.receipt}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Receipt total</Text>
-              <Text style={[styles.totalValue, moneyText]}>{formatCurrency(entry.receipt.total)}</Text>
-            </View>
-
-            <Perforation dots={32} />
-
-            {summary.people.map((b, index) => {
-              const isHost = b.person.isHost;
-              const color = getPersonColor(index);
-              return (
-                <View key={b.person.id} style={styles.person}>
-                  <View style={styles.personLeft}>
-                    <View style={[styles.dot, { backgroundColor: color }]} />
-                    <View>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.personName}>{b.person.name}</Text>
-                        {isHost && <View style={styles.hostBadge}><Text style={styles.hostBadgeText}>paid</Text></View>}
-                      </View>
-                      <Text style={styles.itemCount}>{b.assignedItems.length} item{b.assignedItems.length !== 1 ? 's' : ''}</Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.owed, moneyText, { color: isHost ? C.dim : C.text }]}>{formatCurrency(b.totalOwed)}</Text>
-                </View>
-              );
-            })}
-
-            <Perforation dots={32} />
-
-            <View style={styles.totalRow}>
-              <Text style={styles.calcLabel}>Calculated total</Text>
-              <Text style={[styles.calcValue, moneyText]}>{formatCurrency(summary.calculatedTotal)}</Text>
-            </View>
-          </View>
-
-          {entry.receiptImageUri && (
-            <TouchableOpacity style={styles.deleteRow} onPress={onDelete} activeOpacity={0.7}>
-              <SymbolView name="trash" size={15} tintColor="#E86A78" />
-              <Text style={styles.deleteText}>Delete bill</Text>
-            </TouchableOpacity>
+          {e.receiptImageUri && (
+            <Modal visible={showPhoto} transparent animationType="fade" onRequestClose={() => setShowPhoto(false)}>
+              <View style={styles.photoModal}>
+                <ScrollView style={StyleSheet.absoluteFill} contentContainerStyle={styles.photoZoom}
+                  minimumZoomScale={1} maximumZoomScale={5} centerContent showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}>
+                  <Image source={{ uri: e.receiptImageUri }} style={styles.photoFull} resizeMode="contain" />
+                </ScrollView>
+                <TouchableOpacity style={styles.photoClose} onPress={() => setShowPhoto(false)}>
+                  <SymbolView name="xmark" size={20} tintColor="#fff" />
+                </TouchableOpacity>
+              </View>
+            </Modal>
           )}
-        </ScrollView>
-
-        <ReceiptPreviewSheet visible={showShare} receipt={entry.receipt} allPeople={summary.people} showPeopleSummary onClose={() => setShowShare(false)} />
-
-        {entry.receiptImageUri && (
-          <Modal visible={showPhoto} transparent animationType="fade" onRequestClose={() => setShowPhoto(false)}>
-            <View style={styles.photoModal}>
-              <ScrollView style={StyleSheet.absoluteFill} contentContainerStyle={styles.photoZoom}
-                minimumZoomScale={1} maximumZoomScale={5} centerContent showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}>
-                <Image source={{ uri: entry.receiptImageUri }} style={styles.photoFull} resizeMode="contain" />
-              </ScrollView>
-              <TouchableOpacity style={styles.photoClose} onPress={() => setShowPhoto(false)}>
-                <SymbolView name="xmark" size={20} tintColor="#fff" />
-              </TouchableOpacity>
-            </View>
-          </Modal>
+          </>
         )}
-      </SafeAreaView>
-    </View>
+      </SwipeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
+  headerWrap: { paddingHorizontal: 0 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12,
+    paddingHorizontal: 12, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: C.line,
   },
   iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
