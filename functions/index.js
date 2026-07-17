@@ -17,12 +17,13 @@ const { defineSecret } = require('firebase-functions/params');
 const APNS_KEY = defineSecret('APNS_KEY');
 
 // Non-secret identifiers (safe to commit).
-const APNS_KEY_ID = 'Y6258YQJ6K';
+const APNS_KEY_ID = 'TX7TLW95KP'; // Production APNs key (Divi APN Prod)
 const APNS_TEAM_ID = '569MN7R95U';
 const BUNDLE_ID = 'com.jpjacobello.divi';
-// Dev builds use aps-environment=development → the SANDBOX APNs host. Switch to
-// 'https://api.push.apple.com' (and a Production key) when shipping to the App Store.
-const APNS_HOST = 'https://api.sandbox.push.apple.com';
+// PRODUCTION host — matches aps-environment=production (TestFlight / App Store).
+// For local dev/sandbox builds, switch back to 'https://api.sandbox.push.apple.com'
+// (+ the sandbox key + aps-environment=development).
+const APNS_HOST = 'https://api.push.apple.com';
 
 // ── APNs auth JWT (cached ~50 min; Apple allows reuse up to 60) ───────────────
 let cachedJwt = null;
