@@ -101,11 +101,28 @@ export default function SwipeSheet({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const requestClose = () => onCloseRef.current();
-  const finishClose = () => { setMounted(false); onClosed?.(); };
+  // Guard: if the sheet was reopened before this close animation finished, don't
+  // unmount it out from under the reopen (that stranded an invisible, touch-eating
+  // Modal on screen → app freeze).
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const finishClose = () => { if (!visibleRef.current) { setMounted(false); onClosed?.(); } };
+
+  const animateIn = () => {
+    scrollY.value = 0;
+    kbY.value = 0;
+    dragging.value = false;
+    transY.value = sheetH.value;
+    transY.value = withSpring(0, SPRING);
+  };
 
   useEffect(() => {
     if (visible) {
       setMounted(true);
+      // Animate in here too (not only on the mount transition), so reopening
+      // while a prior close is still animating re-presents instead of leaving
+      // the sheet stuck off-screen but mounted.
+      animateIn();
     } else if (mounted) {
       transY.value = withTiming(sheetH.value, { duration: 220, easing: Easing.in(Easing.cubic) }, (fin) => {
         if (fin) runOnJS(finishClose)();
@@ -114,13 +131,7 @@ export default function SwipeSheet({
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (mounted) {
-      scrollY.value = 0;
-      kbY.value = 0;
-      dragging.value = false;
-      transY.value = sheetH.value;
-      transY.value = withSpring(0, SPRING);
-    }
+    if (mounted) animateIn();
   }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track the keyboard on its own curve so sheets with inputs lift above it.

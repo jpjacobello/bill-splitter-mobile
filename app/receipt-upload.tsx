@@ -213,8 +213,19 @@ export default function ReceiptUploadScreen() {
       // startNewBill first). Reset + seed the host so a warm start doesn't carry
       // the previous roster and a cold start isn't left with no host at all.
       await startNewBill();
-      const picked = await pickImage(source === 'camera');
-      if (!picked && router.canGoBack()) router.back();
+      let picked = false;
+      try {
+        picked = await pickImage(source === 'camera');
+      } catch {
+        picked = false; // some scanner cancels reject instead of resolving empty
+      }
+      // Cancelled before picking anything: get out of this now-dead screen. A
+      // widget COLD-start has no back stack (canGoBack === false), so it was
+      // stranding the user on a spinner — fall back to Home in that case.
+      if (!picked) {
+        if (router.canGoBack()) router.back();
+        else router.replace('/');
+      }
     });
     return () => task.cancel();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

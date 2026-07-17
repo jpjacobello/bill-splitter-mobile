@@ -221,7 +221,7 @@ export default function ActivityScreen() {
         <BillDetailSheet
           entry={detailEntry}
           onClose={() => setDetailEntry(null)}
-          onRequestDelete={(e) => { setDetailEntry(null); setDeleteEntry(e); }}
+          onRequestDelete={(e) => setDeleteEntry(e)}
         />
         <ActionSheet
           visible={deleteEntry !== null}
@@ -238,6 +238,9 @@ export default function ActivityScreen() {
               queueRef.current = queueRef.current.catch(() => {}).then(async () => {
                 await deleteBillFromHistory(id);
                 setHistory(await getBillHistory());
+                // Close the detail sheet only now — AFTER the confirm sheet has
+                // dismissed itself — so two Modals never transition at once.
+                setDetailEntry(null);
               });
               await queueRef.current;
             },
