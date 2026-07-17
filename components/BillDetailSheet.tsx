@@ -59,14 +59,10 @@ export default function BillDetailSheet({
                 <TouchableOpacity onPress={() => setShowShare(true)} style={styles.iconBtn} activeOpacity={0.7}>
                   <SymbolView name="square.and.arrow.up" size={19} tintColor={C.dim} />
                 </TouchableOpacity>
-                {e.receiptImageUri ? (
+                {e.receiptImageUri && (
                   <TouchableOpacity style={styles.photoThumb} onPress={() => setShowPhoto(true)} activeOpacity={0.8}>
                     <Image source={{ uri: e.receiptImageUri }} style={styles.photoThumbImg} />
                     <View style={styles.photoThumbOverlay}><SymbolView name="arrow.up.left.and.arrow.down.right" size={9} tintColor="#fff" /></View>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity onPress={() => onRequestDelete(e)} style={styles.iconBtn} activeOpacity={0.7}>
-                    <SymbolView name="trash" size={18} tintColor={C.dim} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -115,12 +111,10 @@ export default function BillDetailSheet({
               </View>
             </View>
 
-            {e.receiptImageUri && (
-              <TouchableOpacity style={styles.deleteRow} onPress={() => onRequestDelete(e)} activeOpacity={0.7}>
-                <SymbolView name="trash" size={15} tintColor="#E86A78" />
-                <Text style={styles.deleteText}>Delete bill</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity style={styles.deleteRow} onPress={() => onRequestDelete(e)} activeOpacity={0.7}>
+              <SymbolView name="trash" size={15} tintColor="#E86A78" />
+              <Text style={styles.deleteText}>Delete bill</Text>
+            </TouchableOpacity>
           </SheetScrollView>
 
           <ReceiptPreviewSheet visible={showShare} receipt={e.receipt} allPeople={summary.people} showPeopleSummary onClose={() => setShowShare(false)} />
